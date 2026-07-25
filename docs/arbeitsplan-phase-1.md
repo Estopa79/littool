@@ -52,12 +52,14 @@ Jedes Paket ist eine Claude-Code-Sitzung. Erledigte Pakete abhaken und ggf. mit 
 
 **Notizen:** CLI zu Subcommands umgebaut (`littool-worker status`, `littool-worker extract-doi`). Job holt alle `sources` mit `status=processing` und `doi is null`, lädt PDF aus dem `pdfs`-Bucket (service_role, umgeht RLS bewusst – Worker läuft nicht im Nutzerkontext), sucht DOI zuerst im PDF-Info-Dict, dann per Regex auf den ersten 3 Seiten. Fund → `doi` gesetzt, Status bleibt `processing` (wartet auf Paket 5). Kein Fund → `needs_review` + `status_hint`. Laufzeitfehler pro Datei (Download/Parsing) → `failed` + `status_hint`, Job bricht nicht ab. SSL-Problem auf diesem Rechner entdeckt: Python/httpx fand den lokalen Zertifikatsaussteller nicht (`CERTIFICATE_VERIFY_FAILED`) – behoben mit `pip-system-certs` (nutzt den Windows-Zertifikatsspeicher), jetzt feste Worker-Dependency. Test mit 10 echten PDFs aus dem Bestand (nicht synthetisch): 6 DOIs korrekt gefunden (Elsevier/Springer/Wiley/CAIS-Präfixe plausibel), 4 sauber als `needs_review` markiert, 0 Fehler. Testquellen bewusst nicht gelöscht – sind echte Bestandsdaten und bleiben als Start der echten Bibliothek stehen (Entscheidung im Chat).
 
-## Paket 5 – Metadaten-Anreicherung ☐
+## Paket 5 – Metadaten-Anreicherung ☑
 
 - Crossref-Abfrage per DOI: Autoren, Titel, Venue, Jahr, Band, Heft, Seiten, ISSN.
 - OpenAlex als Ergänzung: Abstract, Zitationszahl; Fallback-Titel-Suche, wenn Crossref leer.
 - Ergebnis an der Quelle speichern; unvollständige Fälle → `needs_review`.
 - **Fertig, wenn:** Eine Quelle durchläuft Upload → DOI → Metadaten vollautomatisch bis Status `complete`.
+
+**Notizen:** CLI-Subcommand `enrich-metadata`. Primärpfad: `status=processing` + `doi` gesetzt → Crossref (Autoren/Titel/Venue/Jahr/Band/Heft/Seiten/ISSN/Typ) + OpenAlex per DOI (Abstract, Zitationszahl, füllt Venue/ISSN-Lücken). Fallback-Pfad: `status=needs_review` + Hinweis „keine DOI gefunden" → OpenAlex-Titelsuche mit dem Datei­namen-Titel. Vollständig (Titel+Autoren+Jahr+Venue) → `complete`; sonst `needs_review` mit Hinweis, welche Felder fehlen. Bug gefunden und gefixt: die OpenAlex-Titelsuche ist Volltextsuche, kein exaktes Matching – bei "Business-IT-Alignment 2017" landete zunächst eine völlig fremde Publikation (Sjödin et al. 2019) als "complete" an der falschen Quelle, klarer Verstoß gegen das Belegbarkeits-Prinzip. Fix: `difflib.SequenceMatcher`-Ähnlichkeitsprüfung (Schwelle 0.5) zwischen Ausgangstitel und Trefferkandidat, darunter bleibt die Quelle ehrlich `needs_review` statt falsch zugeordnet zu werden; betroffener Datensatz manuell zurückkorrigiert. Test mit den 13 echten Quellen aus Paket 2/4: 9 automatisch auf `complete` (u. a. per Titelsuche wiedergefunden: Wagner 2014 inkl. nachträglich ermittelter DOI), 4 sauber `needs_review` (3 ohne Treffer, 1 wegen zu unsicherer Titelsuche – "manuell prüfen").
 
 ## Paket 6 – Ranking-Matching ☐
 
