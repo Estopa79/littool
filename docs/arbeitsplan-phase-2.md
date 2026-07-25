@@ -32,12 +32,14 @@ Kein kritischer Fund, alles erwartbares Ergebnis der Automatik – echte Redakti
 
 *Scan-Anteil:* 151 von 155 Quellen haben ein PDF hinterlegt. Davon 1 PDF komplett ohne Textebene (echter Scan), 9 mit einzelnen textlosen Seiten (Deckblätter/Abbildungen), Rest sauber textextrahierbar. OCR-Fallback in Paket 2 ist damit ein Sicherheitsnetz für Einzelfälle, keine Kernanforderung.
 
-## Paket 1 – Schema: Chunks & Suchinfrastruktur ☐
+## Paket 1 – Schema: Chunks & Suchinfrastruktur ☑
 
 - Migration: pgvector-Extension aktivieren; Tabelle `chunks` (source_id, page, chunk_index, text, embedding vector, tsvector-Spalte).
 - FTS-Konfiguration für gemischtsprachigen Bestand (deutsch + englisch): tsvector aus beiden Konfigurationen kombinieren oder `simple` + unaccent – Claude Code soll beide Varianten kurz begründen und eine wählen.
 - Indexe: GIN auf tsvector, HNSW auf embedding.
 - **Fertig, wenn:** Migration läuft, Test-Chunks per SQL such- und vektorabfragbar.
+
+**Notizen:** Embedding-Anbieter-Entscheidung (eigentlich erst „vor Paket 4" geplant) musste vorgezogen werden, weil die `embedding vector(N)`-Spalte schon jetzt eine feste Dimension braucht – Entscheidung im Chat: **Voyage AI voyage-3.5, 1024 Dimensionen** (bessere Qualität bei gemischt DE/EN-Fachtext, Kosten bei diesem Bestand vernachlässigbar). FTS-Entscheidung (an Claude Code delegiert): kombiniertes `to_tsvector('german', text) || to_tsvector('english', text)` statt `simple`+unaccent, weil Chunks nicht einzeln nach Sprache getaggt sind und Stemming in beiden Sprachen für den Recall wichtiger ist als die etwas größere Indexgröße. `chunks`-Tabelle mit RLS + Policy + GRANT (Lehre aus Paket-2-Bug in Phase 1 gleich mitgemacht), Unique-Index auf `(source_id, chunk_index)`. Getestet mit 3 echten Text-Chunks (Englisch, Deutsch, thematisch unpassend) und echten 1024-dim-Vektoren: Volltextsuche findet Stamm-Varianten in beiden Sprachen (`capability`→„capabilities", `strategie`→„Geschaeftsstrategie"), Vektorsuche liefert korrekte Distanz-Reihenfolge (0 → 0.18 → 25.27). Test-Chunks danach gelöscht.
 
 ## Paket 2 – Volltextextraktion (Worker) ☐
 
