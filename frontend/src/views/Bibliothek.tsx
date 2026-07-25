@@ -1,77 +1,228 @@
-import { useState } from 'react'
-import { UploadDropzone } from '../components/UploadDropzone'
-import { uploadSource } from '../lib/uploadSource'
+import { useEffect, useMemo, useState } from 'react'
+import { UploadPanel } from '../components/UploadPanel'
+import { fetchSources, type Source } from '../lib/sources'
+import { formatAuthorYear, formatRanking, STATUS_ICON, STATUS_LABEL, TYPE_LABEL } from '../lib/sourceFormat'
 
-type UploadStatus = 'wartet' | 'lädt hoch' | 'fertig' | 'fehler'
+type SortOption = 'year_desc' | 'year_asc' | 'title_asc'
 
-type UploadItem = {
-  key: string
-  name: string
-  status: UploadStatus
-  error?: string
-}
+const TYPE_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: '', label: 'Alle Typen' },
+  { value: 'journal', label: 'Journal' },
+  { value: 'konferenz', label: 'Konferenz' },
+  { value: 'buch', label: 'Buch' },
+  { value: 'grau', label: 'Graue Literatur' },
+]
+
+const RANKING_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: '', label: 'Alle Rankings' },
+  { value: 'VHB', label: 'VHB' },
+  { value: 'SJR', label: 'SJR' },
+  { value: 'CORE', label: 'CORE' },
+  { value: 'kein Ranking', label: 'Kein Ranking' },
+]
+
+const STATUS_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: '', label: 'Alle Status' },
+  { value: 'processing', label: STATUS_LABEL.processing },
+  { value: 'needs_review', label: STATUS_LABEL.needs_review },
+  { value: 'complete', label: STATUS_LABEL.complete },
+  { value: 'failed', label: STATUS_LABEL.failed },
+]
 
 export function Bibliothek() {
-  const [items, setItems] = useState<UploadItem[]>([])
+  const [sources, setSources] = useState<Source[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  function handleFiles(files: File[]) {
-    const batch = files.map((file) => {
-      const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
-      const item: UploadItem = {
-        key: crypto.randomUUID(),
-        name: file.name,
-        status: isPdf ? 'wartet' : 'fehler',
-        error: isPdf ? undefined : 'Keine PDF-Datei',
-      }
-      return { item, file, isPdf }
-    })
+  const [search, setSearch] = useState('')
+  const [filterType, setFilterType] = useState('')
+  const [filterRanking, setFilterRanking] = useState('')
+  const [filterStatus, setFilterStatus] = useState('')
+  const [sortBy, setSortBy] = useState<SortOption>('year_desc')
 
-    setItems((prev) => [...prev, ...batch.map((b) => b.item)])
-
-    for (const { item, file, isPdf } of batch) {
-      if (!isPdf) continue
-
-      setItems((prev) => prev.map((i) => (i.key === item.key ? { ...i, status: 'lädt hoch' } : i)))
-
-      uploadSource(file).then((result) => {
-        setItems((prev) =>
-          prev.map((i) =>
-            i.key === item.key
-              ? result.ok
-                ? { ...i, status: 'fertig' }
-                : { ...i, status: 'fehler', error: result.error }
-              : i,
-          ),
-        )
+  function load() {
+    setLoading(true)
+    fetchSources()
+      .then((data) => {
+        setSources(data)
+        setError(null)
       })
-    }
+      .catch((err: Error) => setError(err.message))
+      .finally(() => setLoading(false))
   }
 
+  useEffect(() => {
+    load()
+  }, [])
+
+  const needsReviewCount = useMemo(
+    () => sources.filter((s) => s.status === 'needs_review').length,
+    [sources],
+  )
+
+  const visible = useMemo(() => {
+    let result = sources
+
+    if (filterType) result = result.filter((s) => s.type === filterType)
+    if (filterStatus) result = result.filter((s) => s.status === filterStatus)
+    if (filterRanking === 'kein Ranking') {
+      result = result.filter((s) => !s.ranking_system)
+    } else if (filterRanking) {
+      result = result.filter((s) => s.ranking_system === filterRanking)
+    }
+    if (search.trim()) {
+      const q = search.trim().toLowerCase()
+      result = result.filter((s) => s.title.toLowerCase().includes(q))
+    }
+
+    result = [...result].sort((a, b) => {
+      if (sortBy === 'title_asc') return a.title.localeCompare(b.title)
+      const ay = a.year ?? 0
+      const by = b.year ?? 0
+      return sortBy === 'year_asc' ? ay - by : by - ay
+    })
+
+    return result
+  }, [sources, filterType, filterStatus, filterRanking, search, sortBy])
+
   return (
-    <div className="mx-auto max-w-2xl p-4 sm:p-6">
+    <div className="p-4 sm:p-6">
       <h1 className="mb-4 text-xl font-semibold text-slate-800 dark:text-slate-100">Bibliothek</h1>
 
-      <UploadDropzone onFiles={handleFiles} />
+      <UploadPanel onUploaded={load} />
 
-      {items.length > 0 && (
-        <ul className="mt-6 divide-y divide-slate-200 rounded-md border border-slate-200 dark:divide-slate-800 dark:border-slate-800">
-          {items.map((item) => (
-            <li key={item.key} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
-              <span className="truncate text-slate-700 dark:text-slate-300">{item.name}</span>
-              <span
-                className={
-                  item.status === 'fertig'
-                    ? 'shrink-0 text-green-600 dark:text-green-400'
-                    : item.status === 'fehler'
-                      ? 'shrink-0 text-red-600 dark:text-red-400'
-                      : 'shrink-0 text-slate-400'
-                }
-              >
-                {item.status === 'fehler' ? item.error : item.status}
-              </span>
-            </li>
+      {needsReviewCount > 0 && (
+        <button
+          type="button"
+          onClick={() => setFilterStatus('needs_review')}
+          className="mb-4 rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300 dark:hover:bg-amber-900"
+        >
+          ⚠️ {needsReviewCount} zu prüfen
+        </button>
+      )}
+
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <input
+          type="search"
+          placeholder="Suche im Titel …"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full max-w-xs rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+        />
+        <select
+          value={filterType}
+          onChange={(e) => setFilterType(e.target.value)}
+          className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+        >
+          {TYPE_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
           ))}
-        </ul>
+        </select>
+        <select
+          value={filterRanking}
+          onChange={(e) => setFilterRanking(e.target.value)}
+          className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+        >
+          {RANKING_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        <select
+          value={filterStatus}
+          onChange={(e) => setFilterStatus(e.target.value)}
+          className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+        >
+          {STATUS_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value as SortOption)}
+          className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+        >
+          <option value="year_desc">Jahr (neu → alt)</option>
+          <option value="year_asc">Jahr (alt → neu)</option>
+          <option value="title_asc">Titel (A–Z)</option>
+        </select>
+      </div>
+
+      {loading && <p className="text-sm text-slate-400">Lädt …</p>}
+      {error && <p className="text-sm text-red-600 dark:text-red-400">Fehler: {error}</p>}
+
+      {!loading && !error && visible.length === 0 && (
+        <p className="text-sm text-slate-400">Keine Quellen gefunden.</p>
+      )}
+
+      {!loading && !error && visible.length > 0 && (
+        <>
+          {/* Desktop: Tabelle */}
+          <table className="hidden w-full table-auto border-collapse text-sm md:table">
+            <thead>
+              <tr className="border-b border-slate-200 text-left text-slate-500 dark:border-slate-800 dark:text-slate-400">
+                <th className="py-2 pr-3 font-medium">Autor/Jahr</th>
+                <th className="py-2 pr-3 font-medium">Titel</th>
+                <th className="py-2 pr-3 font-medium">Venue</th>
+                <th className="py-2 pr-3 font-medium">Ranking</th>
+                <th className="py-2 pr-3 font-medium">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visible.map((s) => (
+                <tr
+                  key={s.id}
+                  className="border-b border-slate-100 dark:border-slate-900"
+                  title={s.status === 'needs_review' ? (s.status_hint ?? undefined) : undefined}
+                >
+                  <td className="whitespace-nowrap py-2 pr-3 text-slate-700 dark:text-slate-300">
+                    {formatAuthorYear(s)}
+                  </td>
+                  <td className="max-w-md truncate py-2 pr-3 text-slate-800 dark:text-slate-100">{s.title}</td>
+                  <td className="max-w-xs truncate py-2 pr-3 text-slate-600 dark:text-slate-400">
+                    {s.venue ?? '–'}
+                  </td>
+                  <td className="whitespace-nowrap py-2 pr-3 text-slate-600 dark:text-slate-400">
+                    {formatRanking(s)}
+                  </td>
+                  <td className="whitespace-nowrap py-2 pr-3">
+                    {STATUS_ICON[s.status]} {STATUS_LABEL[s.status]}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {/* Mobil: Karten */}
+          <ul className="flex flex-col gap-3 md:hidden">
+            {visible.map((s) => (
+              <li
+                key={s.id}
+                className="rounded-lg border border-slate-200 p-3 dark:border-slate-800"
+                title={s.status === 'needs_review' ? (s.status_hint ?? undefined) : undefined}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-sm font-medium text-slate-800 dark:text-slate-100">
+                    {formatAuthorYear(s)}
+                  </span>
+                  <span className="shrink-0 text-sm">
+                    {STATUS_ICON[s.status]} {STATUS_LABEL[s.status]}
+                  </span>
+                </div>
+                <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">{s.title}</p>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  {s.venue ?? '–'} · {formatRanking(s)}
+                  {s.type ? ` · ${TYPE_LABEL[s.type] ?? s.type}` : ''}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
     </div>
   )
