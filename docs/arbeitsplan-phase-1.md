@@ -34,12 +34,14 @@ Jedes Paket ist eine Claude-Code-Sitzung. Erledigte Pakete abhaken und ggf. mit 
 
 **Notizen:** Methodenprofil-Felder (studientyp, methode, sample, auswertung) aus Konzept v0.4 bewusst nicht mit angelegt – kommen erst mit Modul 3/Phase 3 in eigener Migration (Entscheidung im Chat). `authors` als jsonb-Array ({family, given}) statt Freitext, damit spätere APA-Zitation/Sortierung nach Erstautor nicht neu geparst werden muss. Ranking null+null = "kein Ranking gefunden" (bzw. UI zeigt bei type=grau "nicht anwendbar"), kein eigenes Sentinel-Feld. Bug in 0001 gefunden: `alter default privileges ... revoke` allein reicht nicht, RLS-Policy ersetzt kein `GRANT` – fehlendes `GRANT ... TO authenticated` musste in 0005 nachgezogen werden. **Für künftige Tabellen-Migrationen: immer `ENABLE ROW LEVEL SECURITY` + `CREATE POLICY` + `GRANT ... TO authenticated` zusammen in einer Migration.** Drei Testquellen (Teece 2007 complete, Wagner 2014 needs_review, BaFin 2023 grau) angelegt und per REST-API verifiziert: anonym 401, eingeloggt 3 Zeilen.
 
-## Paket 3 – PDF-Upload ☐
+## Paket 3 – PDF-Upload ☑
 
 - Upload-UI in der Bibliothek: Einzel- und Stapel-Upload (Drag & Drop + Dateiauswahl, mobil: Dateiauswahl).
 - Dateien landen im Bucket, je Datei ein `sources`-Eintrag mit Status `processing`.
 - Fortschrittsanzeige je Datei; Fehler sichtbar.
 - **Fertig, wenn:** 5 PDFs gleichzeitig hochladbar, Einträge erscheinen in der DB.
+
+**Notizen:** `sources.type` per Migration 0006 nullable gemacht (Typ ist beim Upload noch unbekannt, kommt erst über Crossref in Paket 5 bzw. den Grau-Dialog in Paket 9). Ablauf pro Datei: erst `sources`-Insert (status=processing, title=Dateiname ohne Endung), dann Upload nach `pdfs/{source_id}/{dateiname}`, dann `storage_path` zurückschreiben; schlägt der Upload fehl, Status → `failed` mit `status_hint`. Nicht-PDF-Dateien werden clientseitig abgewiesen und als Fehler in der Liste angezeigt, ohne DB-Eintrag. Test mit 5 simulierten PDFs + 1 Nicht-PDF im Browser: alle 5 landeten korrekt in Storage + DB (Status processing), Fehlerfall sichtbar; Testdaten danach wieder gelöscht. Bibliothekstabelle/-filter selbst kommen erst in Paket 7 – aktuell nur die Upload-Queue-Ansicht.
 
 ## Paket 4 – DOI-Extraktion (Worker) ☐
 
