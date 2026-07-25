@@ -16,12 +16,14 @@ Jedes Paket ist eine Claude-Code-Sitzung. Erledigte Pakete abhaken und ggf. mit 
 
 **Notizen:** Supabase-Cloud-Projekt (`wnbbisrchufrgvgdhicu`) verlinkt und per REST-API + Worker-CLI verifiziert; `supabase link` (CLI) steht noch aus, braucht interaktiven `supabase login` – nachholen, sobald die erste Migration (Paket 2) ansteht. Lokaler Supabase-Stack via Docker nicht verfügbar/nicht genutzt, stattdessen direkt gegen das Cloud-Projekt entwickelt.
 
-## Paket 1 – Auth & Absicherung ☐
+## Paket 1 – Auth & Absicherung ☑
 
 - Supabase Auth: ein einzelner Benutzer (E-Mail + Passwort), Login-Seite, Session-Handling.
 - RLS-Grundgerüst: alle künftigen Tabellen nur für authentifizierte Rolle lesbar/schreibbar.
 - Privater Storage-Bucket `pdfs` mit Zugriffsregeln.
 - **Fertig, wenn:** Ohne Login ist nichts erreichbar; nach Login sieht man die leere App.
+
+**Notizen:** Migrationen (`0001_rls_grundgeruest.sql`, `0002_storage_pdfs_bucket.sql`) manuell im Supabase SQL-Editor angewendet (DB-Zugriff für CLI/`db push` weiterhin nicht eingerichtet – Entscheidung: SQL-Migrationen künftig manuell im Dashboard ausführen, siehe README). Single-User (`beltran.ollero@googlemail.com`) per Admin-API angelegt, Passwort im Chat mitgeteilt. Selbstregistrierung im Dashboard deaktiviert. RLS-Wirkung am `pdfs`-Bucket verifiziert: anonym → 403, eingeloggt → Upload/Liste/Löschen erfolgreich. Login/Logout/Session-Persistenz im Browser getestet (Desktop).
 
 ## Paket 2 – Schema: Quellen ☐
 
