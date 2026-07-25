@@ -25,12 +25,14 @@ Jedes Paket ist eine Claude-Code-Sitzung. Erledigte Pakete abhaken und ggf. mit 
 
 **Notizen:** Migrationen (`0001_rls_grundgeruest.sql`, `0002_storage_pdfs_bucket.sql`) manuell im Supabase SQL-Editor angewendet (DB-Zugriff für CLI/`db push` weiterhin nicht eingerichtet – Entscheidung: SQL-Migrationen künftig manuell im Dashboard ausführen, siehe README). Single-User (`beltran.ollero@googlemail.com`) per Admin-API angelegt, Passwort im Chat mitgeteilt. Selbstregistrierung im Dashboard deaktiviert. RLS-Wirkung am `pdfs`-Bucket verifiziert: anonym → 403, eingeloggt → Upload/Liste/Löschen erfolgreich. Login/Logout/Session-Persistenz im Browser getestet (Desktop).
 
-## Paket 2 – Schema: Quellen ☐
+## Paket 2 – Schema: Quellen ☑
 
 - Migration: Tabelle `sources` (Felder gemäß Konzept Abschnitt 5, inkl. `type`, `ranking_system`, `ranking_value`, `status`).
 - Statuswerte definieren: `processing`, `needs_review`, `complete`, `failed`.
 - Seed mit 2–3 Testquellen.
 - **Fertig, wenn:** Migration läuft durch, Testquellen per SQL abfragbar, RLS greift.
+
+**Notizen:** Methodenprofil-Felder (studientyp, methode, sample, auswertung) aus Konzept v0.4 bewusst nicht mit angelegt – kommen erst mit Modul 3/Phase 3 in eigener Migration (Entscheidung im Chat). `authors` als jsonb-Array ({family, given}) statt Freitext, damit spätere APA-Zitation/Sortierung nach Erstautor nicht neu geparst werden muss. Ranking null+null = "kein Ranking gefunden" (bzw. UI zeigt bei type=grau "nicht anwendbar"), kein eigenes Sentinel-Feld. Bug in 0001 gefunden: `alter default privileges ... revoke` allein reicht nicht, RLS-Policy ersetzt kein `GRANT` – fehlendes `GRANT ... TO authenticated` musste in 0005 nachgezogen werden. **Für künftige Tabellen-Migrationen: immer `ENABLE ROW LEVEL SECURITY` + `CREATE POLICY` + `GRANT ... TO authenticated` zusammen in einer Migration.** Drei Testquellen (Teece 2007 complete, Wagner 2014 needs_review, BaFin 2023 grau) angelegt und per REST-API verifiziert: anonym 401, eingeloggt 3 Zeilen.
 
 ## Paket 3 – PDF-Upload ☐
 
