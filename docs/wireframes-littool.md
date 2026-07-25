@@ -78,7 +78,8 @@ Navigation: feste Seitenleiste links (einklappbar) mit den sechs Ansichten. Oben
 ```
 
 - Status: ✔ vollständig · ⚠ Metadaten unvollständig · ⏳ in Verarbeitung.
-- Zeile anklicken → **Quellen-Detailseite**: Metadaten (editierbar), Abstract, Ranking mit Herkunft, Themen-Chips, Relevanz je FF, alle Passagen, eingebetteter PDF-Viewer.
+- Zeile anklicken → **Quellen-Detailseite**: Metadaten (editierbar), Abstract, Ranking mit Herkunft, **Methodenprofil (Studientyp, Methode, Sample, Auswertung – KI-extrahiert, bestätigbar)**, Themen-Chips, Relevanz je FF, alle Passagen, eingebetteter PDF-Viewer.
+- Filterleiste zusätzlich mit **[Studientyp ▼]** (qualitativ/quantitativ/mixed/konzeptionell/Review).
 - Stapel-Upload zeigt Fortschritt je Datei (DOI gefunden? Metadaten? Ranking?); unklare Fälle sammeln sich in einer „Prüfen"-Liste.
 
 **Entschieden:** Einfacher Viewer – anzeigen + Fundstellen-Sprung, kein Markieren/Kommentieren im PDF.
@@ -105,7 +106,7 @@ Navigation: feste Seitenleiste links (einklappbar) mit den sechs Ansichten. Oben
 ```
 
 - Links FF-Liste mit Passagen-Zähler; unten Umschalter zur **Matrix** (Quellen × FF, Zellen = Relevanz, Klick öffnet Passagen).
-- Karte: Relevanz-Sterne, Original einklappbar/DE-Übersetzung, Zitation kopieren, Häkchen, PDF-Sprung, 💬 = Passage in Schreibwerkstatt-Diskussion ziehen.
+- Karte: Relevanz-Sterne, Original einklappbar/DE-Übersetzung, Zitation kopieren, Häkchen, PDF-Sprung, 💬 = Passage in Schreibwerkstatt-Diskussion ziehen, **¶ = Paraphrase erzeugen** (sinngemäßes Zitat mit Zitation, erscheint als prüfbarer Vorschlag unter dem Original, Übernahme per Klick; wird im KI-Verzeichnis protokolliert).
 - QS-Leiste oben: „12 unbestätigte KI-Zuordnungen prüfen" → Karte für Karte bestätigen/korrigieren.
 
 **Entschieden:** Relevanz als Sterne (1–3) – ehrlicher für eine KI-Schätzung als Prozentwerte.

@@ -1,6 +1,6 @@
 # Konzept: Persönliches Literatur- und Recherche-Tool („LitTool")
 
-**Version 0.3 · Juli 2026 · Grundlage für die Umsetzung mit Claude Code**
+**Version 0.4 · Juli 2026 · Grundlage für die Umsetzung mit Claude Code**
 
 ---
 
@@ -65,6 +65,8 @@ Stack analog Valmora-Chroniken:
 - Konfiguration: Thema + Forschungsfragen (FF1…FFn) + Themenfelder.
 - **Automatische Einordnung:** Claude ordnet jede Quelle Themenfeldern zu (Mehrfachzuordnung/Schnittmengen erwünscht) und bewertet die Relevanz pro Forschungsfrage.
 - **Passagen-Extraktion:** Pro Forschungsfrage eine Übersicht aller einzahlenden Passagen – Original, deutsche Übersetzung, Kurzzitation, Deep-Link ins PDF.
+- **Paraphrase auf Knopfdruck:** Markierten Originaltext (Passage oder freie Auswahl im Text) per Klick paraphrasieren lassen – Ergebnis ist ein sinngemäßes Zitat mit korrekter Zitation (Autor, Jahr, S. x), als prüfbarer Vorschlag neben dem Original. Übernahme nur nach Prüfung; jede Paraphrase landet im KI-Verzeichnis.
+- **Methodenprofil je Quelle:** Claude extrahiert automatisch das Studiendesign – Studientyp (qualitativ / quantitativ / mixed / konzeptionell / Literaturreview), Methode (z. B. Fallstudie, Survey, PLS-SEM, Interviews), Datengrundlage/Sample, Auswertungsverfahren. Angezeigt in Bibliothek und Quellen-Detail, filterbar, bestätigbar im QS-Workflow; Grundlage für Methodentabellen (Deskriptionsmatrix).
 - Matrix-Ansicht: Quellen × Forschungsfragen (Vorstufe zu Deskriptions-/Stringenzmatrix).
 - QS-Workflow: KI-Zuordnungen bestätigen/korrigieren.
 
@@ -88,19 +90,19 @@ Stack analog Valmora-Chroniken:
 ### Modul 6 – Spätere Erweiterungen
 
 - Quellentyp „Eigene Notizen": einmaliger Confluence-Export-Import (keine Live-Anbindung). Miro wird nicht angebunden; Bilder/Modelle bei Bedarf manuell übernehmen.
-- BibTeX-Export, automatische Tabellen (z. B. Quellen nach Ranking) und Grafiken.
+- BibTeX-Export, automatische Tabellen (z. B. Quellen nach Ranking, **Methodenübersicht/Deskriptionsmatrix aus den Methodenprofilen**) und Grafiken.
 - Externe Datenbank-Suche (z. B. OpenAlex) direkt aus dem Tool.
 
 ## 5. Datenmodell (Kern-Entitäten)
 
 | Entität | Wichtigste Felder |
 |---|---|
-| **Source** | id, doi (optional), typ (journal/konferenz/buch/grau), titel, autoren, jahr, venue, ranking_system, ranking_wert, seiten, abstract, storage_pfad, status |
+| **Source** | id, doi (optional), typ (journal/konferenz/buch/grau), titel, autoren, jahr, venue, ranking_system, ranking_wert, seiten, abstract, storage_pfad, status, **studientyp, methode, sample, auswertung, methoden_bestätigt** |
 | **Chunk** | id, source_id, seite, text, embedding |
 | **ResearchQuestion** | id, kürzel (FF1…), text |
 | **Topic** | id, name, beschreibung |
 | **SourceTopic** | source_id, topic_id (n:m → Schnittmengen) |
-| **Passage** | id, source_id, seite, original, übersetzung, rq_id, relevanz, zitation, bestätigt |
+| **Passage** | id, source_id, seite, original, übersetzung, **paraphrase**, rq_id, relevanz, zitation, bestätigt |
 | **Document** | id, typ (ISP/Exposé/Dissertation), titel, status |
 | **Section** | id, document_id, eltern_id, nummer, titel, rq_ids, topic_ids |
 | **Draft** | id, section_id, version, text, passage_ids, erstellt_von (Agent/Autor), status |
