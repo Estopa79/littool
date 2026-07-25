@@ -5,6 +5,7 @@ from .doi import run_doi_extraction
 from .duplicates import run_duplicate_detection
 from .enrich import run_metadata_enrichment
 from .env import require_env
+from .fulltext import run_fulltext_extraction
 from .ranking import run_ranking_match
 from .supabase_client import get_client, load_config
 
@@ -62,6 +63,16 @@ def cmd_detect_duplicates(_args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_extract_fulltext(args: argparse.Namespace) -> int:
+    client = get_client()
+    stats = run_fulltext_extraction(client, limit=args.limit)
+    print(
+        f"Volltextextraktion abgeschlossen: {stats['extracted']} extracted, "
+        f"{stats['ocr_done']} ocr_done, {stats['fehler']} Fehler."
+    )
+    return 0
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="littool-worker")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -79,6 +90,14 @@ def main() -> None:
     subparsers.add_parser(
         "detect-duplicates", help="Ähnliche Titel über den ganzen Bestand markieren"
     ).set_defaults(func=cmd_detect_duplicates)
+
+    extract_fulltext_parser = subparsers.add_parser(
+        "extract-fulltext", help="Volltext seitenweise extrahieren, OCR-Fallback bei Bedarf"
+    )
+    extract_fulltext_parser.add_argument(
+        "--limit", type=int, default=None, help="Nur die ersten N wartenden Quellen verarbeiten"
+    )
+    extract_fulltext_parser.set_defaults(func=cmd_extract_fulltext)
 
     args = parser.parse_args()
     sys.exit(args.func(args))

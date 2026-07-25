@@ -18,6 +18,7 @@ Siehe `docs/arbeitsplan-phase-1.md` für den aktuellen Stand.
 1. `frontend/.env` aus `frontend/.env.example` anlegen (Supabase-URL + Anon-Key), `.env` im Repo-Root aus `.env.example` (Supabase-URL + Service-Role-Key für den Worker).
 2. Frontend: `cd frontend && npm install && npm run dev`
 3. Worker: `cd worker && python -m venv .venv && ./.venv/Scripts/pip install -e .`
+4. Für OCR-Fallback (Volltextextraktion): Tesseract OCR + Ghostscript systemweit installieren (Windows: `winget install --id UB-Mannheim.TesseractOCR`, Ghostscript-Installer von [github.com/ArtifexSoftware/ghostpdl-downloads/releases](https://github.com/ArtifexSoftware/ghostpdl-downloads/releases)). Deutsches Sprachpaket (`deu.traineddata` aus [tessdata_fast](https://github.com/tesseract-ocr/tessdata_fast)) sowie `configs`/`tessconfigs` aus der Tesseract-Installation nach `worker/.tessdata/` kopieren (gitignored, da `Program Files` ohne Adminrechte nicht beschreibbar ist).
 
 ### Migrationen anwenden
 
