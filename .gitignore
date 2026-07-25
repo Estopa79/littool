@@ -1,0 +1,36 @@
+# Umgebungsvariablen
+.env
+.env.local
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+frontend/.vite/
+
+# Worker
+worker/.venv/
+worker/__pycache__/
+worker/**/__pycache__/
+worker/*.egg-info/
+worker/.pytest_cache/
+
+# Supabase
+supabase/.branches/
+supabase/.temp/
+
+# Claude Code (lokale, maschinenspezifische Einstellungen – kann Secrets in Bash-Freigaben enthalten)
+.claude/settings.local.json
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Testdaten / lokale PDFs (nur Fixtures ins Repo)
+data/pdfs/

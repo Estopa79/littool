@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "littool-worker"
+version = "0.1.0"
+description = "PDF-Verarbeitung, Metadaten-Anreicherung und Embeddings für LitTool"
+requires-python = ">=3.12"
+dependencies = ["python-dotenv>=1.0"]
+
+[project.scripts]
+littool-worker = "littool_worker.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["littool_worker*"]
