@@ -1,6 +1,7 @@
 import argparse
 import sys
 
+from .chunking import run_chunking
 from .doi import run_doi_extraction
 from .duplicates import run_duplicate_detection
 from .enrich import run_metadata_enrichment
@@ -73,6 +74,16 @@ def cmd_extract_fulltext(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_chunk(args: argparse.Namespace) -> int:
+    client = get_client()
+    stats = run_chunking(client, limit=args.limit)
+    print(
+        f"Chunking abgeschlossen: {stats['quellen_gechunkt']} Quellen, "
+        f"{stats['chunks_erzeugt']} Chunks erzeugt, {stats['fehler']} Fehler."
+    )
+    return 0
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="littool-worker")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -98,6 +109,14 @@ def main() -> None:
         "--limit", type=int, default=None, help="Nur die ersten N wartenden Quellen verarbeiten"
     )
     extract_fulltext_parser.set_defaults(func=cmd_extract_fulltext)
+
+    chunk_parser = subparsers.add_parser(
+        "chunk", help="Extrahierte Quellen in Chunks mit Seitenzuordnung zerlegen"
+    )
+    chunk_parser.add_argument(
+        "--limit", type=int, default=None, help="Nur die ersten N wartenden Quellen verarbeiten"
+    )
+    chunk_parser.set_defaults(func=cmd_chunk)
 
     args = parser.parse_args()
     sys.exit(args.func(args))
