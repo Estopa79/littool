@@ -17,8 +17,22 @@ export type Source = {
   status_hint: string | null
 }
 
+export type SourceDetail = Source & {
+  volume: string | null
+  issue: string | null
+  pages: string | null
+  issn: string | null
+  doi: string | null
+  abstract: string | null
+  citation_count: number | null
+  url: string | null
+  storage_path: string | null
+}
+
 const SOURCE_COLUMNS =
   'id, type, title, authors, year, venue, ranking_system, ranking_value, status, status_hint'
+
+const DETAIL_COLUMNS = `${SOURCE_COLUMNS}, volume, issue, pages, issn, doi, abstract, citation_count, url, storage_path`
 
 export async function fetchSources(): Promise<Source[]> {
   const { data, error } = await supabase
@@ -28,4 +42,22 @@ export async function fetchSources(): Promise<Source[]> {
 
   if (error) throw error
   return (data ?? []) as Source[]
+}
+
+export async function fetchSource(id: string): Promise<SourceDetail> {
+  const { data, error } = await supabase.from('sources').select(DETAIL_COLUMNS).eq('id', id).single()
+
+  if (error) throw error
+  return data as SourceDetail
+}
+
+export async function updateSource(id: string, patch: Partial<SourceDetail>): Promise<void> {
+  const { error } = await supabase.from('sources').update(patch).eq('id', id)
+  if (error) throw error
+}
+
+export async function getSignedPdfUrl(storagePath: string): Promise<string> {
+  const { data, error } = await supabase.storage.from('pdfs').createSignedUrl(storagePath, 3600)
+  if (error) throw error
+  return data.signedUrl
 }

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { UploadPanel } from '../components/UploadPanel'
 import { fetchSources, type Source } from '../lib/sources'
 import { formatAuthorYear, formatRanking, STATUS_ICON, STATUS_LABEL, TYPE_LABEL } from '../lib/sourceFormat'
@@ -30,6 +31,7 @@ const STATUS_OPTIONS: Array<{ value: string; label: string }> = [
 ]
 
 export function Bibliothek() {
+  const navigate = useNavigate()
   const [sources, setSources] = useState<Source[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -177,7 +179,8 @@ export function Bibliothek() {
               {visible.map((s) => (
                 <tr
                   key={s.id}
-                  className="border-b border-slate-100 dark:border-slate-900"
+                  onClick={() => navigate(`/bibliothek/${s.id}`)}
+                  className="cursor-pointer border-b border-slate-100 hover:bg-slate-50 dark:border-slate-900 dark:hover:bg-slate-900"
                   title={s.status === 'needs_review' ? (s.status_hint ?? undefined) : undefined}
                 >
                   <td className="whitespace-nowrap py-2 pr-3 text-slate-700 dark:text-slate-300">
@@ -203,7 +206,8 @@ export function Bibliothek() {
             {visible.map((s) => (
               <li
                 key={s.id}
-                className="rounded-lg border border-slate-200 p-3 dark:border-slate-800"
+                onClick={() => navigate(`/bibliothek/${s.id}`)}
+                className="cursor-pointer rounded-lg border border-slate-200 p-3 active:bg-slate-50 dark:border-slate-800 dark:active:bg-slate-900"
                 title={s.status === 'needs_review' ? (s.status_hint ?? undefined) : undefined}
               >
                 <div className="flex items-start justify-between gap-2">

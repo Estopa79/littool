@@ -79,11 +79,13 @@ Jedes Paket ist eine Claude-Code-Sitzung. Erledigte Pakete abhaken und ggf. mit 
 
 **Notizen:** Upload-Dropzone aus Paket 3 in eigene `UploadPanel`-Komponente ausgelagert (einklappbar, Klick auf „⬆ PDFs hochladen"), lädt die Quellenliste nach jedem Upload neu. Tabelle (Desktop, `md:table`) und Karten (Mobil, `md:hidden`) teilen sich dieselben Formatierungshelfer (`sourceFormat.ts`): Autor/Jahr als „Nachname [et al.] Jahr", Ranking als „VHB A+" bzw. „nicht anwendbar" (type=grau) bzw. „kein Ranking", Status mit Icon (⏳/⚠️/✔️/❌). „N zu prüfen"-Button setzt den Status-Filter auf `needs_review` (kombiniert sich mit den anderen Filtern, nicht exklusiv). Filter/Sortierung/Suche laufen clientseitig (ganzer Bestand wird geladen, ~100 Quellen sind dafür unproblematisch); Suche bewusst nur im Titel, nicht in Autoren, wie im Arbeitsplan spezifiziert. Getestet an den 13 echten Quellen: Sortierung, Quick-Filter, Titelsuche (inkl. Kombination mit anderen Filtern → sauberer Leerzustand) und Mobil-Kartenansicht funktionieren, keine Konsolenfehler. Bestand hat aktuell 13 statt ~20 Quellen – für „angenehm durchsuchbar" ausreichend, der volle Bestand kommt in Paket 10.
 
-## Paket 8 – Quellen-Detailseite & Korrektur ☐
+## Paket 8 – Quellen-Detailseite & Korrektur ☑
 
 - Detailseite: alle Metadaten editierbar, Abstract, Ranking mit Herkunft, PDF-Viewer (anzeigen + Seitensprung, mehr nicht).
 - Speichern von Korrekturen setzt Status auf `complete`.
 - **Fertig, wenn:** Ein `needs_review`-Fall lässt sich vollständig von Hand heilen.
+
+**Notizen:** Route `/bibliothek/:id`, Zeilen/Karten in der Bibliothek klickbar. Formular deckt alle Phase-1-Felder ab (Typ, Titel, Autoren-Editor mit Hinzufügen/Entfernen, Jahr, Venue, Band, Heft, Seiten, ISSN, DOI, Abstract, Zitationszahl, URL, Ranking-System/-Wert); `storage_path`/Status selbst sind nicht direkt editierbar. „Speichern" setzt bewusst immer `status=complete` + `status_hint=null`, unabhängig vom vorherigen Zustand – keine erneute Vollständigkeitsprüfung wie in Paket 5, der Mensch hat hier das letzte Wort. PDF-Viewer: signierte URL aus dem privaten Bucket (1h gültig) in einem `iframe`, Seitensprung über `#page=N`-Fragment (nativer Browser-PDF-Viewer, kein PDF.js). Fertig-Kriterium konkret getestet: „Business-IT-Alignment 2017" (needs_review, DOI/Metadaten-Suche waren leer ausgegangen) von Hand geheilt – PDF zeigte sich als deutsches Herausgeberwerk (Reinheimer/Robra-Bissantz 2017, Springer-Reihe „Edition HMD"), nicht als Zeitschriftenartikel, was erklärt, warum Crossref/OpenAlex nichts fanden. Nach Speichern: Status complete, „zu prüfen"-Zähler sank von 4 auf 3, Bibliotheksliste aktualisierte sich sofort.
 
 ## Paket 9 – Erfassungsdialog graue Literatur ☐
 
