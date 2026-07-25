@@ -4,6 +4,7 @@ import sys
 from .chunking import run_chunking
 from .doi import run_doi_extraction
 from .duplicates import run_duplicate_detection
+from .embeddings import run_embedding
 from .enrich import run_metadata_enrichment
 from .env import require_env
 from .fulltext import run_fulltext_extraction
@@ -84,6 +85,22 @@ def cmd_chunk(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_embed(args: argparse.Namespace) -> int:
+    client = get_client()
+    api_key = require_env("VOYAGE_API_KEY")
+    try:
+        stats = run_embedding(client, api_key, batch_size=args.batch_size)
+    except Exception as exc:  # noqa: BLE001 - Teilfortschritt ist bereits gespeichert
+        print(f"Embedding abgebrochen: {exc}")
+        print("Bereits eingebettete Chunks bleiben erhalten, ein erneuter Lauf setzt fort.")
+        return 1
+    print(
+        f"Embedding abgeschlossen: {stats['eingebettet']} Chunks, {stats['tokens']:.0f} Tokens, "
+        f"ca. ${stats['kosten_usd']:.4f}."
+    )
+    return 0
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="littool-worker")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -117,6 +134,14 @@ def main() -> None:
         "--limit", type=int, default=None, help="Nur die ersten N wartenden Quellen verarbeiten"
     )
     chunk_parser.set_defaults(func=cmd_chunk)
+
+    embed_parser = subparsers.add_parser(
+        "embed", help="Chunks ohne Embedding via Voyage AI einbetten"
+    )
+    embed_parser.add_argument(
+        "--batch-size", type=int, default=100, help="Chunks pro API-Aufruf (Default 100)"
+    )
+    embed_parser.set_defaults(func=cmd_embed)
 
     args = parser.parse_args()
     sys.exit(args.func(args))

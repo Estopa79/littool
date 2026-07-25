@@ -62,11 +62,15 @@ Zwei echte Bugs unterwegs gefunden und behoben: (1) Beim Aufsplitten überlanger
 
 Test am kompletten Bestand (weit mehr als die 10 aus Paket 2): 151 Quellen, 18.886 Chunks erzeugt, 0 Fehler nach den Fixes. 5 Stichproben manuell gegen die Quelle geprüft (Hörimplantate-Buchkapitel, Aligning-IT-Portfolio-Journalartikel, der OCR'te Scan auf Seite 2, das deutsche Springer-Buch auf Seite 1+3, Amarilli et al. auf Seite 3) - Text durchgehend lesbar, Seitenangaben stimmen, Überlappung und Kontextpräfixe funktionieren wie vorgesehen.
 
-## Paket 4 – Embeddings ☐
+## Paket 4 – Embeddings ☑
 
 - **Entscheidung nötig (siehe unten):** Embedding-Anbieter. Vorschlag: Voyage AI (`voyage-3.5`) per API – starke Qualität auf wissenschaftlichem, gemischtsprachigem Text; Alternative kostenlos: `gte-small` via Supabase Edge Function (schwächer bei Deutsch/Englisch gemischt).
 - Worker-Job: alle Chunks einbetten, Batch-weise, mit Wiederaufnahme bei Abbruch.
 - **Fertig, wenn:** Kompletter Bestand eingebettet; Kostenkontrolle: einmaliger Lauf, Betrag notieren (bei ~100 Quellen erwartbar einstellig in Euro).
+
+**Notizen:** Entscheidung war schon in Paket 1 vorgezogen worden (Voyage AI voyage-3.5, 1024 Dimensionen), hier nur noch umgesetzt. CLI-Subcommand `embed`: holt Chunks mit `embedding IS NULL` batchweise (100/Aufruf), `input_type="document"` (Gegenstück `"query"` kommt bei der Suche in Paket 5/6). Wiederaufnahme bei Abbruch ergibt sich von selbst aus der `IS NULL`-Abfrage, kein separater Checkpoint nötig. Ohne hinterlegte Zahlungsmethode erlaubt Voyage nur 3 Requests/Minute (Free Trial) - eigenes Pacing (21s zwischen Aufrufen) plus Retry-mit-Backoff bei 429 ergänzt, nachdem der erste Lauf sofort daran gescheitert war. Nutzer hat während des Laufs eine Zahlungsmethode hinterlegt (höheres Rate-Limit ab sofort für künftige Aufrufe), laufenden Job bewusst nicht neugestartet, um keine Wettlaufsituation um dieselben Chunks zu riskieren - Job lief mit dem ursprünglichen (langsameren) Pacing sicher durch.
+
+Ergebnis: **18.886 von 18.886 Chunks eingebettet, 0 fehlend.** 5.389.072 Tokens verbraucht, macht bei $0.06/1 Mio. Token ca. **$0,32** - liegt komplett innerhalb von Voyages 200-Mio.-Token-Freikontingent für neue Accounts, tatsächliche Kosten also voraussichtlich $0.
 
 ## Paket 5 – Volltextsuche (Backend) ☐
 
