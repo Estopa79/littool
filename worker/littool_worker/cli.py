@@ -4,6 +4,7 @@ import sys
 from .doi import run_doi_extraction
 from .enrich import run_metadata_enrichment
 from .env import require_env
+from .ranking import run_ranking_match
 from .supabase_client import get_client, load_config
 
 
@@ -39,6 +40,16 @@ def cmd_enrich_metadata(_args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_match_ranking(_args: argparse.Namespace) -> int:
+    client = get_client()
+    stats = run_ranking_match(client)
+    print(
+        f"Ranking-Matching abgeschlossen: {stats['gefunden']} gefunden, "
+        f"{stats['kein_treffer']} kein Ranking gefunden."
+    )
+    return 0
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="littool-worker")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -50,6 +61,9 @@ def main() -> None:
     subparsers.add_parser(
         "enrich-metadata", help="Metadaten via Crossref/OpenAlex anreichern"
     ).set_defaults(func=cmd_enrich_metadata)
+    subparsers.add_parser(
+        "match-ranking", help="Ranking (VHB/SJR/CORE) per ISSN/Venue-Name matchen"
+    ).set_defaults(func=cmd_match_ranking)
 
     args = parser.parse_args()
     sys.exit(args.func(args))

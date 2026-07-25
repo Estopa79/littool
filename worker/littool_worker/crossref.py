@@ -1,3 +1,5 @@
+import html
+
 import httpx
 
 CROSSREF_BASE = "https://api.crossref.org/works"
@@ -35,10 +37,10 @@ def _parse_message(message: dict) -> dict:
             authors.append({"family": author["name"], "given": ""})
 
     titles = message.get("title") or []
-    title = titles[0] if titles else None
+    title = html.unescape(titles[0]) if titles else None
 
     containers = message.get("container-title") or []
-    venue = containers[0] if containers else None
+    venue = html.unescape(containers[0]) if containers else None
 
     year = None
     for date_field in ("published-print", "published-online", "published", "issued"):
