@@ -56,6 +56,22 @@ export async function updateSource(id: string, patch: Partial<SourceDetail>): Pr
   if (error) throw error
 }
 
+export async function createSource(patch: Partial<SourceDetail> & { title: string }): Promise<string> {
+  const { data, error } = await supabase.from('sources').insert(patch).select('id').single()
+  if (error) throw error
+  return (data as { id: string }).id
+}
+
+export async function attachPdf(id: string, file: File): Promise<void> {
+  const path = `${id}/${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
+  const { error: uploadError } = await supabase.storage
+    .from('pdfs')
+    .upload(path, file, { contentType: 'application/pdf' })
+  if (uploadError) throw uploadError
+
+  await updateSource(id, { storage_path: path })
+}
+
 export async function getSignedPdfUrl(storagePath: string): Promise<string> {
   const { data, error } = await supabase.storage.from('pdfs').createSignedUrl(storagePath, 3600)
   if (error) throw error

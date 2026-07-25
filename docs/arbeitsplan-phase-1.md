@@ -87,11 +87,13 @@ Jedes Paket ist eine Claude-Code-Sitzung. Erledigte Pakete abhaken und ggf. mit 
 
 **Notizen:** Route `/bibliothek/:id`, Zeilen/Karten in der Bibliothek klickbar. Formular deckt alle Phase-1-Felder ab (Typ, Titel, Autoren-Editor mit Hinzufügen/Entfernen, Jahr, Venue, Band, Heft, Seiten, ISSN, DOI, Abstract, Zitationszahl, URL, Ranking-System/-Wert); `storage_path`/Status selbst sind nicht direkt editierbar. „Speichern" setzt bewusst immer `status=complete` + `status_hint=null`, unabhängig vom vorherigen Zustand – keine erneute Vollständigkeitsprüfung wie in Paket 5, der Mensch hat hier das letzte Wort. PDF-Viewer: signierte URL aus dem privaten Bucket (1h gültig) in einem `iframe`, Seitensprung über `#page=N`-Fragment (nativer Browser-PDF-Viewer, kein PDF.js). Fertig-Kriterium konkret getestet: „Business-IT-Alignment 2017" (needs_review, DOI/Metadaten-Suche waren leer ausgegangen) von Hand geheilt – PDF zeigte sich als deutsches Herausgeberwerk (Reinheimer/Robra-Bissantz 2017, Springer-Reihe „Edition HMD"), nicht als Zeitschriftenartikel, was erklärt, warum Crossref/OpenAlex nichts fanden. Nach Speichern: Status complete, „zu prüfen"-Zähler sank von 4 auf 3, Bibliotheksliste aktualisierte sich sofort.
 
-## Paket 9 – Erfassungsdialog graue Literatur ☐
+## Paket 9 – Erfassungsdialog graue Literatur ☑
 
 - Formular für Quellen ohne DOI: Typ, Autoren/Institution, Titel, Jahr, Herausgeber/URL, optional PDF-Upload.
 - Landet als `type = grau`, Ranking = „nicht anwendbar".
 - **Fertig, wenn:** Ein BaFin-Merkblatt o. Ä. in unter einer Minute erfassbar ist.
+
+**Notizen:** Modal (`GreyLiteratureDialog`) statt eigener Route, passend zum „unter einer Minute"-Ziel – kein Navigations-Umweg. Typ-Feld bleibt wählbar (Default „Graue Literatur", auch journal/konferenz/buch möglich für sonstige manuelle Erfassung ohne DOI), da Konzept Modul 1 den Dialog allgemeiner als „graue Literatur / Quellen ohne DOI" beschreibt; das Arbeitsplan-Ergebnis „landet als grau" gilt für den Standardfall. „Herausgeber" schreibt in die vorhandene `venue`-Spalte (gleiche Wiederverwendung wie schon in Migration 0003 angelegt), „URL" in die dedizierte Spalte. Ranking bleibt bewusst `null`/`null` – die schon vorhandene Anzeige-Logik aus Paket 7 zeigt bei `type=grau` automatisch „nicht anwendbar", kein neues Sentinel nötig; der Ranking-Matching-Job aus Paket 6 schließt `type=grau` ohnehin aus. Neue Quelle landet direkt als `status=complete` (kein Processing-Umweg, da keine Automatik folgt). PDF-Anhang ist optional und nutzt denselben Storage-Pfad wie der reguläre Upload (`{id}/{dateiname}`). Test: echtes BaFin-Rundschreiben (5/2023 VA, MaRisk VA) in der Bibliothek erfasst, erschien sofort mit „nicht anwendbar"/vollständig; optionaler PDF-Anhang separat getestet und danach wieder entfernt (Testdatensatz, nicht der reale Bestand). Mobil geprüft (375px) – Formular gut lesbar.
 
 ## Paket 10 – Dubletten & Stapel-Abschluss ☐
 

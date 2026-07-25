@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { UploadPanel } from '../components/UploadPanel'
+import { GreyLiteratureDialog } from '../components/GreyLiteratureDialog'
 import { fetchSources, type Source } from '../lib/sources'
 import { formatAuthorYear, formatRanking, STATUS_ICON, STATUS_LABEL, TYPE_LABEL } from '../lib/sourceFormat'
 
@@ -41,6 +42,7 @@ export function Bibliothek() {
   const [filterRanking, setFilterRanking] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [sortBy, setSortBy] = useState<SortOption>('year_desc')
+  const [showGreyDialog, setShowGreyDialog] = useState(false)
 
   function load() {
     setLoading(true)
@@ -91,7 +93,20 @@ export function Bibliothek() {
     <div className="p-4 sm:p-6">
       <h1 className="mb-4 text-xl font-semibold text-slate-800 dark:text-slate-100">Bibliothek</h1>
 
-      <UploadPanel onUploaded={load} />
+      <div className="mb-4 flex flex-wrap items-start gap-2">
+        <UploadPanel onUploaded={load} />
+        <button
+          type="button"
+          onClick={() => setShowGreyDialog(true)}
+          className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+        >
+          + Graue Literatur
+        </button>
+      </div>
+
+      {showGreyDialog && (
+        <GreyLiteratureDialog onClose={() => setShowGreyDialog(false)} onCreated={load} />
+      )}
 
       {needsReviewCount > 0 && (
         <button
