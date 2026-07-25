@@ -43,12 +43,14 @@ Jedes Paket ist eine Claude-Code-Sitzung. Erledigte Pakete abhaken und ggf. mit 
 
 **Notizen:** `sources.type` per Migration 0006 nullable gemacht (Typ ist beim Upload noch unbekannt, kommt erst über Crossref in Paket 5 bzw. den Grau-Dialog in Paket 9). Ablauf pro Datei: erst `sources`-Insert (status=processing, title=Dateiname ohne Endung), dann Upload nach `pdfs/{source_id}/{dateiname}`, dann `storage_path` zurückschreiben; schlägt der Upload fehl, Status → `failed` mit `status_hint`. Nicht-PDF-Dateien werden clientseitig abgewiesen und als Fehler in der Liste angezeigt, ohne DB-Eintrag. Test mit 5 simulierten PDFs + 1 Nicht-PDF im Browser: alle 5 landeten korrekt in Storage + DB (Status processing), Fehlerfall sichtbar; Testdaten danach wieder gelöscht. Bibliothekstabelle/-filter selbst kommen erst in Paket 7 – aktuell nur die Upload-Queue-Ansicht.
 
-## Paket 4 – DOI-Extraktion (Worker) ☐
+## Paket 4 – DOI-Extraktion (Worker) ☑
 
 - Worker-Job: neue Quelle mit Status `processing` abholen, PDF laden, DOI suchen: 1) PDF-Metadaten, 2) Regex auf den ersten 3 Seiten.
 - Kein Fund → Status `needs_review` mit Hinweis „keine DOI gefunden".
 - Fund → DOI an der Quelle speichern.
 - **Fertig, wenn:** Für 10 echte Test-PDFs wird die DOI korrekt erkannt oder sauber als fehlend markiert.
+
+**Notizen:** CLI zu Subcommands umgebaut (`littool-worker status`, `littool-worker extract-doi`). Job holt alle `sources` mit `status=processing` und `doi is null`, lädt PDF aus dem `pdfs`-Bucket (service_role, umgeht RLS bewusst – Worker läuft nicht im Nutzerkontext), sucht DOI zuerst im PDF-Info-Dict, dann per Regex auf den ersten 3 Seiten. Fund → `doi` gesetzt, Status bleibt `processing` (wartet auf Paket 5). Kein Fund → `needs_review` + `status_hint`. Laufzeitfehler pro Datei (Download/Parsing) → `failed` + `status_hint`, Job bricht nicht ab. SSL-Problem auf diesem Rechner entdeckt: Python/httpx fand den lokalen Zertifikatsaussteller nicht (`CERTIFICATE_VERIFY_FAILED`) – behoben mit `pip-system-certs` (nutzt den Windows-Zertifikatsspeicher), jetzt feste Worker-Dependency. Test mit 10 echten PDFs aus dem Bestand (nicht synthetisch): 6 DOIs korrekt gefunden (Elsevier/Springer/Wiley/CAIS-Präfixe plausibel), 4 sauber als `needs_review` markiert, 0 Fehler. Testquellen bewusst nicht gelöscht – sind echte Bestandsdaten und bleiben als Start der echten Bibliothek stehen (Entscheidung im Chat).
 
 ## Paket 5 – Metadaten-Anreicherung ☐
 
