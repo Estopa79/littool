@@ -41,7 +41,7 @@ def run_doi_extraction(client: Client) -> dict[str, int]:
     )
     rows = result.data or []
 
-    stats = {"gefunden": 0, "needs_review": 0, "fehler": 0}
+    stats = {"gefunden": 0, "needs_review": 0, "fehler": 0, "dubletten": 0}
 
     for row in rows:
         source_id = row["id"]
@@ -65,6 +65,27 @@ def run_doi_extraction(client: Client) -> dict[str, int]:
             continue
 
         if doi:
+            existing = (
+                client.table("sources")
+                .select("id, title")
+                .eq("doi", doi)
+                .neq("id", source_id)
+                .execute()
+                .data
+            )
+            if existing:
+                other = existing[0]
+                client.table("sources").update(
+                    {
+                        "status": "needs_review",
+                        "status_hint": (
+                            f'Dublette: DOI {doi} bereits bei Quelle "{other["title"]}" vorhanden'
+                        ),
+                    }
+                ).eq("id", source_id).execute()
+                stats["dubletten"] += 1
+                continue
+
             client.table("sources").update({"doi": doi}).eq("id", source_id).execute()
             stats["gefunden"] += 1
         else:

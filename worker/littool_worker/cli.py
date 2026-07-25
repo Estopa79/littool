@@ -2,6 +2,7 @@ import argparse
 import sys
 
 from .doi import run_doi_extraction
+from .duplicates import run_duplicate_detection
 from .enrich import run_metadata_enrichment
 from .env import require_env
 from .ranking import run_ranking_match
@@ -23,7 +24,8 @@ def cmd_extract_doi(_args: argparse.Namespace) -> int:
     stats = run_doi_extraction(client)
     print(
         f"DOI-Extraktion abgeschlossen: {stats['gefunden']} gefunden, "
-        f"{stats['needs_review']} ohne DOI (needs_review), {stats['fehler']} Fehler."
+        f"{stats['needs_review']} ohne DOI (needs_review), {stats['dubletten']} Dubletten, "
+        f"{stats['fehler']} Fehler."
     )
     return 0
 
@@ -50,6 +52,16 @@ def cmd_match_ranking(_args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_detect_duplicates(_args: argparse.Namespace) -> int:
+    client = get_client()
+    stats = run_duplicate_detection(client)
+    print(
+        f"Dublettenprüfung abgeschlossen: {stats['dubletten_markiert']} von "
+        f"{stats['geprueft']} Quellen als mögliche Dublette markiert."
+    )
+    return 0
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="littool-worker")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -64,6 +76,9 @@ def main() -> None:
     subparsers.add_parser(
         "match-ranking", help="Ranking (VHB/SJR/CORE) per ISSN/Venue-Name matchen"
     ).set_defaults(func=cmd_match_ranking)
+    subparsers.add_parser(
+        "detect-duplicates", help="Ähnliche Titel über den ganzen Bestand markieren"
+    ).set_defaults(func=cmd_detect_duplicates)
 
     args = parser.parse_args()
     sys.exit(args.func(args))
