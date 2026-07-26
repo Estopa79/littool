@@ -31,6 +31,17 @@ export type GenerateCitationsResult = {
   message?: string
 }
 
+export async function fetchConfirmedPassagesForCell(sourceId: string, rqId: string): Promise<Passage[]> {
+  const { data, error } = await supabase
+    .from('passages')
+    .select('id, source_id, research_question_id, page, original, translation, relevance, citation, confirmed')
+    .eq('source_id', sourceId)
+    .eq('research_question_id', rqId)
+    .eq('confirmed', true)
+  if (error) throw error
+  return (data ?? []) as Passage[]
+}
+
 export async function fetchPassagesForSource(sourceId: string): Promise<Passage[]> {
   const { data, error } = await supabase
     .from('passages')

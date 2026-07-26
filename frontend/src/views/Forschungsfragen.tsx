@@ -10,6 +10,7 @@ import {
   type FfPassage,
   type RqWithCount,
 } from '../lib/ffView'
+import { RelevanceMatrix } from '../components/RelevanceMatrix'
 
 type SortOption = 'relevance' | 'source' | 'year'
 
@@ -93,6 +94,7 @@ function PassageCard({ passage }: { passage: FfPassage }) {
 }
 
 export function Forschungsfragen() {
+  const [mode, setMode] = useState<'liste' | 'matrix'>('liste')
   const [rqs, setRqs] = useState<RqWithCount[]>([])
   const [selectedRqId, setSelectedRqId] = useState<string | null>(null)
   const [passages, setPassages] = useState<FfPassage[]>([])
@@ -147,6 +149,24 @@ export function Forschungsfragen() {
     return result
   }, [passages, filterTopic, filterRanking, filterStudyType, filterFunction, sortBy])
 
+  if (mode === 'matrix') {
+    return (
+      <div>
+        <div className="flex items-center justify-between p-4 pb-0 sm:p-6 sm:pb-0">
+          <h1 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Relevanz-Matrix</h1>
+          <button
+            type="button"
+            onClick={() => setMode('liste')}
+            className="text-sm text-slate-500 hover:underline dark:text-slate-400"
+          >
+            ← Zur FF-Ansicht
+          </button>
+        </div>
+        <RelevanceMatrix />
+      </div>
+    )
+  }
+
   return (
     <div className="flex h-full flex-col md:flex-row">
       <aside
@@ -174,6 +194,13 @@ export function Forschungsfragen() {
             </li>
           ))}
         </ul>
+        <button
+          type="button"
+          onClick={() => setMode('matrix')}
+          className="mt-4 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
+        >
+          📊 Matrix
+        </button>
       </aside>
 
       <section className={`flex-1 p-4 sm:p-6 ${selectedRqId ? 'block' : 'hidden md:block'}`}>

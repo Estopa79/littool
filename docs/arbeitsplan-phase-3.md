@@ -206,11 +206,17 @@ Daten: `lib/ffView.ts` holt bestätigte Passagen einer FF in einem einzigen vers
 
 Live getestet: FF-Liste mit korrekten Zählern, Kartenanzeige (Sterne, Original auf-/zuklappbar, Übersetzung, Zitation, PDF-Deep-Link mit Seiten-Sprung), Themenfilter reduziert sichtbare Karten korrekt auf 0 bei Nichttreffer. "Zitation kopieren" scheiterte in der automatisierten Testumgebung an einer Clipboard-Berechtigung des Browser-Tools selbst (`Write permission denied`, per direktem JS-Test bestätigt, kein Code-Fehler) - trotzdem eine sichtbare Fehlerrückmeldung ergänzt (`✗ fehlgeschlagen`) statt stillschweigend nichts zu tun. Mobile Ansicht (375px): Master-Detail-Umschaltung (FF-Liste ↔ Karten mit „← Zur FF-Liste") funktioniert wie in der Bibliothek/Quellen-Detail-Ansicht etabliert.
 
-## Paket 8 – Matrix-Ansicht ☐
+## Paket 8 – Matrix-Ansicht ☑
 
 - Matrix Quellen × Forschungsfragen, Zellen = Relevanz (leer/•/••/•••), Zeilen sortier-/filterbar (Ranking, Studientyp), Klick auf Zelle öffnet die Passagen.
 - Export als CSV/kopierbare Tabelle (Vorstufe zur Deskriptionsmatrix, inkl. Spalten Methodenprofil + Ranking).
 - **Fertig, wenn:** Die Matrix des echten Bestands lesbar ist und der Export in Word/Excel einfügbar aussieht.
+
+**Notizen:**
+
+Erreichbar über den „📊 Matrix"-Umschalter in der Forschungsfragen-Ansicht (löst den in Paket 7 bewusst ausgelassenen Platzhalter ein), `components/RelevanceMatrix.tsx` + `lib/matrix.ts`. Bewusst anders als die FF-Ansicht: die Matrix zeigt die Relevanz aus `source_rq_relevance` unabhängig vom Bestätigt-Status (nicht nur den bestätigten Pool) - sonst wäre sie angesichts des noch großen QS-Rückstands (Paket 6) fast leer und nicht "lesbar" im Sinne des Fertig-Kriteriums. Zellklick öffnet ein Modal mit der KI-Begründung (`source_rq_relevance.reasoning`) plus eventuell schon bestätigten Zitaten dieser Quelle-FF-Kombination - nützlicher Kontext auch bevor Zitate extrahiert wurden.
+
+Live getestet gegen den echten Bestand: Matrix mit ~90 Zeilen (nur Quellen mit mindestens einer Relevanzbewertung) rendert lesbar, Zellklick öffnet das Begründungs-Modal korrekt, CSV-Export liefert per Blob-Interception verifiziert korrektes, kommagetrenntes Format mit Header-Zeile (Autor/Jahr, Titel, Ranking, Studientyp, je eine Spalte pro FF-Kürzel) und den gleichen Punkt-Symbolen wie in der UI - passend zum Einfügen in Word/Excel.
 
 ## Paket 9 – Paraphrase-Funktion ☐
 
