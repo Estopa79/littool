@@ -56,13 +56,23 @@ Zusätzlich besprochen: Autor möchte Themenfelder-Überschneidungen mit Quellen
 
 Browser-Check: TypeScript-Build (`tsc -b`) und `vite build` laufen fehlerfrei, Dev-Server liefert `/einstellungen` mit HTTP 200. Der eingeloggte Klick-Durchlauf selbst wurde nicht automatisiert geprüft, weil das App-Login echte Zugangsdaten braucht, die ich nicht eingebe - bitte einmal kurz selbst gegenprüfen.
 
-## Paket 3 – Analyse-Pipeline: Themen & Relevanz ☐
+## Paket 3 – Analyse-Pipeline: Themen & Relevanz ☑
 
 - Worker-Job je Quelle: Claude erhält Metadaten + Abstract + repräsentative Chunks und liefert strukturiert (JSON): zugeordnete Themenfelder (mehrere erlaubt), Relevanz 0–3 je Forschungsfrage mit Ein-Satz-Begründung.
 - Ergebnisse als `unbestätigt` speichern; jeder Lauf erzeugt AiLog-Einträge.
 - Batch-fähig mit Wiederaufnahme; Kosten je Quelle loggen.
 - **Kalibrierung zuerst:** Pipeline an 5 gut bekannten Quellen laufen lassen, Ergebnis manuell mit eigener Einschätzung vergleichen, Prompt nachschärfen – erst dann weiter.
 - **Fertig, wenn:** Die 5 Kalibrier-Quellen plausibel zugeordnet sind und der Autor die Zuordnungen überwiegend teilt.
+
+**Notizen:**
+
+`worker/littool_worker/analysis.py` + CLI-Befehl `analyze-topics` (`--limit`, `--source-id` wiederholbar für gezielte/Kalibrier-Läufe). Repräsentative Chunks: bis zu 8 über den Chunk-Index gleichmäßig verteilte Auszüge statt Volltext (Kostengründe, Dokumente teils >100 Seiten). Claude antwortet als JSON (kein `output_config.format`, da `claude-sonnet-4-6` strukturierte Outputs laut Anthropic-Doku nicht unterstützt) - Parsing bewusst streng: unbekannte Themenfeld-Namen/FF-Kürzel oder fehlende FF-Einträge lösen einen sichtbaren Fehler aus (`sources.analysis_status='failed'` + Hint) statt still zu raten. Ergebnisse ersetzen bei jedem Lauf nur `confirmed=false`-Zuordnungen - bereits im QS-Workflow bestätigte Einträge bleiben bei einer erneuten Analyse unangetastet. Migration `0016_sources_analysis_status.sql` (Status-Spalten an `sources`, gleiches Muster wie `extraction_status`).
+
+Kalibrierung (5 Quellen über alle drei Themenfelder: Teece 2007, "Aligning with new digital strategy" 2018, "Understanding digital transformation" 2019, Gutierrez-Lycett 2011, VAIT-Rundschreiben 2022): Dabei einen Prompt-Bug gefunden und behoben (Claude gab teils "Name: Beschreibung" statt nur den Namen zurück - jetzt Namen im Prompt in Anführungszeichen abgesetzt). Nach dem Fix vom Autor als plausibel bestätigt (differenzierte Relevanz, nicht pauschal hoch - z. B. VAIT-Rundschreiben bekommt ESFF2=0 mit nachvollziehbarer Begründung).
+
+Nebenbefund: 3 verwaiste Testdatensätze aus `0004_sources_seed.sql` (Phase 1) ohne echtes PDF/Chunks im Bestand entdeckt (1 Dublette von Teece 2007, 2 nie durch echten Upload ersetzt) - nach Rücksprache mit Migration `0017_remove_seed_fixture_duplicates.sql` entfernt (Bestand danach 152 statt 155 Quellen).
+
+Batch-Lauf über den gesamten Bestand: 150 von 152 Quellen analysiert, 2 Fehler (die zwei bekannten, unreparierbaren Springer-Duplikate ohne Chunks - erwartet, kein neuer Fund). 230 Themenfeld-Zuordnungen, 1050 Relevanz-Bewertungen (150 × 7 FF), Gesamtkosten ca. $2,43. Bei der Nachkontrolle selbst einen Fehler verursacht (Bulk-`.select()` ohne Limit bei einer Diagnose las nur die PostgREST-Standard-Zeilenzahl zurück, siehe bekanntes Muster in `notizen-phase-1-2.md` - fälschlich als Datenlücke gedeutet und beim Nachstellen der Hypothese versehentlich echte `confirmed=false`-Zeilen zweier Quellen überschrieben); mit `--source-id` gezielt neu analysiert, per `count='exact')`-Abfrage pro Quelle (nicht bulk) verifiziert: alle 150 Quellen exakt 7 Relevanz-Zeilen, keine Anomalien mehr.
 
 ## Paket 4 – Passagen-Extraktion + Übersetzung ☐
 

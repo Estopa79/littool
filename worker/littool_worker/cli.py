@@ -1,6 +1,7 @@
 import argparse
 import sys
 
+from . import analysis
 from .chunking import run_chunking
 from . import claude_client
 from .doi import run_doi_extraction
@@ -145,6 +146,20 @@ def cmd_search_hybrid(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_analyze_topics(args: argparse.Namespace) -> int:
+    client = get_client()
+    api_key = require_env("ANTHROPIC_API_KEY")
+    stats = analysis.run_topic_relevance_analysis(
+        client, api_key, limit=args.limit, source_ids=args.source_id or None
+    )
+    print(
+        f"Themen-/Relevanz-Analyse abgeschlossen: {stats['analysiert']} analysiert, "
+        f"{stats['fehler']} Fehler, {stats['tokens_in']}+{stats['tokens_out']} Tokens, "
+        f"ca. ${stats['kosten_usd']:.4f}."
+    )
+    return 0
+
+
 def cmd_test_claude(_args: argparse.Namespace) -> int:
     api_key = require_env("ANTHROPIC_API_KEY")
     client = claude_client.get_client(api_key)
@@ -243,6 +258,20 @@ def main() -> None:
     subparsers.add_parser(
         "test-claude", help="Test-Prompt ueber die Claude-API-Hilfsschicht, protokolliert Tokens/Kosten"
     ).set_defaults(func=cmd_test_claude)
+
+    analyze_parser = subparsers.add_parser(
+        "analyze-topics", help="Themenfelder zuordnen + Relevanz je Forschungsfrage bewerten (Claude)"
+    )
+    analyze_parser.add_argument(
+        "--limit", type=int, default=None, help="Nur die ersten N noch nicht analysierten Quellen verarbeiten"
+    )
+    analyze_parser.add_argument(
+        "--source-id",
+        action="append",
+        default=[],
+        help="Gezielt eine Quelle analysieren (wiederholbar) - fuer die Kalibrierung an bekannten Quellen",
+    )
+    analyze_parser.set_defaults(func=cmd_analyze_topics)
 
     args = parser.parse_args()
     sys.exit(args.func(args))
