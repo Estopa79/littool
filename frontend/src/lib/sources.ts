@@ -5,6 +5,8 @@ export type Author = { given: string; family: string }
 export type SourceStatus = 'processing' | 'needs_review' | 'complete' | 'failed'
 export type ExtractionStatus = 'extracted' | 'ocr_done' | 'extraction_failed' | null
 
+export type AnalysisStatus = 'complete' | 'failed' | null
+
 export type Source = {
   id: string
   type: string | null
@@ -19,9 +21,8 @@ export type Source = {
   extraction_status: ExtractionStatus
   extraction_hint: string | null
   storage_path: string | null
+  analysis_status: AnalysisStatus
 }
-
-export type AnalysisStatus = 'complete' | 'failed' | null
 
 export type SourceDetail = Source & {
   volume: string | null
@@ -33,14 +34,13 @@ export type SourceDetail = Source & {
   abstract: string | null
   citation_count: number | null
   url: string | null
-  analysis_status: AnalysisStatus
   analysis_hint: string | null
 }
 
 const SOURCE_COLUMNS =
-  'id, type, title, authors, year, venue, ranking_system, ranking_value, status, status_hint, extraction_status, extraction_hint, storage_path'
+  'id, type, title, authors, year, venue, ranking_system, ranking_value, status, status_hint, extraction_status, extraction_hint, storage_path, analysis_status'
 
-const DETAIL_COLUMNS = `${SOURCE_COLUMNS}, volume, issue, pages, page_offset, issn, doi, abstract, citation_count, url, analysis_status, analysis_hint`
+const DETAIL_COLUMNS = `${SOURCE_COLUMNS}, volume, issue, pages, page_offset, issn, doi, abstract, citation_count, url, analysis_hint`
 
 export async function fetchSources(): Promise<Source[]> {
   const { data, error } = await supabase

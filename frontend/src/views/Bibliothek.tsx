@@ -9,6 +9,7 @@ import { generateCitations, type GenerateCitationsResult } from '../lib/citation
 import { CitationReviewDialog } from '../components/CitationReviewDialog'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { fetchAllSourceTopics, fetchAllTopics, fetchReviewCounts, type TopicOption } from '../lib/qsReview'
+import { generateTopicRelevance } from '../lib/topicRelevance'
 
 type SortKey = 'author_year' | 'title' | 'venue' | 'ranking' | 'status'
 type SortDir = 'asc' | 'desc'
@@ -64,6 +65,8 @@ export function Bibliothek() {
   )
   const [generateError, setGenerateError] = useState<string | null>(null)
   const [unconfirmedTotal, setUnconfirmedTotal] = useState(0)
+  const [classifyingId, setClassifyingId] = useState<string | null>(null)
+  const [classifyError, setClassifyError] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Source | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
@@ -145,6 +148,20 @@ export function Bibliothek() {
       setGenerateError((err as Error).message)
     } finally {
       setGeneratingId(null)
+    }
+  }
+
+  async function handleClassify(source: Source, e: MouseEvent) {
+    e.stopPropagation()
+    setClassifyingId(source.id)
+    setClassifyError(null)
+    try {
+      await generateTopicRelevance(source.id)
+      setSources((prev) => prev.map((s) => (s.id === source.id ? { ...s, analysis_status: 'complete' } : s)))
+    } catch (err) {
+      setClassifyError((err as Error).message)
+    } finally {
+      setClassifyingId(null)
     }
   }
 
@@ -396,6 +413,7 @@ export function Bibliothek() {
                 </th>
                 <th className="py-2 pr-3 font-medium"></th>
                 <th className="py-2 pr-3 font-medium"></th>
+                <th className="py-2 pr-3 font-medium"></th>
               </tr>
             </thead>
             <tbody>
@@ -422,6 +440,25 @@ export function Bibliothek() {
                       <span title={s.extraction_hint ?? undefined} className="ml-1">
                         📄⚠️
                       </span>
+                    )}
+                  </td>
+                  <td className="whitespace-nowrap py-2 pr-3">
+                    {s.analysis_status === 'complete' ? (
+                      <span
+                        className="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-800 dark:bg-sky-950 dark:text-sky-300"
+                        title="Themen und Relevanz je Forschungsfrage wurden von der KI eingeschätzt"
+                      >
+                        🤖 eingeordnet
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={classifyingId === s.id}
+                        onClick={(e) => handleClassify(s, e)}
+                        className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
+                      >
+                        {classifyingId === s.id ? 'Ordnet ein …' : 'KI-Einordnung'}
+                      </button>
                     )}
                   </td>
                   <td className="whitespace-nowrap py-2 pr-3">
@@ -479,7 +516,21 @@ export function Bibliothek() {
                   {s.venue ?? '–'} · {formatRanking(s)}
                   {s.type ? ` · ${TYPE_LABEL[s.type] ?? s.type}` : ''}
                 </p>
-                <div className="mt-2 flex gap-2">
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {s.analysis_status === 'complete' ? (
+                    <span className="rounded-full bg-sky-100 px-2 py-1 text-xs font-medium text-sky-800 dark:bg-sky-950 dark:text-sky-300">
+                      🤖 eingeordnet
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={classifyingId === s.id}
+                      onClick={(e) => handleClassify(s, e)}
+                      className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
+                    >
+                      {classifyingId === s.id ? 'Ordnet ein …' : 'KI-Einordnung'}
+                    </button>
+                  )}
                   <button
                     type="button"
                     disabled={generatingId === s.id}
@@ -508,6 +559,9 @@ export function Bibliothek() {
 
       {generateError && (
         <p className="mt-3 text-sm text-red-600 dark:text-red-400">Fehler: {generateError}</p>
+      )}
+      {classifyError && (
+        <p className="mt-3 text-sm text-red-600 dark:text-red-400">Fehler: {classifyError}</p>
       )}
 
       {reviewResult && (

@@ -283,6 +283,8 @@ Nach Abschluss der Analyse-Batches (Paket 10/11) hat der Autor die App Schritt f
 - **Themenfeld-Filter in der Relevanzmatrix** ergänzt (`lib/matrix.ts` liefert jetzt `topics` je Zeile mit).
 - **Themen-/Relevanz-Analyse auf Pull-Modell umgestellt** (gleicher Architekturwechsel wie schon bei Zitaten/Paraphrase): läuft nicht mehr automatisch/im Batch, sondern über einen Button „KI-Einordnung starten" in einem neuen auf-/zuklappbaren Bereich „Themen & Relevanz je Forschungsfrage" auf der Quellen-Detailseite. Neue Edge Function `generate-topic-relevance`, 1:1 portiert aus `worker/littool_worker/analysis.py` (SYSTEM_PROMPT, Prompt-Aufbau, Parsing, Speicherlogik - nur unbestätigte Zuordnungen werden ersetzt). Visuelle Anzeige „🤖 KI-eingeordnet" (aus `sources.analysis_status`) direkt neben dem Titel. Im aufgeklappten Bereich sind die Relevanz-Werte je Forschungsfrage auch von Hand änderbar (Dropdown + Speichern setzt `confirmed`), live getestet und in der DB verifiziert. Der alte Batch-Weg (`analyze-topics` CLI) bleibt als Werkzeug bestehen, ist aber nicht mehr der vorgesehene Weg für neue/erneute Einordnungen.
 
+**Dritte Runde (letzter Punkt):** Die „🤖 eingeordnet"-Anzeige plus Button „KI-Einordnung" (falls noch nicht eingeordnet) gibt es jetzt auch direkt in der Bibliotheksübersicht (Tabellenspalte + mobile Karte), nicht nur auf der Detailseite - gleiche Logik/Edge-Function, per Klick ohne Umweg über die Detailseite auslösbar.
+
 Alle Punkte aus dem Feedback-Durchgang sind damit abgearbeitet.
 
 ---
