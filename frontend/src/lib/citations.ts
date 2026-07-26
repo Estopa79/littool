@@ -92,6 +92,7 @@ export async function addManualCitation(params: {
   page: number
   original: string
   translation: string | null
+  paraphrase?: string | null
   relevance: number
   authors: Author[] | null
   year: number | null
@@ -112,6 +113,7 @@ export async function addManualCitation(params: {
       page: params.page,
       original: params.original,
       translation: params.translation,
+      paraphrase: params.paraphrase ?? null,
       relevance: params.relevance,
       citation,
       confirmed: true,

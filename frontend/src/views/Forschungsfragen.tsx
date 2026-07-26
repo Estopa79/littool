@@ -11,6 +11,7 @@ import {
   type RqWithCount,
 } from '../lib/ffView'
 import { RelevanceMatrix } from '../components/RelevanceMatrix'
+import { generateParaphrase, savePassageParaphrase } from '../lib/paraphrase'
 
 type SortOption = 'relevance' | 'source' | 'year'
 
@@ -28,6 +29,10 @@ function RelevanceStars({ value }: { value: number }) {
 function PassageCard({ passage }: { passage: FfPassage }) {
   const [expanded, setExpanded] = useState(false)
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle')
+  const [savedParaphrase, setSavedParaphrase] = useState(passage.paraphrase)
+  const [proposal, setProposal] = useState<string | null>(null)
+  const [paraphrasing, setParaphrasing] = useState(false)
+  const [paraphraseError, setParaphraseError] = useState<string | null>(null)
 
   async function copyCitation() {
     try {
@@ -37,6 +42,30 @@ function PassageCard({ passage }: { passage: FfPassage }) {
       setCopyState('error')
     }
     setTimeout(() => setCopyState('idle'), 1500)
+  }
+
+  async function requestParaphrase() {
+    setParaphrasing(true)
+    setParaphraseError(null)
+    try {
+      const text = await generateParaphrase({
+        text: passage.original,
+        sourceId: passage.source_id,
+        passageId: passage.id,
+      })
+      setProposal(text)
+    } catch (err) {
+      setParaphraseError((err as Error).message)
+    } finally {
+      setParaphrasing(false)
+    }
+  }
+
+  async function acceptProposal() {
+    if (!proposal) return
+    await savePassageParaphrase(passage.id, proposal)
+    setSavedParaphrase(proposal)
+    setProposal(null)
   }
 
   return (
@@ -73,6 +102,7 @@ function PassageCard({ passage }: { passage: FfPassage }) {
         {expanded ? `„${passage.original}"` : `„${passage.original.slice(0, 90)}${passage.original.length > 90 ? ' …' : ''}"`}
       </button>
       {passage.translation && <p className="mt-1 text-slate-600 dark:text-slate-400">DE: {passage.translation}</p>}
+      {savedParaphrase && <p className="mt-1 text-slate-600 dark:text-slate-400">¶ {savedParaphrase}</p>}
 
       <div className="mt-2 flex items-center gap-3 text-xs">
         <span className="text-slate-500 dark:text-slate-500">{passage.citation}</span>
@@ -85,10 +115,43 @@ function PassageCard({ passage }: { passage: FfPassage }) {
         >
           📄 PDF
         </Link>
+        <button
+          type="button"
+          disabled={paraphrasing}
+          onClick={requestParaphrase}
+          className="text-slate-500 hover:underline disabled:opacity-60 dark:text-slate-400"
+          title="Paraphrase erzeugen"
+        >
+          {paraphrasing ? '¶ …' : savedParaphrase ? '¶ neu erzeugen' : '¶ Paraphrase'}
+        </button>
         <span className="text-slate-300 dark:text-slate-700" title="Schreibwerkstatt-Diskussion – kommt in Phase 5">
           💬
         </span>
       </div>
+
+      {paraphraseError && <p className="mt-1 text-xs text-red-600 dark:text-red-400">Fehler: {paraphraseError}</p>}
+
+      {proposal && (
+        <div className="mt-2 rounded-md border border-slate-200 bg-slate-50 p-2 text-xs dark:border-slate-800 dark:bg-slate-800">
+          <p className="text-slate-700 dark:text-slate-300">¶ {proposal}</p>
+          <div className="mt-2 flex gap-2">
+            <button
+              type="button"
+              onClick={acceptProposal}
+              className="rounded-md bg-slate-900 px-2 py-1 font-medium text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900"
+            >
+              ✓ Übernehmen
+            </button>
+            <button
+              type="button"
+              onClick={() => setProposal(null)}
+              className="rounded-md border border-slate-300 px-2 py-1 font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
+            >
+              ✗ Verwerfen
+            </button>
+          </div>
+        </div>
+      )}
     </li>
   )
 }

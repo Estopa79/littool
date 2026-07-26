@@ -218,11 +218,19 @@ Erreichbar über den „📊 Matrix"-Umschalter in der Forschungsfragen-Ansicht 
 
 Live getestet gegen den echten Bestand: Matrix mit ~90 Zeilen (nur Quellen mit mindestens einer Relevanzbewertung) rendert lesbar, Zellklick öffnet das Begründungs-Modal korrekt, CSV-Export liefert per Blob-Interception verifiziert korrektes, kommagetrenntes Format mit Header-Zeile (Autor/Jahr, Titel, Ranking, Studientyp, je eine Spalte pro FF-Kürzel) und den gleichen Punkt-Symbolen wie in der UI - passend zum Einfügen in Word/Excel.
 
-## Paket 9 – Paraphrase-Funktion ☐
+## Paket 9 – Paraphrase-Funktion ☑
 
 - ¶-Button an Passagen-Karten (und Textauswahl auf der Quellen-Detailseite): Claude paraphrasiert, Ergebnis erscheint als Vorschlag unter dem Original mit Zitation (Autor, Jahr, S. x).
 - Übernahme per Klick speichert die Paraphrase an der Passage; verwerfen möglich; jede Paraphrase → AiLog.
 - **Fertig, wenn:** Markieren → Paraphrase → prüfen → übernehmen funktioniert flüssig, auch mobil.
+
+**Notizen:**
+
+Gleiches Architekturprinzip wie Paket 4/generate-citations: neue Edge Function `paraphrase-passage` (Claude-Aufruf serverseitig, kein Dauer-Dienst). Die Paraphrase wird bewusst NICHT direkt gespeichert - die Function liefert nur den Vorschlagstext zurück, `lib/paraphrase.ts` haelt ihn im Frontend-State bis „Übernehmen" (schreibt `passages.paraphrase`) oder „Verwerfen" (verwirft lokal, nichts in der DB). AiLog-Eintrag (`action_type='paraphrase'`, bereits in Migration 0014 vorgesehen) entsteht trotzdem sofort bei der Erzeugung, unabhängig von Übernehmen/Verwerfen - die KI-Aktion selbst ist protokollierungspflichtig (CLAUDE.md), nicht erst die Übernahme.
+
+Zwei Einstiegspunkte wie im Plan: (1) ¶-Button an bestätigten Passagen-Karten in der Forschungsfragen-Ansicht, (2) im manuellen Zitat-Formular auf der Quellen-Detailseite ein „¶ erzeugen"-Button neben dem Paraphrase-Feld, der aus dem gerade eingetippten/eingefügten Originaltext eine Paraphrase vorschlägt, bevor das Zitat gespeichert wird.
+
+Live getestet (beide Pfade): Karten-¶-Button erzeugt Vorschlag, „Übernehmen" schreibt korrekt in `passages.paraphrase` (per Direktabfrage verifiziert); manuelles Formular erzeugt Paraphrase aus dem Originaltext-Feld und speichert sie beim Absenden mit demselben Zitat. Mobile Ansicht (375px) geprüft: Karte inkl. Paraphrase-Anzeige und „¶ neu erzeugen"-Button bleibt lesbar, kein Überlauf.
 
 ## Paket 10 – Backfill & Kalibrier-Abschluss ☐
 

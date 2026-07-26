@@ -23,6 +23,7 @@ import {
   STUDY_TYPE_LABEL,
   type MethodProfile,
 } from '../lib/methodProfiles'
+import { generateParaphrase } from '../lib/paraphrase'
 
 type FormState = {
   type: string
@@ -107,6 +108,8 @@ export function QuellenDetail() {
   const [manualOriginal, setManualOriginal] = useState('')
   const [manualTranslation, setManualTranslation] = useState('')
   const [manualRelevance, setManualRelevance] = useState('2')
+  const [manualParaphrase, setManualParaphrase] = useState('')
+  const [manualParaphrasing, setManualParaphrasing] = useState(false)
   const [manualSaving, setManualSaving] = useState(false)
   const [manualError, setManualError] = useState<string | null>(null)
   const [methodProfile, setMethodProfile] = useState<MethodProfile | null>(null)
@@ -178,6 +181,7 @@ export function QuellenDetail() {
         page,
         original: manualOriginal.trim(),
         translation: manualTranslation.trim() || null,
+        paraphrase: manualParaphrase.trim() || null,
         relevance: Number(manualRelevance),
         authors: source.authors,
         year: source.year,
@@ -186,6 +190,7 @@ export function QuellenDetail() {
       setManualPage('')
       setManualOriginal('')
       setManualTranslation('')
+      setManualParaphrase('')
       reloadPassages()
     } catch (err) {
       setManualError((err as Error).message)
@@ -267,6 +272,19 @@ export function QuellenDetail() {
       setError((err as Error).message)
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handleManualParaphrase() {
+    if (!id || !manualOriginal.trim()) return
+    setManualParaphrasing(true)
+    try {
+      const text = await generateParaphrase({ text: manualOriginal.trim(), sourceId: id })
+      setManualParaphrase(text)
+    } catch (err) {
+      setManualError((err as Error).message)
+    } finally {
+      setManualParaphrasing(false)
     }
   }
 
@@ -444,6 +462,24 @@ export function QuellenDetail() {
             rows={2}
             className={inputClass}
           />
+          <div className="flex items-start gap-2">
+            <textarea
+              placeholder="Paraphrase (optional)"
+              value={manualParaphrase}
+              onChange={(e) => setManualParaphrase(e.target.value)}
+              rows={2}
+              className={`${inputClass} flex-1`}
+            />
+            <button
+              type="button"
+              disabled={manualParaphrasing || !manualOriginal.trim()}
+              onClick={handleManualParaphrase}
+              className="shrink-0 rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
+              title="Paraphrase aus dem Originaltext erzeugen"
+            >
+              {manualParaphrasing ? '¶ …' : '¶ erzeugen'}
+            </button>
+          </div>
           {manualError && <p className="text-sm text-red-600 dark:text-red-400">{manualError}</p>}
           <button
             type="submit"

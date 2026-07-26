@@ -24,6 +24,7 @@ export type FfPassage = {
   page: number
   original: string
   translation: string | null
+  paraphrase: string | null
   citation: string
   relevance: number
   source_id: string
@@ -53,7 +54,7 @@ export async function fetchConfirmedPassagesForRq(rqId: string): Promise<FfPassa
   const { data, error } = await supabase
     .from('passages')
     .select(
-      `id, page, original, translation, citation, relevance,
+      `id, page, original, translation, paraphrase, citation, relevance,
        sources (
          id, title, authors, year, ranking_system, ranking_value,
          source_topics ( confirmed, topics ( name ) ),
@@ -71,6 +72,7 @@ export async function fetchConfirmedPassagesForRq(rqId: string): Promise<FfPassa
       page: number
       original: string
       translation: string | null
+      paraphrase: string | null
       citation: string
       relevance: number
       sources: RawSourceJoin | null
@@ -86,6 +88,7 @@ export async function fetchConfirmedPassagesForRq(rqId: string): Promise<FfPassa
       page: r.page,
       original: r.original,
       translation: r.translation,
+      paraphrase: r.paraphrase,
       citation: r.citation,
       relevance: r.relevance,
       source_id: source?.id ?? '',
