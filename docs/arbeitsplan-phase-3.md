@@ -59,7 +59,7 @@ Kein dediziertes Zuordnungs-UI gebaut (Autor-Entscheidung: einmalige Aufräumakt
 
 ---
 
-## ⚠️ Eingeschobenes Paket F – Funktion-Dimension ☐
+## ⚠️ Eingeschobenes Paket F – Funktion-Dimension ☑
 
 Hintergrund: Nicht jede Quelle zahlt auf ein Themenfeld ein (z. B. reine Methodik-Literatur) - trotzdem soll sie nicht als "nicht eingeordnet" auffallen und keine Schnittmengen/Evaluationsmatrix verschmutzen. Zusätzliche, unabhängige Dimension: die Funktion der Quelle in der Arbeit.
 
@@ -68,6 +68,12 @@ Hintergrund: Nicht jede Quelle zahlt auf ein Themenfeld ein (z. B. reine Methodi
 - Bibliothek/Quellen-Detail: Funktion als Chips, händisch setzbar, Filter in der Bibliothek ergänzen.
 - Quellen mit reiner Funktions-Zuordnung ohne Themenfeld gelten als vollständig eingeordnet.
 - **Fertig, wenn:** Die drei Startfunktionen stehen, sind in Bibliothek/Detail sichtbar und filterbar, die Analyse-Pipeline schlägt sie vor.
+
+**Notizen:**
+
+Migration `0023_work_functions.sql`: `work_functions` (id, name unique) + `source_functions` (source_id, function_id, confirmed, PK auf beiden IDs) mit RLS/Policy/Grant, Seed der drei Startfunktionen. Bewusst als eigene, von `run_topic_relevance_analysis` getrennte Pipeline gebaut (`run_function_suggestion` in `analysis.py`, CLI-Befehl `suggest-functions`) - verhindert, dass das Nachtragen der Funktion die bereits bezahlte Themen-/Relevanz-Analyse für alle ~150 Quellen erneut anstößt. Frontend: Funktion-Chips in `QuellenDetail.tsx` (händisch togglebar, `confirmed=true`), Filter-Dropdown in `Bibliothek.tsx` (`lib/functions.ts` kapselt die Supabase-Zugriffe).
+
+Kalibrierung an 6 bekannten Quellen (Theorie-Paper, SLR, Marktbericht, Verordnung) ergab zunächst durchgehend „Themenfeld-Literatur" - auffällig beim McKinsey-Marktbericht und dem BaFin-Rundschreiben, die dem Prompt-eigenen Beispiel für „Einleitung/Problemstellung" entsprechen. Mit dem Nutzer abgestimmt: Grenze ist inhaltlich fließend (diese Berichte liefern selbst Themenfeld-Inhalt zur Sachversicherung), keine Prompt-Anpassung nötig. Voller Lauf über die restlichen 146 unmarkierten Quellen bestätigte das - der Prompt unterscheidet durchaus (u. a. mehrere Deloitte-/Marktberichte wurden korrekt als „Einleitung/Problemstellung" erkannt), es war kein systematischer Bias. Ergebnis: 144 zugeordnet, 2 Fehler (vorbestehend `analysis_status=failed`, keine Chunks wegen Font-Encoding-Defekt bzw. fehlgeschlagener Fulltext-Extraktion, s. Paket 0). Gesamtkosten ca. $1.17 (Kalibrierung + Volllauf).
 
 ---
 

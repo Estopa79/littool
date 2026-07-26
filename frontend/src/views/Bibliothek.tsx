@@ -4,6 +4,7 @@ import { UploadPanel } from '../components/UploadPanel'
 import { GreyLiteratureDialog } from '../components/GreyLiteratureDialog'
 import { fetchSources, type Source } from '../lib/sources'
 import { formatAuthorYear, formatRanking, STATUS_ICON, STATUS_LABEL, TYPE_LABEL } from '../lib/sourceFormat'
+import { fetchAllSourceFunctions, fetchWorkFunctions, type WorkFunction } from '../lib/functions'
 
 type SortOption = 'year_desc' | 'year_asc' | 'title_asc'
 
@@ -44,6 +45,21 @@ export function Bibliothek() {
   const [onlyExtractionIssues, setOnlyExtractionIssues] = useState(false)
   const [sortBy, setSortBy] = useState<SortOption>('year_desc')
   const [showGreyDialog, setShowGreyDialog] = useState(false)
+  const [workFunctions, setWorkFunctions] = useState<WorkFunction[]>([])
+  const [filterFunction, setFilterFunction] = useState('')
+  const [sourceIdsByFunction, setSourceIdsByFunction] = useState<Map<string, Set<string>>>(new Map())
+
+  useEffect(() => {
+    fetchWorkFunctions().then(setWorkFunctions)
+    fetchAllSourceFunctions().then((rows) => {
+      const map = new Map<string, Set<string>>()
+      for (const row of rows) {
+        if (!map.has(row.function_id)) map.set(row.function_id, new Set())
+        map.get(row.function_id)!.add(row.source_id)
+      }
+      setSourceIdsByFunction(map)
+    })
+  }, [])
 
   function load() {
     setLoading(true)
@@ -81,6 +97,10 @@ export function Bibliothek() {
     } else if (filterRanking) {
       result = result.filter((s) => s.ranking_system === filterRanking)
     }
+    if (filterFunction) {
+      const ids = sourceIdsByFunction.get(filterFunction) ?? new Set()
+      result = result.filter((s) => ids.has(s.id))
+    }
     if (search.trim()) {
       const q = search.trim().toLowerCase()
       result = result.filter((s) => s.title.toLowerCase().includes(q))
@@ -94,7 +114,17 @@ export function Bibliothek() {
     })
 
     return result
-  }, [sources, filterType, filterStatus, filterRanking, onlyExtractionIssues, search, sortBy])
+  }, [
+    sources,
+    filterType,
+    filterStatus,
+    filterRanking,
+    filterFunction,
+    sourceIdsByFunction,
+    onlyExtractionIssues,
+    search,
+    sortBy,
+  ])
 
   return (
     <div className="p-4 sm:p-6">
@@ -177,6 +207,18 @@ export function Bibliothek() {
           {STATUS_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>
               {o.label}
+            </option>
+          ))}
+        </select>
+        <select
+          value={filterFunction}
+          onChange={(e) => setFilterFunction(e.target.value)}
+          className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+        >
+          <option value="">Alle Funktionen</option>
+          {workFunctions.map((f) => (
+            <option key={f.id} value={f.id}>
+              {f.name}
             </option>
           ))}
         </select>

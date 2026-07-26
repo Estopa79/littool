@@ -192,6 +192,142 @@ def _save_results(
     ).execute()
 
 
+FUNCTION_SYSTEM_PROMPT = """Du ordnest eine wissenschaftliche Quelle für eine Dissertation zu \
+Business-IT Alignment und digitale Transformation in der deutschen Sachversicherung ihrer \
+Funktion in der Arbeit zu - unabhängig von der inhaltlichen Themenfeld-Zuordnung.
+
+Antworte AUSSCHLIESSLICH mit einem JSON-Objekt in genau diesem Format, ohne Erklärung davor \
+oder danach und ohne Markdown-Codeblock:
+
+{"function": "<Name>"}
+
+Regeln:
+- Nutze ausschließlich einen der unten aufgeführten Namen, exakt wie angegeben.
+- "Themenfeld-Literatur" ist der Standardfall: die Quelle liefert inhaltliches Material zu \
+einem der Themenfelder der Arbeit (das ist der Normalfall für die meisten wissenschaftlichen \
+Quellen im Bestand).
+- "Einleitung/Problemstellung" nur, wenn die Quelle primär zur Motivation/Problembeschreibung \
+dient (z. B. Markt-/Branchenberichte, Statistiken ohne eigenen Theoriebezug).
+- "Methodik" nur, wenn die Quelle primär Forschungsmethodik behandelt (z. B. \
+Statistik-/Verfahrenslehrbücher), nicht inhaltlich zum eigentlichen Thema.
+"""
+
+
+def _fetch_functions(client: Client) -> list[dict]:
+    return client.table("work_functions").select("id, name").execute().data or []
+
+
+def _build_function_prompt(source: dict, chunks: list[dict], functions: list[dict]) -> str:
+    functions_block = "\n".join(f'- "{f["name"]}"' for f in functions)
+    chunks_block = "\n\n".join(f"[S. {c['page']}] {c['text'][:MAX_CHUNK_CHARS]}" for c in chunks)
+    return (
+        f"Verfügbare Funktionen:\n{functions_block}\n\n"
+        f"Quelle:\n"
+        f"Titel: {source['title']}\n"
+        f"Autoren: {_format_authors(source.get('authors'))}\n"
+        f"Jahr: {source.get('year') or 'unbekannt'}\n"
+        f"Abstract: {source.get('abstract') or '(kein Abstract vorhanden)'}\n\n"
+        f"Textauszüge aus der Quelle:\n{chunks_block or '(keine Textauszüge vorhanden)'}"
+    )
+
+
+def _parse_function_response(text: str, functions_by_name: dict[str, dict]) -> str:
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```(json)?\n?", "", cleaned)
+        cleaned = re.sub(r"\n?```$", "", cleaned)
+    data = json.loads(cleaned)
+    name = data.get("function")
+    if name not in functions_by_name:
+        raise ValueError(f"unbekannte Funktion in Antwort: {name!r}")
+    return functions_by_name[name]["id"]
+
+
+def run_function_suggestion(
+    client: Client,
+    api_key: str,
+    limit: int | None = None,
+    source_ids: list[str] | None = None,
+) -> dict:
+    """Eigener, schlanker Lauf fuer die Funktion-Dimension (Paket F) - bewusst
+    getrennt von run_topic_relevance_analysis, damit das Nachtragen der
+    Funktion fuer die schon analysierten Quellen nicht die (bereits korrekte,
+    bezahlte) Themen-/Relevanz-Analyse erneut anstoesst."""
+    stats = {"zugeordnet": 0, "fehler": 0, "tokens_in": 0, "tokens_out": 0, "kosten_usd": 0.0}
+
+    functions = _fetch_functions(client)
+    if not functions:
+        raise RuntimeError("work_functions ist leer - Migration 0023 ausgefuehrt?")
+    functions_by_name = {f["name"]: f for f in functions}
+
+    if source_ids:
+        rows = (
+            client.table("sources")
+            .select("id, title, authors, year, abstract")
+            .in_("id", source_ids)
+            .execute()
+            .data
+            or []
+        )
+    else:
+        already_tagged = {
+            r["source_id"] for r in client.table("source_functions").select("source_id").execute().data or []
+        }
+        all_rows = (
+            client.table("sources").select("id, title, authors, year, abstract").order("created_at").execute().data
+            or []
+        )
+        rows = [r for r in all_rows if r["id"] not in already_tagged]
+        if limit:
+            rows = rows[:limit]
+
+    claude = claude_client.get_client(api_key)
+
+    for row in rows:
+        source_id = row["id"]
+        chunks = _select_representative_chunks(client, source_id)
+        if not chunks:
+            print(f"{row['title'][:60]}: keine Chunks, uebersprungen")
+            stats["fehler"] += 1
+            continue
+
+        user_prompt = _build_function_prompt(row, chunks, functions)
+        call_stats: dict = {}
+        try:
+            response_text = claude_client.call(
+                claude, user_prompt, system=FUNCTION_SYSTEM_PROMPT, max_tokens=200, stats=call_stats
+            )
+            function_id = _parse_function_response(response_text, functions_by_name)
+        except Exception as exc:  # noqa: BLE001 - Fehler sichtbar melden statt abzustuerzen
+            print(f"{row['title'][:60]}: FEHLER - {exc}")
+            stats["fehler"] += 1
+            continue
+
+        client.table("source_functions").delete().eq("source_id", source_id).eq("confirmed", False).execute()
+        client.table("source_functions").insert(
+            {"source_id": source_id, "function_id": function_id, "confirmed": False}
+        ).execute()
+
+        function_name = next(f["name"] for f in functions if f["id"] == function_id)
+        tokens_total = call_stats.get("tokens_in", 0) + call_stats.get("tokens_out", 0)
+        client.table("ai_log_entries").insert(
+            {
+                "action_type": "analyse",
+                "source_id": source_id,
+                "description": f"Funktion vorgeschlagen: {function_name}",
+                "tokens": tokens_total,
+            }
+        ).execute()
+
+        stats["zugeordnet"] += 1
+        stats["tokens_in"] += call_stats.get("tokens_in", 0)
+        stats["tokens_out"] += call_stats.get("tokens_out", 0)
+        stats["kosten_usd"] = round(stats["kosten_usd"] + call_stats.get("kosten_usd", 0.0), 4)
+        print(f"{row['title'][:60]}: Funktion={function_name}, {tokens_total} Tokens")
+
+    return stats
+
+
 def run_topic_relevance_analysis(
     client: Client,
     api_key: str,

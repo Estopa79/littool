@@ -216,6 +216,17 @@ def cmd_extract_passages(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_suggest_functions(args: argparse.Namespace) -> int:
+    client = get_client()
+    api_key = require_env("ANTHROPIC_API_KEY")
+    stats = analysis.run_function_suggestion(client, api_key, limit=args.limit, source_ids=args.source_id or None)
+    print(
+        f"Funktion-Vorschlag abgeschlossen: {stats['zugeordnet']} zugeordnet, {stats['fehler']} Fehler, "
+        f"{stats['tokens_in']}+{stats['tokens_out']} Tokens, ca. ${stats['kosten_usd']:.4f}."
+    )
+    return 0
+
+
 def cmd_test_claude(_args: argparse.Namespace) -> int:
     api_key = require_env("ANTHROPIC_API_KEY")
     client = claude_client.get_client(api_key)
@@ -328,6 +339,20 @@ def main() -> None:
         help="Gezielt eine Quelle analysieren (wiederholbar) - fuer die Kalibrierung an bekannten Quellen",
     )
     analyze_parser.set_defaults(func=cmd_analyze_topics)
+
+    suggest_functions_parser = subparsers.add_parser(
+        "suggest-functions", help="Funktion in der Arbeit vorschlagen (Paket F) - unabhaengig von Themen/Relevanz"
+    )
+    suggest_functions_parser.add_argument(
+        "--limit", type=int, default=None, help="Nur die ersten N noch nicht zugeordneten Quellen verarbeiten"
+    )
+    suggest_functions_parser.add_argument(
+        "--source-id",
+        action="append",
+        default=[],
+        help="Gezielt eine Quelle bearbeiten (wiederholbar) - fuer die Kalibrierung",
+    )
+    suggest_functions_parser.set_defaults(func=cmd_suggest_functions)
 
     extract_passages_parser = subparsers.add_parser(
         "extract-passages", help="Woertliche Passagen je Quelle x relevanter Forschungsfrage extrahieren + uebersetzen"

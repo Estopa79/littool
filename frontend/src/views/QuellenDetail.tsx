@@ -2,6 +2,12 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { fetchSource, getSignedPdfUrl, updateSource, type Author, type SourceDetail } from '../lib/sources'
 import { STATUS_ICON, STATUS_LABEL } from '../lib/sourceFormat'
+import {
+  fetchSourceFunctions,
+  fetchWorkFunctions,
+  setSourceFunction,
+  type WorkFunction,
+} from '../lib/functions'
 
 type FormState = {
   type: string
@@ -74,6 +80,8 @@ export function QuellenDetail() {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
   const [pageInput, setPageInput] = useState(String(initialPage))
   const [pageJump, setPageJump] = useState(initialPage)
+  const [workFunctions, setWorkFunctions] = useState<WorkFunction[]>([])
+  const [activeFunctionIds, setActiveFunctionIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     if (!id) return
@@ -90,7 +98,22 @@ export function QuellenDetail() {
       })
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false))
+
+    fetchWorkFunctions().then(setWorkFunctions)
+    fetchSourceFunctions(id).then((rows) => setActiveFunctionIds(new Set(rows.map((r) => r.function_id))))
   }, [id])
+
+  async function toggleFunction(functionId: string) {
+    if (!id) return
+    const enabled = !activeFunctionIds.has(functionId)
+    setActiveFunctionIds((prev) => {
+      const next = new Set(prev)
+      if (enabled) next.add(functionId)
+      else next.delete(functionId)
+      return next
+    })
+    await setSourceFunction(id, functionId, enabled)
+  }
 
   function updateField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => (prev ? { ...prev, [key]: value } : prev))
@@ -178,6 +201,27 @@ export function QuellenDetail() {
         <span className="text-sm text-slate-500 dark:text-slate-400">
           {STATUS_ICON[source.status]} {STATUS_LABEL[source.status]}
         </span>
+      </div>
+
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <span className="text-sm text-slate-500 dark:text-slate-400">Funktion:</span>
+        {workFunctions.map((f) => {
+          const active = activeFunctionIds.has(f.id)
+          return (
+            <button
+              key={f.id}
+              type="button"
+              onClick={() => toggleFunction(f.id)}
+              className={`rounded-full border px-3 py-1 text-xs font-medium ${
+                active
+                  ? 'border-slate-700 bg-slate-800 text-white dark:border-slate-300 dark:bg-slate-100 dark:text-slate-900'
+                  : 'border-slate-300 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800'
+              }`}
+            >
+              {f.name}
+            </button>
+          )
+        })}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
