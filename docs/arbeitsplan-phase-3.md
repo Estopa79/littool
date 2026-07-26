@@ -8,6 +8,57 @@ Voraussetzung: Phase 2 abgeschlossen (Bestand gechunkt, eingebettet, durchsuchba
 
 ---
 
+## ⚠️ Eingeschobenes Paket K – Seiten-Offset & Backup (SOFORT, vor allem Weiteren) ☐
+
+Hintergrund: Journal-Artikel beginnen im PDF bei Seite 1, im Journal aber z. B. bei Seite 1319. Bisher wird die PDF-Seite auch für Zitationen verwendet – das wäre falsch. Außerdem fehlt eine Datensicherung.
+
+- Migration: `page_offset` (integer, default 0) an `sources`.
+- Offset-Ableitung: aus Crossref-Feld „erste Seite" minus 1; Backfill für alle vorhandenen Quellen; nicht ableitbare Fälle (Bücher, graue Literatur, fehlende Metadaten) → Offset 0 + Markierung `needs_review`.
+- Zitationslogik umstellen: Zitationsseite = PDF-Seite + page_offset, überall generiert statt gespeichert (Passagen, Kopier-Buttons, künftige Exporte). Bereits erzeugte, fest gespeicherte Zitations-Strings der Passagen neu generieren.
+- Quellen-Detailseite: Offset-Feld editierbar mit Plausibilitäts-Anzeige („PDF-Seite 1 = zitiert als S. …").
+- `scripts/backup.sh` anlegen (DB-Dump + PDF-Bucket-Sync) und einmal ausführen; Restore-Test dokumentieren.
+- Stichprobe: 5 Passagen – Zitationsseite mit der sichtbaren Seitenzahl im PDF abgleichen.
+- **Fertig, wenn:** Zitationen tragen Journal-Seiten, ein erstes Backup existiert, Restore wurde getestet.
+
+**Notizen (Zitationslogik, Migrationen 0019-0022):**
+
+`format_citation(authors, year, page)` liegt als einzige Quelle der Wahrheit in der DB (nicht in Python dupliziert) - ein Trigger auf `sources` (feuert bei Änderung von `authors`/`year`/`page_offset`) hält `passages.citation` automatisch synchron, wenn eine Quelle später in der Bibliothek vervollständigt wird. `passages.page` bleibt strikt die PDF-Seite (Viewer-Sprung), die Zitationsseite wird erst beim Anzeigen/Speichern aus PDF-Seite + `page_offset` gebildet.
+
+Backfill zunächst nur anhand des `pages`-Bereichs aus Crossref (0020) - Stichprobe deckte auf, dass das nicht reicht: **9 von 44 automatisch abgeleiteten Offsets waren falsch**, weil das hinterlegte PDF ein Preprint/Repository-Exemplar (ResearchGate o. Ä.) mit eigener, vom Verlags-PDF abweichender Paginierung ist - teils mit zufällig gleicher Gesamtseitenzahl wie die echte Verlagsversion, was einen reinen Seitenzahl-Abgleich täuscht. Deshalb zweistufige Validierung (`fulltext.py:_compute_page_offset`): (1) PDF-Seitenzahl muss zum erwarteten Bereich passen, (2) eine Stichproben-Seite muss die erwartete Zitationsseite tatsächlich als aufgedruckte Zahl enthalten. Nicht bestehende Fälle → Offset 0 + `needs_review` statt einer unzuverlässigen Zahl (Migrationen 0021/0022, 9 Quellen betroffen). Gleiche Validierung ist jetzt auch fest in `run_fulltext_extraction` verdrahtet, damit künftige Uploads automatisch den korrekten Offset bekommen (oder sichtbar als unsicher markiert werden) - kein manueller Nachtrag mehr nötig.
+
+Stichprobe (Paket-Kriterium): mehrere Passagen gegen den tatsächlichen PDF-Text geprüft (`fitz`, Klartext-Auszug der jeweiligen Seite) - berechnete Zitationsseite stimmt exakt mit der im PDF aufgedruckten Seitenzahl überein (z. B. Vial 2019: PDF-Seite 20 zeigt gedruckt "1178", berechnete Zitationsseite 1178).
+
+Quellen-Detailseite: neues Feld „Seiten-Offset (PDF-Seite → Zitationsseite)" mit Plausibilitätstext („PDF-Seite 1 = zitiert als S. …").
+
+`scripts/backup.sh`: PDF-Bucket-Sync (`supabase storage cp -r --linked --experimental`) getestet und funktionsfähig. Der DB-Dump-Teil (`supabase db dump --linked`) braucht Docker Desktop, das auf diesem Rechner noch nicht installiert ist - **offen**, Autor installiert es bei Gelegenheit, dann Dump + Restore-Test nachholen. Paket K bleibt bis dahin offen (☐).
+
+---
+
+## ⚠️ Eingeschobenes Paket B – BibTeX-Import aus Citavi (Datenbestand-Reparatur) ☐
+
+Hintergrund: Von ~150 PDFs im Bestand konnten 88 nicht automatisch mit Metadaten angereichert werden (v. a. graue Literatur ohne DOI). Ein BibTeX-Export aus Citavi enthält die Metadaten aus der bisherigen Vorarbeit.
+
+- Upload-Funktion für eine .bib-Datei; Parser für die gängigen Entry-Typen (article, book, incollection, techreport, misc …).
+- **Matching gegen bestehende Quellen, dreistufig:** 1) DOI (exakt), 2) Titel-Ähnlichkeit (Fuzzy, Schwellwert, Jahr als Plausibilitätscheck), 3) Rest → manueller Zuordnungs-Dialog (BibTeX-Eintrag ↔ Quelle nebeneinander, per Klick verheiraten).
+- Übernahme-Regel: BibTeX füllt nur **leere** Felder automatisch; Konflikte mit vorhandenen (Crossref-)Werten werden angezeigt statt überschrieben. Erfolgreich angereicherte Quellen → Status `complete`.
+- BibTeX-Einträge ohne passendes PDF: Liste anzeigen, optional als Quellen ohne Datei anlegen (zitierbar, `kein PDF`-Kennzeichen).
+- Bericht am Ende: n per DOI, n per Titel, n manuell, n offen, n neu angelegt.
+- **Fertig, wenn:** Die Zahl der `needs_review`-Quellen deutlich gesunken ist und die graue Literatur vollständige Metadaten trägt.
+
+---
+
+## ⚠️ Eingeschobenes Paket F – Funktion-Dimension ☐
+
+Hintergrund: Nicht jede Quelle zahlt auf ein Themenfeld ein (z. B. reine Methodik-Literatur) - trotzdem soll sie nicht als "nicht eingeordnet" auffallen und keine Schnittmengen/Evaluationsmatrix verschmutzen. Zusätzliche, unabhängige Dimension: die Funktion der Quelle in der Arbeit.
+
+- Migration: `work_functions` (id, name), `source_functions` (source_id, function_id n:m, confirmed). Startwerte: „Themenfeld-Literatur" (Standard), „Einleitung/Problemstellung", „Methodik" - Liste später erweiterbar.
+- Analyse-Pipeline (Paket 3) ergänzen: Claude schlägt zusätzlich eine Funktion vor (unbestätigt).
+- Bibliothek/Quellen-Detail: Funktion als Chips, händisch setzbar, Filter in der Bibliothek ergänzen.
+- Quellen mit reiner Funktions-Zuordnung ohne Themenfeld gelten als vollständig eingeordnet.
+- **Fertig, wenn:** Die drei Startfunktionen stehen, sind in Bibliothek/Detail sichtbar und filterbar, die Analyse-Pipeline schlägt sie vor.
+
+---
+
 ## Paket 0 – Rückblick & KI-Grundlagen ☑
 
 - Offene Punkte aus Phase 2 checken (Extraktions-Fehlerfälle, Suchqualität).
@@ -74,12 +125,18 @@ Nebenbefund: 3 verwaiste Testdatensätze aus `0004_sources_seed.sql` (Phase 1) o
 
 Batch-Lauf über den gesamten Bestand: 150 von 152 Quellen analysiert, 2 Fehler (die zwei bekannten, unreparierbaren Springer-Duplikate ohne Chunks - erwartet, kein neuer Fund). 230 Themenfeld-Zuordnungen, 1050 Relevanz-Bewertungen (150 × 7 FF), Gesamtkosten ca. $2,43. Bei der Nachkontrolle selbst einen Fehler verursacht (Bulk-`.select()` ohne Limit bei einer Diagnose las nur die PostgREST-Standard-Zeilenzahl zurück, siehe bekanntes Muster in `notizen-phase-1-2.md` - fälschlich als Datenlücke gedeutet und beim Nachstellen der Hypothese versehentlich echte `confirmed=false`-Zeilen zweier Quellen überschrieben); mit `--source-id` gezielt neu analysiert, per `count='exact')`-Abfrage pro Quelle (nicht bulk) verifiziert: alle 150 Quellen exakt 7 Relevanz-Zeilen, keine Anomalien mehr.
 
-## Paket 4 – Passagen-Extraktion + Übersetzung ☐
+## Paket 4 – Zitate auf Abruf + Übersetzung ☐
 
-- Worker-Job je Quelle × relevanter FF (Relevanz ≥ 1): Claude erhält die passenden Chunks (semantische Vorauswahl aus Phase 2) und extrahiert wörtliche Passagen: Originaltext exakt, Seite, Relevanz 1–3.
-- Kontrolle: Extrahierter Text muss im Chunk-Text nachweisbar sein (String-Abgleich mit Toleranz) – verhindert erfundene Zitate. Nicht verifizierbare Passagen werden verworfen und geloggt.
-- Direkt mitliefern: deutsche Übersetzung + fertige Zitation (Autor, Jahr, S. x).
-- **Fertig, wenn:** Für die 5 Kalibrier-Quellen stimmen Passagen, Seiten und Zitationen bei manueller Prüfung im PDF.
+- **Kein Batch über den Bestand.** Button „Zitate erzeugen" an Quelle (Bibliothek-Zeile und Detailseite; berücksichtigt aktiven Themengebiets-/FF-Filter als Kontext): Claude erhält die passenden Chunks (semantische Vorauswahl aus Phase 2) und liefert wörtliche Zitat-Kandidaten: Originaltext exakt, Seite, FF-/Themen-Bezug, deutsche Übersetzung, Zitation (aus Seite + Offset generiert).
+- Kontrolle: Kandidat muss im Chunk-Text nachweisbar sein (String-Abgleich mit Toleranz) – nicht Verifizierbares wird verworfen und geloggt.
+- Prüf-Dialog direkt nach Erzeugung: Kandidaten-Karten mit Deep-Link ins PDF; je Karte bestätigen (→ Zitat-Pool) oder verwerfen. Unbestätigte Kandidaten verfallen.
+- Manueller Weg (aus Paket 7 vorgezogen, gehört logisch hierher): Text im Viewer markieren/einfügen + Seite → Zitat im Pool, gilt als bestätigt.
+- AiLog je Erzeugungslauf.
+- **Fertig, wenn:** Für 2 Kalibrier-Quellen: erzeugen → im PDF prüfen → bestätigen funktioniert flüssig, Seiten und Zitationen stimmen, Verworfenes verschwindet.
+
+**Notizen:**
+
+Umgeplant (Autor brachte Konzept v0.6 mit): ursprünglich als Batch über den ganzen Bestand gebaut (`analyze-topics`-artiger Job je Quelle × relevanter FF), jetzt auf Pull-Modell umgestellt - kein automatischer Massenlauf mehr, Zitate entstehen nur noch auf Abruf beim Arbeiten. Der Batch-Job für die restlichen 660 offenen Quelle-FF-Paare wurde gestoppt (0 Fehler, keine angebrochenen Schreibvorgänge). Die schon erzeugten 140+ Passagen (Kalibrierung + Batch-Anfang, echte Kosten ca. $3,50) bleiben als unbestätigte Kandidaten in der DB - sie werden beim ersten Durcharbeiten über die neue Prüf-UI bestätigt/verworfen, kein erneuter Claude-Aufruf nötig dafür.
 
 ## Paket 5 – Methodenprofil-Extraktion ☐
 
@@ -95,8 +152,8 @@ Batch-Lauf über den gesamten Bestand: 150 von 152 Quellen analysiert, 2 Fehler 
 
 ## Paket 7 – Forschungsfragen-Ansicht ☐
 
-- UI gemäß Wireframe: FF-Liste mit Passagen-Zähler links, Passagen-Karten rechts (Sterne, Original einklappbar, Übersetzung, Zitation kopieren, PDF-Sprung, ¶, 💬-Platzhalter für Phase 5).
-- Sortierung (Relevanz/Quelle/Jahr), Filter (Thema, Ranking, Studientyp, nur bestätigte).
+- UI gemäß Wireframe: FF-Liste mit Zitate-Zähler links, rechts die **bestätigten Zitate aus dem Pool** als Karten (Sterne, Original einklappbar, Übersetzung, Zitation kopieren, PDF-Sprung, ¶, 💬-Platzhalter für Phase 5). Der Pool wächst durch dein Arbeiten – die Ansicht zeigt nur Geprüftes.
+- Sortierung (Relevanz/Quelle/Jahr), Filter (Thema, Ranking, Studientyp, Funktion).
 - **Fertig, wenn:** Pro FF entsteht ein brauchbarer Arbeitsüberblick, mobil wie Desktop.
 
 ## Paket 8 – Matrix-Ansicht ☐
@@ -113,9 +170,9 @@ Batch-Lauf über den gesamten Bestand: 150 von 152 Quellen analysiert, 2 Fehler 
 
 ## Paket 10 – Backfill & Kalibrier-Abschluss ☐
 
-- Analyse (Pakete 3–5) über den gesamten Bestand laufen lassen; Kosten notieren.
+- Analyse (Pakete 3 und 5: Themen, Relevanz, Funktion, Methodenprofile) über den gesamten Bestand laufen lassen; Kosten notieren. **Zitate ausdrücklich nicht im Batch** – sie entstehen auf Abruf beim Arbeiten.
 - QS-Durchgang: mindestens die Quellen mit hoher Relevanz vollständig bestätigen.
-- Stichproben-Ehrlichkeitstest: 10 zufällige Passagen im PDF verifizieren (Text, Seite, Zitation).
+- Stichproben-Ehrlichkeitstest: 10 bereits bestätigte Zitate im PDF verifizieren (Text, Seite, Zitation).
 - **Fertig, wenn:** Der Bestand ist analysiert, die wichtigsten Zuordnungen sind bestätigt → Phase 3 abgeschlossen. 🎉
 
 ## Paket 11 – Evaluationsmatrix: Kriterien & KI-Vorbewertung ☐

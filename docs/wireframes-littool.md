@@ -78,7 +78,8 @@ Navigation: feste Seitenleiste links (einklappbar) mit den sechs Ansichten. Oben
 ```
 
 - Status: ✔ vollständig · ⚠ Metadaten unvollständig · ⏳ in Verarbeitung.
-- Zeile anklicken → **Quellen-Detailseite**: Metadaten (editierbar), Abstract, Ranking mit Herkunft, **Methodenprofil (Studientyp, Methode, Sample, Auswertung – KI-extrahiert, bestätigbar)**, Themen-Chips, Relevanz je FF, alle Passagen, eingebetteter PDF-Viewer.
+- Zeile anklicken → **Quellen-Detailseite**: Metadaten (editierbar), Abstract, Ranking mit Herkunft, **Methodenprofil (Studientyp, Methode, Sample, Auswertung – KI-extrahiert, bestätigbar)**, Themen-Chips, Funktion-Chips, Relevanz je FF, Zitate der Quelle, eingebetteter PDF-Viewer.
+- **„Zitate erzeugen"-Button** an Zeile und Detailseite (nutzt aktiven Themen-/FF-Filter als Kontext): erzeugt Kandidaten-Karten mit Deep-Link → direkt prüfen → bestätigen (→ Zitat-Pool) oder verwerfen. Manuell: Text im Viewer markieren → „Als Zitat übernehmen".
 - Filterleiste zusätzlich mit **[Studientyp ▼]** (qualitativ/quantitativ/mixed/konzeptionell/Review).
 - Stapel-Upload zeigt Fortschritt je Datei (DOI gefunden? Metadaten? Ranking?); unklare Fälle sammeln sich in einer „Prüfen"-Liste.
 

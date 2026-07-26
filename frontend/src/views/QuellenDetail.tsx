@@ -12,6 +12,7 @@ type FormState = {
   volume: string
   issue: string
   pages: string
+  page_offset: string
   issn: string
   doi: string
   abstract: string
@@ -31,6 +32,7 @@ function toForm(s: SourceDetail): FormState {
     volume: s.volume ?? '',
     issue: s.issue ?? '',
     pages: s.pages ?? '',
+    page_offset: s.page_offset?.toString() ?? '0',
     issn: s.issn ?? '',
     doi: s.doi ?? '',
     abstract: s.abstract ?? '',
@@ -132,6 +134,7 @@ export function QuellenDetail() {
         volume: form.volume || null,
         issue: form.issue || null,
         pages: form.pages || null,
+        page_offset: form.page_offset ? Number(form.page_offset) : 0,
         issn: form.issn || null,
         doi: form.doi || null,
         abstract: form.abstract || null,
@@ -279,6 +282,17 @@ export function QuellenDetail() {
                 onChange={(e) => updateField('pages', e.target.value)}
                 className={inputClass}
               />
+            </Field>
+            <Field label="Seiten-Offset (PDF-Seite → Zitationsseite)">
+              <input
+                type="number"
+                value={form.page_offset}
+                onChange={(e) => updateField('page_offset', e.target.value)}
+                className={inputClass}
+              />
+              <span className="text-xs text-slate-400">
+                PDF-Seite 1 = zitiert als S. {1 + (Number(form.page_offset) || 0)}
+              </span>
             </Field>
             <Field label="ISSN">
               <input

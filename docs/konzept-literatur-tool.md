@@ -64,12 +64,15 @@ Stack analog Valmora-Chroniken:
 
 - Konfiguration: Thema + Forschungsfragen (FF1…FFn) + Themenfelder.
 - **Automatische Einordnung:** Claude ordnet jede Quelle Themenfeldern zu (Mehrfachzuordnung/Schnittmengen erwünscht) und bewertet die Relevanz pro Forschungsfrage.
-- **Passagen-Extraktion:** Pro Forschungsfrage eine Übersicht aller einzahlenden Passagen – Original, deutsche Übersetzung, Kurzzitation, Deep-Link ins PDF.
-- **Paraphrase auf Knopfdruck:** Markierten Originaltext (Passage oder freie Auswahl im Text) per Klick paraphrasieren lassen – Ergebnis ist ein sinngemäßes Zitat mit korrekter Zitation (Autor, Jahr, S. x), als prüfbarer Vorschlag neben dem Original. Übernahme nur nach Prüfung; jede Paraphrase landet im KI-Verzeichnis.
+- **Funktion in der Arbeit (eigene Dimension neben den Themenfeldern):** Mehrfach wählbare, erweiterbare Liste – Themenfeld-Literatur (Standard), Einleitung/Problemstellung, Methodik, … Händisch setzbar und von der Analyse mit vorgeschlagen (unbestätigt, QS-Workflow). Quellen mit reiner Funktions-Zuordnung (z. B. Methodik-Literatur) gelten ohne Themenfeld als vollständig eingeordnet und verschmutzen weder Schnittmengen noch Evaluationsmatrix. In Bibliothek und Suche filterbar.
+- **Zitate auf Abruf (Pull statt Push):** Keine automatische Massen-Extraktion. In der Bibliothek (auch im Themengebiets-Filter) und auf der Quellen-Detailseite gibt es „Zitate erzeugen": Claude schlägt für die Quelle wörtliche Zitat-Kandidaten passend zu Themengebiet/Forschungsfrage vor – Original, deutsche Übersetzung, Zitation (Autor, Jahr, S. x), Deep-Link zur Fundstelle. Der Autor prüft jeden Kandidaten direkt im Dokument und bestätigt oder verwirft. **Nur bestätigte Zitate landen im Zitat-Pool**, aus dem sich FF-Ansicht und Schreibwerkstatt bedienen. Technische Absicherung: Kandidaten müssen per String-Abgleich im echten Dokumenttext nachweisbar sein, sonst werden sie verworfen.
+- **Manueller Weg gleichwertig:** Text im PDF-Viewer markieren (oder einfügen) + Seite → wird mit korrekter Zitation zum Zitat im Pool. Gilt als bestätigt.
+- **Paraphrasieren nach demselben Muster:** je Zitat auf Knopfdruck (¶) oder manuell selbst formuliert – Ergebnis ist ein sinngemäßes Zitat mit Zitation, als prüfbarer Vorschlag; Übernahme nur nach Prüfung; jede KI-Paraphrase landet im KI-Verzeichnis.
 - **Methodenprofil je Quelle:** Claude extrahiert automatisch das Studiendesign – Studientyp (qualitativ / quantitativ / mixed / konzeptionell / Literaturreview), Methode (z. B. Fallstudie, Survey, PLS-SEM, Interviews), Datengrundlage/Sample, Auswertungsverfahren. Angezeigt in Bibliothek und Quellen-Detail, filterbar, bestätigbar im QS-Workflow; Grundlage für Methodentabellen (Deskriptionsmatrix).
 - Matrix-Ansicht: Quellen × Forschungsfragen (Vorstufe zu Deskriptions-/Stringenzmatrix).
 - **Evaluationsmatrix (Kriterien-Matrix):** Frei definierbare Kriterien-Sets (z. B. acht Forschungskriterien für die Forschungslücke). Jede Quelle wird je Kriterium bewertet: voll (●) / teilweise (◐) / nicht abgedeckt (○) – KI-vorbewertet mit Begründung, im QS-Workflow bestätigbar/korrigierbar. Darstellung: Zeilen gruppiert nach Schnittmengen (Themenfelder), Spalten = Kriterien, dazu VHB-Rating und Score-Spalte (Summe); Filter nach Schnittmenge, Ranking, Neu-Markierung; **eigene Arbeit als hervorgehobene Referenzzeile** (Forschungslücken-Argument: keine Quelle deckt alles ab, die Dissertation schon). Export als eigenständige interaktive HTML-Datei (mit Filtern/Suche, weitergebbar) und als CSV.
 - **Kriterien-Vorschlag:** Auf Wunsch schlägt Claude ein Kriterien-Set vor – hergeleitet aus Thema, Forschungsfragen, Themenfeldern und dem tatsächlichen Quellenbestand. Jedes vorgeschlagene Kriterium kommt mit Begründung und Herleitung („leitet sich ab aus FF2 und der Lücke X, die im Bestand sichtbar wird, weil …"). Der Autor übernimmt, ändert oder verwirft einzeln; die Herleitung wird am Kriterium gespeichert (nützlich für die Methodik-Begründung in der Arbeit) und im KI-Verzeichnis protokolliert.
+- **Venn-Grafik der Schnittmengen (noch nicht umgesetzt, Idee):** Themenfelder als Venn-Diagramm mit Quellen-Zählern je Schnittmenge, Klick öffnet die Quellen; Export als Bild für die Arbeit.
 - QS-Workflow: KI-Zuordnungen bestätigen/korrigieren.
 
 ### Modul 4 – Verwendungs-Tracking & Verzeichnisse
@@ -99,11 +102,13 @@ Stack analog Valmora-Chroniken:
 
 | Entität | Wichtigste Felder |
 |---|---|
-| **Source** | id, doi (optional), typ (journal/konferenz/buch/grau), titel, autoren, jahr, venue, ranking_system, ranking_wert, seiten, abstract, storage_pfad, status, **studientyp, methode, sample, auswertung, methoden_bestätigt** |
+| **Source** | id, doi (optional), typ (journal/konferenz/buch/grau), titel, autoren, jahr, venue, ranking_system, ranking_wert, seiten, **seiten_offset (Journal-Startseite − PDF-Seite 1; für korrekte Zitationsseiten)**, abstract, storage_pfad, status, studientyp, methode, sample, auswertung, methoden_bestätigt |
 | **Chunk** | id, source_id, seite, text, embedding |
 | **ResearchQuestion** | id, kürzel (FF1…), text |
 | **Topic** | id, name, beschreibung |
 | **SourceTopic** | source_id, topic_id (n:m → Schnittmengen) |
+| **WorkFunction** | id, name (Einleitung/Problemstellung, Methodik, …; erweiterbar) |
+| **SourceFunction** | source_id, function_id (n:m), bestätigt |
 | **Passage** | id, source_id, seite, original, übersetzung, **paraphrase**, rq_id, relevanz, zitation, bestätigt |
 | **Document** | id, typ (ISP/Exposé/Dissertation), titel, status |
 | **Section** | id, document_id, eltern_id, nummer, titel, rq_ids, topic_ids |

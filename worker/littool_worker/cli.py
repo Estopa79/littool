@@ -5,6 +5,7 @@ from . import analysis
 from .chunking import run_chunking
 from . import claude_client
 from .doi import run_doi_extraction
+from . import passages as passages_module
 from .duplicates import run_duplicate_detection
 from .embeddings import run_embedding
 from .enrich import run_metadata_enrichment
@@ -160,6 +161,22 @@ def cmd_analyze_topics(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_extract_passages(args: argparse.Namespace) -> int:
+    client = get_client()
+    anthropic_api_key = require_env("ANTHROPIC_API_KEY")
+    voyage_api_key = require_env("VOYAGE_API_KEY")
+    stats = passages_module.run_passage_extraction(
+        client, anthropic_api_key, voyage_api_key, limit=args.limit, source_ids=args.source_id or None
+    )
+    print(
+        f"Passagen-Extraktion abgeschlossen: {stats['paare_verarbeitet']} Quelle-FF-Paare, "
+        f"{stats['passagen_gespeichert']} Passagen gespeichert, {stats['passagen_verworfen']} verworfen, "
+        f"{stats['fehler']} Fehler, {stats['tokens_in']}+{stats['tokens_out']} Tokens, "
+        f"ca. ${stats['kosten_usd']:.4f}."
+    )
+    return 0
+
+
 def cmd_test_claude(_args: argparse.Namespace) -> int:
     api_key = require_env("ANTHROPIC_API_KEY")
     client = claude_client.get_client(api_key)
@@ -272,6 +289,20 @@ def main() -> None:
         help="Gezielt eine Quelle analysieren (wiederholbar) - fuer die Kalibrierung an bekannten Quellen",
     )
     analyze_parser.set_defaults(func=cmd_analyze_topics)
+
+    extract_passages_parser = subparsers.add_parser(
+        "extract-passages", help="Woertliche Passagen je Quelle x relevanter Forschungsfrage extrahieren + uebersetzen"
+    )
+    extract_passages_parser.add_argument(
+        "--limit", type=int, default=None, help="Nur die ersten N noch nicht bearbeiteten Quelle-FF-Paare verarbeiten"
+    )
+    extract_passages_parser.add_argument(
+        "--source-id",
+        action="append",
+        default=[],
+        help="Gezielt eine Quelle bearbeiten (wiederholbar, alle ihre relevanten FFs) - fuer die Kalibrierung",
+    )
+    extract_passages_parser.set_defaults(func=cmd_extract_passages)
 
     args = parser.parse_args()
     sys.exit(args.func(args))

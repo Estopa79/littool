@@ -35,6 +35,46 @@ _STOPWORDS = frozenset(
 MIN_STOPWORD_RATIO = 0.03
 _WORD_RE = re.compile(r"[a-zäöüß]+", re.IGNORECASE)
 
+_PAGE_RANGE_RE = re.compile(r"^\s*(\d+)\s*[-–—]\s*(\d+)")
+
+
+_MISMATCH_HINT = (
+    "Seiten-Offset unsicher: PDF entspricht nicht dem Crossref-Seitenbereich "
+    "(vermutlich Preprint/Repository-Exemplar statt Verlags-PDF) - bitte manuell prüfen"
+)
+
+
+def _compute_page_offset(pages_field: str | None, pages_text: list[str]) -> tuple[int, str | None]:
+    """Leitet den Zitationsseiten-Offset aus dem Crossref-Seitenbereich (Paket
+    K, Phase 3) ab. Zwei Validierungsstufen gegen Preprint-/Repository-
+    Exemplare (z. B. ResearchGate), die oft eine eigene, vom Verlags-PDF
+    abweichende Paginierung haben:
+    1. Seitenzahl muss zum erwarteten Bereich passen.
+    2. Nicht ausreichend: manche Preprints haben zufällig dieselbe Seitenzahl
+       wie die Verlagsversion, nummerieren aber bei 1 statt beim Journal-
+       Startwert. Deshalb zusätzlich prüfen, ob die erwartete Zitationsseite
+       als eigenständige Zahl auf einer Stichproben-Seite tatsächlich
+       aufgedruckt ist - sonst 0 + sichtbarer Hinweis statt einer
+       unzuverlässigen Zahl (siehe Migration 0021)."""
+    if not pages_field:
+        return 0, None
+    match = _PAGE_RANGE_RE.match(pages_field)
+    if not match:
+        return 0, (
+            "Seiten-Offset nicht ableitbar (kein erkennbarer Seitenbereich in 'pages') "
+            "- bitte manuell prüfen"
+        )
+    first, last = int(match.group(1)), int(match.group(2))
+    if (last - first + 1) != len(pages_text):
+        return 0, _MISMATCH_HINT
+
+    sample_index = len(pages_text) // 2
+    expected_number = first + sample_index
+    if not re.search(rf"(?<!\d){expected_number}(?!\d)", pages_text[sample_index]):
+        return 0, _MISMATCH_HINT
+
+    return first - 1, None
+
 
 def _ensure_ocr_env() -> None:
     """Tesseract/Ghostscript sind als Windows-Programme installiert; frisch
@@ -110,7 +150,7 @@ def run_ocr(pdf_bytes: bytes) -> bytes:
 def run_fulltext_extraction(client: Client, limit: int | None = None) -> dict[str, int]:
     query = (
         client.table("sources")
-        .select("id, title, storage_path")
+        .select("id, title, storage_path, pages")
         .is_("extraction_status", "null")
         .not_.is_("storage_path", "null")
     )
@@ -138,12 +178,16 @@ def run_fulltext_extraction(client: Client, limit: int | None = None) -> dict[st
                 status = "extracted"
 
             avg_chars = sum(len(p.strip()) for p in pages) / len(pages) if pages else 0
-            client.table("sources").update(
-                {
-                    "extraction_status": status,
-                    "extraction_hint": f"{len(pages)} Seiten, Ø {avg_chars:.0f} Zeichen/Seite",
-                }
-            ).eq("id", source_id).execute()
+            page_offset, offset_hint = _compute_page_offset(row.get("pages"), pages)
+            update = {
+                "extraction_status": status,
+                "extraction_hint": f"{len(pages)} Seiten, Ø {avg_chars:.0f} Zeichen/Seite",
+                "page_offset": page_offset,
+            }
+            if offset_hint:
+                update["status"] = "needs_review"
+                update["status_hint"] = offset_hint
+            client.table("sources").update(update).eq("id", source_id).execute()
             stats[status] += 1
         except Exception as exc:  # noqa: BLE001 - Fehler sichtbar machen, Job läuft weiter
             client.table("sources").update(

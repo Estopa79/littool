@@ -37,3 +37,7 @@ npm-debug.log*
 data/pdfs/
 Testordner/
 *.pdf
+
+# Backups (DB-Dumps + PDF-Sync, koennen personenbezogene/urheberrechtlich
+# geschuetzte Inhalte enthalten - nie ins Repo, siehe scripts/backup.sh)
+backups/

@@ -4,9 +4,13 @@ Persönliches Literatur- und Recherche-Tool für eine Doktorarbeit (Business-IT 
 
 ## Referenzdokumente (immer zuerst lesen)
 
-- `docs/konzept.md` – vollständiges Konzept: Module, Datenmodell, Phasen
-- `docs/wireframes.md` – Ansichten, Layout, Design-Entscheidungen
-- `docs/arbeitsplan-phase-1.md` – aktueller Arbeitsplan
+- `docs/konzept-literatur-tool.md` – vollständiges Konzept (v0.6): Module, Datenmodell, Phasen
+- `docs/wireframes-littool.md` – Ansichten, Layout, Design-Entscheidungen
+- `docs/arbeitsplan-phase-1.md` – Phase 1 (abgeschlossen)
+- `docs/arbeitsplan-phase-2.md` – Phase 2 (abgeschlossen)
+- `docs/arbeitsplan-phase-3.md` – **aktueller Arbeitsplan** (inkl. eingeschobener Pakete K, B und F)
+- `docs/ideen-spaeter.md` – geparkte Ideen; NICHTS daraus umsetzen, solange es in keinem Arbeitsplan steht
+- `docs/Evaluationsmatrix_Interaktiv.html` – Design-Referenz und Startdaten für die Evaluationsmatrix (Pakete 11/12)
 
 Bei Widersprüchen gilt: Arbeitsplan > Wireframes > Konzept. Änderungen an Scope oder Architektur nie stillschweigend vornehmen – immer erst vorschlagen.
 
@@ -54,8 +58,15 @@ Kern-Entitäten (Details in `docs/konzept.md`, Abschnitt 5): Source, Chunk, Rese
 Regeln:
 - Tabellen- und Spaltennamen englisch, snake_case; UI-Texte deutsch.
 - Jeder Chunk und jede Passage speichert `page` – ohne Seite kein Speichern.
+- **Zwei Seitenbegriffe strikt trennen:** PDF-Seite (für den Viewer-Sprung) vs. Zitationsseite (= PDF-Seite + `page_offset` der Quelle). Offset beim Ingest aus Crossref (erste Journal-Seite) ableiten, manuell korrigierbar. Zitations-Strings NIE fest speichern, sondern immer aus PDF-Seite + Offset generieren – eine Offset-Korrektur heilt so alle Zitate der Quelle.
 - `UsedCitation` ist pro Dokument (eine Passage kann in ISP verwendet sein, in der Diss nicht).
 - Schemaänderungen ausschließlich über neue Migrationen, nie bestehende editieren.
+
+## Datensicherung (Pflicht)
+
+- `scripts/backup.sh`: DB-Dump (Supabase CLI) + Sync des PDF-Buckets an einen zweiten Ort. Wöchentlich ausführen (Job oder Erinnerung).
+- Vor jeder Migration: manueller Dump.
+- Restore einmal testweise durchspielen.
 
 ## Arbeitsweise
 

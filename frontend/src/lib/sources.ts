@@ -24,6 +24,7 @@ export type SourceDetail = Source & {
   volume: string | null
   issue: string | null
   pages: string | null
+  page_offset: number
   issn: string | null
   doi: string | null
   abstract: string | null
@@ -35,7 +36,7 @@ export type SourceDetail = Source & {
 const SOURCE_COLUMNS =
   'id, type, title, authors, year, venue, ranking_system, ranking_value, status, status_hint, extraction_status, extraction_hint'
 
-const DETAIL_COLUMNS = `${SOURCE_COLUMNS}, volume, issue, pages, issn, doi, abstract, citation_count, url, storage_path`
+const DETAIL_COLUMNS = `${SOURCE_COLUMNS}, volume, issue, pages, page_offset, issn, doi, abstract, citation_count, url, storage_path`
 
 export async function fetchSources(): Promise<Source[]> {
   const { data, error } = await supabase
