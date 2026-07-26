@@ -143,7 +143,7 @@ Nebenbefund: 3 verwaiste Testdatensätze aus `0004_sources_seed.sql` (Phase 1) o
 
 Batch-Lauf über den gesamten Bestand: 150 von 152 Quellen analysiert, 2 Fehler (die zwei bekannten, unreparierbaren Springer-Duplikate ohne Chunks - erwartet, kein neuer Fund). 230 Themenfeld-Zuordnungen, 1050 Relevanz-Bewertungen (150 × 7 FF), Gesamtkosten ca. $2,43. Bei der Nachkontrolle selbst einen Fehler verursacht (Bulk-`.select()` ohne Limit bei einer Diagnose las nur die PostgREST-Standard-Zeilenzahl zurück, siehe bekanntes Muster in `notizen-phase-1-2.md` - fälschlich als Datenlücke gedeutet und beim Nachstellen der Hypothese versehentlich echte `confirmed=false`-Zeilen zweier Quellen überschrieben); mit `--source-id` gezielt neu analysiert, per `count='exact')`-Abfrage pro Quelle (nicht bulk) verifiziert: alle 150 Quellen exakt 7 Relevanz-Zeilen, keine Anomalien mehr.
 
-## Paket 4 – Zitate auf Abruf + Übersetzung ☐
+## Paket 4 – Zitate auf Abruf + Übersetzung ☑
 
 - **Kein Batch über den Bestand.** Button „Zitate erzeugen" an Quelle (Bibliothek-Zeile und Detailseite; berücksichtigt aktiven Themengebiets-/FF-Filter als Kontext): Claude erhält die passenden Chunks (semantische Vorauswahl aus Phase 2) und liefert wörtliche Zitat-Kandidaten: Originaltext exakt, Seite, FF-/Themen-Bezug, deutsche Übersetzung, Zitation (aus Seite + Offset generiert).
 - Kontrolle: Kandidat muss im Chunk-Text nachweisbar sein (String-Abgleich mit Toleranz) – nicht Verifizierbares wird verworfen und geloggt.
@@ -162,7 +162,9 @@ Umgeplant (Autor brachte Konzept v0.6 mit): ursprünglich als Batch über den ga
 
 Echter Bug beim ersten Kalibrier-Test gefunden: zwei "Zitate" waren tatsächlich Literaturverzeichnis-Einträge (Referenzen auf andere Werke) - sie stehen wörtlich im PDF-Text (im Quellenverzeichnis der Quelle selbst) und bestehen deshalb die reine Substring-Verifikation, sind aber keine inhaltliche Aussage der Quelle. Behoben durch eine explizite Anti-Regel im System-Prompt (erkennbar am typischen Referenz-Format); nach dem Fix keine Literaturverzeichnis-Treffer mehr in der Stichprobe.
 
-Kalibrierung an Charoensuk et al. (2014): 2 Läufe direkt gegen die Edge Function (vor/nach dem Prompt-Fix). Nach dem Fix: 10 verifizierte Kandidaten über 5 Forschungsfragen, 7 automatisch verworfen (nicht im Text nachweisbar), Zitationen korrekt (Seite + Offset). Frontend (Bibliothek-Button, Detailseiten-Panel mit Prüf-Dialog, bestätigten Zitaten und manuellem Hinzufügen-Formular) kompiliert/lintet sauber - vollständige Browser-Verifikation des Bestätigen/Verwerfen-Flows steht noch aus (Login-Problem des Nutzers in der Vorschau, unabhängig von dieser Änderung).
+Kalibrierung an Charoensuk et al. (2014): 2 Läufe direkt gegen die Edge Function (vor/nach dem Prompt-Fix). Nach dem Fix: 10 verifizierte Kandidaten über 5 Forschungsfragen, 7 automatisch verworfen (nicht im Text nachweisbar), Zitationen korrekt (Seite + Offset).
+
+Zweite Kalibrier-Quelle live in der Produktions-App getestet (Weber, 2019, "Digitale Transformation bei Versicherungsunternehmen"): Button erzeugt Kandidaten über alle relevanten FFs (TSFF1a, HFF, …), Prüf-Dialog zeigt Original + Übersetzung + korrekte Zitation je Karte, „Übernehmen"/„Verwerfen" funktionierte flüssig. Dabei mit dem Nutzer geklärt: die Funktion-Chips (Paket F) und die Zitat-Erzeugung sind bewusst unabhängige Dimensionen - die Chip-Auswahl (z. B. „Einleitung/Problemstellung") schränkt die erzeugten FFs nicht ein, das ist kein Fehler. Beide Kalibrier-Kriterien damit erfüllt - Frontend zusätzlich mit `tsc`/Lint sauber.
 
 ## Paket 5 – Methodenprofil-Extraktion ☐
 
