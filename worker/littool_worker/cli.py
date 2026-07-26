@@ -2,6 +2,7 @@ import argparse
 import sys
 
 from .chunking import run_chunking
+from . import claude_client
 from .doi import run_doi_extraction
 from .duplicates import run_duplicate_detection
 from .embeddings import run_embedding
@@ -144,6 +145,28 @@ def cmd_search_hybrid(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_test_claude(_args: argparse.Namespace) -> int:
+    api_key = require_env("ANTHROPIC_API_KEY")
+    client = claude_client.get_client(api_key)
+    stats: dict = {}
+    try:
+        text = claude_client.call(
+            client,
+            "Antworte in einem Satz auf Deutsch: Wozu dient ein Forschungsfragen-Raster "
+            "in einer Dissertation?",
+            stats=stats,
+        )
+    except RuntimeError as exc:
+        print(f"Claude-Testaufruf fehlgeschlagen: {exc}")
+        return 1
+    print(f"Antwort: {text}")
+    print(
+        f"Tokens: {stats['tokens_in']} in / {stats['tokens_out']} out, "
+        f"Kosten: ${stats['kosten_usd']:.4f}"
+    )
+    return 0
+
+
 def main() -> None:
     # Windows-Konsole nutzt oft cp1252, das nicht jedes Unicode-Zeichen aus
     # Quellentiteln abbilden kann (z. B. U+2010 statt "-") - Ausgabe soll
@@ -216,6 +239,10 @@ def main() -> None:
     search_hybrid_parser.add_argument("--type", default=None, help="Filter Quellentyp")
     search_hybrid_parser.add_argument("--limit", type=int, default=20, help="Max. Treffer")
     search_hybrid_parser.set_defaults(func=cmd_search_hybrid)
+
+    subparsers.add_parser(
+        "test-claude", help="Test-Prompt ueber die Claude-API-Hilfsschicht, protokolliert Tokens/Kosten"
+    ).set_defaults(func=cmd_test_claude)
 
     args = parser.parse_args()
     sys.exit(args.func(args))
