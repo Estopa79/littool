@@ -1,5 +1,6 @@
 import glob
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -18,6 +19,21 @@ MIN_CHARS_PER_PAGE = 30
 # zweites Signal: viele Zeichen, aber kaum Buchstaben darunter = vermutlich
 # unbrauchbar, auch wenn nicht "leer".
 MIN_ALPHA_RATIO = 0.4
+
+# Dritte Erkennungsstufe (Paket 9, Phase 2): manche PDFs mit kaputtem
+# CID-Font-Mapping bestehen fast komplett aus echten Buchstaben, nur eben den
+# falschen (Buchstaben-Verschiebungs-Chiffre à la "GLVNXWLHUHQ" statt
+# "diskutieren") - fällt bei der Alphabet-Quote also nicht auf. Häufige
+# Stoppwörter tauchen darin so gut wie nie auf, da jedes verschobene
+# "der"/"und"/"the" zu einer anderen Zeichenfolge wird - zwei real betroffene
+# Quellen im Bestand über diesen Weg gefunden, beide per Stichprobe entdeckt,
+# nicht automatisch.
+_STOPWORDS = frozenset(
+    "der die das und ist von zu mit den im für auf sich nicht ein eine als "
+    "auch the and of to in is for that with are on".split()
+)
+MIN_STOPWORD_RATIO = 0.03
+_WORD_RE = re.compile(r"[a-zäöüß]+", re.IGNORECASE)
 
 
 def _ensure_ocr_env() -> None:
@@ -54,7 +70,16 @@ def needs_ocr(pages: list[str]) -> bool:
         return True
 
     alpha_ratio = alpha_chars / total_chars if total_chars else 0
-    return alpha_ratio < MIN_ALPHA_RATIO
+    if alpha_ratio < MIN_ALPHA_RATIO:
+        return True
+
+    words = _WORD_RE.findall(" ".join(pages).lower())
+    if len(words) >= 20:
+        stopword_ratio = sum(1 for w in words if w in _STOPWORDS) / len(words)
+        if stopword_ratio < MIN_STOPWORD_RATIO:
+            return True
+
+    return False
 
 
 def run_ocr(pdf_bytes: bytes) -> bytes:
