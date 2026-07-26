@@ -37,4 +37,5 @@ export const TYPE_LABEL: Record<string, string> = {
   konferenz: 'Konferenz',
   buch: 'Buch',
   grau: 'Graue Literatur',
+  dissertation: 'Doktorarbeit/wissenschaftliche Arbeit',
 }

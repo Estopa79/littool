@@ -18,6 +18,7 @@ export type Source = {
   status_hint: string | null
   extraction_status: ExtractionStatus
   extraction_hint: string | null
+  storage_path: string | null
 }
 
 export type SourceDetail = Source & {
@@ -30,13 +31,12 @@ export type SourceDetail = Source & {
   abstract: string | null
   citation_count: number | null
   url: string | null
-  storage_path: string | null
 }
 
 const SOURCE_COLUMNS =
-  'id, type, title, authors, year, venue, ranking_system, ranking_value, status, status_hint, extraction_status, extraction_hint'
+  'id, type, title, authors, year, venue, ranking_system, ranking_value, status, status_hint, extraction_status, extraction_hint, storage_path'
 
-const DETAIL_COLUMNS = `${SOURCE_COLUMNS}, volume, issue, pages, page_offset, issn, doi, abstract, citation_count, url, storage_path`
+const DETAIL_COLUMNS = `${SOURCE_COLUMNS}, volume, issue, pages, page_offset, issn, doi, abstract, citation_count, url`
 
 export async function fetchSources(): Promise<Source[]> {
   const { data, error } = await supabase
@@ -80,4 +80,17 @@ export async function getSignedPdfUrl(storagePath: string): Promise<string> {
   const { data, error } = await supabase.storage.from('pdfs').createSignedUrl(storagePath, 3600)
   if (error) throw error
   return data.signedUrl
+}
+
+// Endgueltiges Loeschen (mit Bestaetigungsdialog im UI): PDF aus dem Storage
+// entfernen, dann die Quelle selbst - alle abhaengigen Zeilen (Chunks,
+// Passagen, Themen-/Relevanz-/Funktion-/Kriterien-Zuordnungen) haengen per
+// Cascade an der Quelle und verschwinden automatisch mit.
+export async function deleteSource(id: string, storagePath: string | null): Promise<void> {
+  if (storagePath) {
+    const { error: storageError } = await supabase.storage.from('pdfs').remove([storagePath])
+    if (storageError) throw storageError
+  }
+  const { error } = await supabase.from('sources').delete().eq('id', id)
+  if (error) throw error
 }

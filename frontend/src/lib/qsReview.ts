@@ -48,6 +48,16 @@ export async function fetchSourceTopics(sourceId: string): Promise<ReviewTopic[]
   })
 }
 
+export type SourceTopicRow = { source_id: string; topic_id: string }
+
+// Fuer den Bibliothek-Filter: alle Zuordnungen auf einmal (Bestandsgroesse
+// ~100, kein Paging noetig) - gleiches Muster wie fetchAllSourceFunctions.
+export async function fetchAllSourceTopics(): Promise<SourceTopicRow[]> {
+  const { data, error } = await supabase.from('source_topics').select('source_id, topic_id')
+  if (error) throw error
+  return (data ?? []) as SourceTopicRow[]
+}
+
 export async function fetchAllTopics(): Promise<TopicOption[]> {
   const { data, error } = await supabase.from('topics').select('id, name').order('name')
   if (error) throw error

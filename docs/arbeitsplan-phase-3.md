@@ -264,6 +264,23 @@ QS-Durchgang und Ehrlichkeitstest bewusst NICHT von mir übernommen: beim Stichp
 
 ---
 
+## ⚠️ Zwischen-Review: Nutzer-Feedback zu Bibliothek & Quellen-Detail
+
+Nach Abschluss der Analyse-Batches (Paket 10/11) hat der Autor die App Schritt für Schritt durchgesehen und direktes Feedback gegeben, bevor es mit Paket 11 weiterging. Umgesetzt:
+
+- **Bestandsbereinigung:** 55 Quellen aus `_Ergaenzend`/`neu`-Unterordnern des lokalen Testordners entfernt (nicht Teil der 4 Hauptordner Einleitung/BITA-DT/DT-Sachversicherung/Sachversicherung-BITA) - Verifikation per Dateiname vor dem Löschen, Backup vorher. Bestand jetzt 97 Quellen. Dabei einen strukturellen Bug in `ai_log_entries` gefunden und behoben (`on delete set null` kollidierte mit dem Check-Constraint, wenn nur `source_id` gesetzt war) - Migration 0026.
+- **Löschen:** Endgültiger Löschen-Button in Bibliothek (Zeile) und Quellen-Detail, mit Bestätigungsdialog (`components/ConfirmDialog.tsx`). Entfernt PDF aus dem Storage + Quelle inkl. aller abhängigen Zeilen (Cascade).
+- **Bibliothek-Sortierung:** Tabellenköpfe klickbar (Autor/Jahr, Titel, Venue, Ranking, Status), echte `<button>`-Elemente für Tastatur-/Screenreader-Zugänglichkeit statt reiner `onClick`-Handler auf `<th>`.
+- **Themenfeld-Filter** in der Bibliothek ergänzt (zusätzlich zum bestehenden Funktion-Filter).
+- **Neuer Quellentyp** „Doktorarbeit/wissenschaftliche Arbeit" (`dissertation`) - Migration 0027.
+- **DOI-Nachreicherung:** Neue Edge Function `fetch-crossref-metadata` (portiert aus `worker/littool_worker/crossref.py`) - Speichern mit neuer/geänderter DOI reichert automatisch leere Felder aus Crossref an (nur leere Felder, nie überschreiben), gleiche Regel wie beim Ingest. Live getestet: Anreicherung funktionierte korrekt, das Speichern schlug danach an der `sources_doi_unique`-Constraint fehl, weil die Test-Quelle sich als echtes, bisher unentdecktes Duplikat einer bereits vorhandenen Quelle herausstellte (Urbach et al. 2019) - Fehler wurde sichtbar angezeigt, keine Teilspeicherung, DB blieb unverändert. Bestätigt: gleiche Sorte Duplikat wie die bereits bekannten (Reinheimer, Charoensuk) - weiterhin nicht automatisch zusammengeführt, bleibt für spätere manuelle Bereinigung vorgemerkt.
+- **Quellen-Detail-Layout umgebaut** (Nutzer-Feedback: PDF-Ansicht zu klein): Metadaten-Formular ist jetzt ein auf-/zuklappbarer Bereich oben (Default zugeklappt, zeigt Kurzinfo Autor/Jahr/Typ), PDF-Viewer volle Breite darunter (`h-[85vh]` statt der alten halben Spalte), Methodenprofil und Zitate darunter. Themenfeld-Zuordnung ist jetzt auch direkt in der Detailansicht sichtbar und änderbar (Chips analog zur Funktion), nicht mehr nur über `/pruefen`.
+- **Begriffsklärungen** (kein Code, nur Verständnis): Unterschied zwischen Quelle×FF-Relevanz (0-3, Matrix) und Zitat-Relevanz (1-3, Sterne an der Karte); FF-Ansicht = Arbeitsansicht für gesammelte bestätigte Zitate je Forschungsfrage; Relevanzmatrix = Überblick, welche Quellen wie stark auf welche FF einzahlen (Forschungslücken-Argument); „unbestätigte KI-Zuordnungen" sind eine Summe über fünf verschiedene Dimensionen (Themen, Relevanz, Zitate, Methodenprofil, Funktion), nicht nur Zitate.
+
+Noch offen aus dem gleichen Feedback-Durchgang (Forschungsfragen-Ansicht, Relevanzmatrix): Erklärtext auf beiden Seiten ergänzen, Themenfeld als Filter-/Sortierkriterium auch in der Relevanzmatrix ergänzen.
+
+---
+
 ## Danach
 
 Arbeitsplan Phase 4 (Zitat-Häkchen, Verwendet-Ansicht, Literaturverzeichnis-Generator, KI-Verzeichnis-Export, Aktivitätslog) im Chat erstellen – der kleinste Plan, danach kommt die Schreibwerkstatt.

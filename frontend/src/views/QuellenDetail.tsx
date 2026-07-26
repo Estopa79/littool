@@ -1,13 +1,21 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
-import { fetchSource, getSignedPdfUrl, updateSource, type Author, type SourceDetail } from '../lib/sources'
-import { STATUS_ICON, STATUS_LABEL } from '../lib/sourceFormat'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { deleteSource, fetchSource, getSignedPdfUrl, updateSource, type Author, type SourceDetail } from '../lib/sources'
+import { STATUS_ICON, STATUS_LABEL, TYPE_LABEL } from '../lib/sourceFormat'
 import {
   fetchSourceFunctions,
   fetchWorkFunctions,
   setSourceFunction,
   type WorkFunction,
 } from '../lib/functions'
+import {
+  addTopic,
+  fetchAllTopics,
+  fetchSourceTopics,
+  removeTopic,
+  type ReviewTopic,
+  type TopicOption,
+} from '../lib/qsReview'
 import { fetchResearchQuestions, type ResearchQuestion } from '../lib/settings'
 import {
   addManualCitation,
@@ -17,6 +25,7 @@ import {
   type Passage,
 } from '../lib/citations'
 import { CitationReviewDialog } from '../components/CitationReviewDialog'
+import { ConfirmDialog } from '../components/ConfirmDialog'
 import {
   confirmMethodProfile,
   fetchMethodProfile,
@@ -24,6 +33,7 @@ import {
   type MethodProfile,
 } from '../lib/methodProfiles'
 import { generateParaphrase } from '../lib/paraphrase'
+import { fetchCrossrefMetadata } from '../lib/crossref'
 
 type FormState = {
   type: string
@@ -85,6 +95,7 @@ const inputClass =
 
 export function QuellenDetail() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const initialPage = Number(searchParams.get('page')) || 1
   const [source, setSource] = useState<SourceDetail | null>(null)
@@ -113,6 +124,14 @@ export function QuellenDetail() {
   const [manualSaving, setManualSaving] = useState(false)
   const [manualError, setManualError] = useState<string | null>(null)
   const [methodProfile, setMethodProfile] = useState<MethodProfile | null>(null)
+  const [metadataOpen, setMetadataOpen] = useState(false)
+  const [allTopics, setAllTopics] = useState<TopicOption[]>([])
+  const [sourceTopics, setSourceTopics] = useState<ReviewTopic[]>([])
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [enriching, setEnriching] = useState(false)
+  const [enrichNote, setEnrichNote] = useState<string | null>(null)
 
   useEffect(() => {
     if (!id) return
@@ -138,12 +157,46 @@ export function QuellenDetail() {
     })
     fetchPassagesForSource(id).then(setPassages)
     fetchMethodProfile(id).then(setMethodProfile)
+    fetchAllTopics().then(setAllTopics)
+    fetchSourceTopics(id).then(setSourceTopics)
   }, [id])
 
   async function handleConfirmMethodProfile() {
     if (!id) return
     await confirmMethodProfile(id)
     setMethodProfile((prev) => (prev ? { ...prev, confirmed: true } : prev))
+  }
+
+  const activeTopicIds = new Set(sourceTopics.map((t) => t.topic_id))
+
+  async function toggleTopic(topicId: string) {
+    if (!id) return
+    if (activeTopicIds.has(topicId)) {
+      await removeTopic(id, topicId)
+      setSourceTopics((prev) => prev.filter((t) => t.topic_id !== topicId))
+    } else {
+      await addTopic(id, topicId)
+      const topic = allTopics.find((t) => t.id === topicId)
+      if (topic) {
+        setSourceTopics((prev) => [
+          ...prev,
+          { source_id: id, topic_id: topicId, topic_name: topic.name, confirmed: true },
+        ])
+      }
+    }
+  }
+
+  async function handleDelete() {
+    if (!id || !source) return
+    setDeleting(true)
+    setDeleteError(null)
+    try {
+      await deleteSource(id, source.storage_path)
+      navigate('/bibliothek')
+    } catch (err) {
+      setDeleteError((err as Error).message)
+      setDeleting(false)
+    }
   }
 
   function reloadPassages() {
@@ -242,25 +295,58 @@ export function QuellenDetail() {
     if (!id || !form) return
     setSaving(true)
     setError(null)
+    setEnrichNote(null)
     try {
-      const cleanedAuthors = form.authors.filter((a) => a.given.trim() || a.family.trim())
+      let working = form
+      const doiChanged = form.doi.trim() && form.doi.trim() !== (source?.doi ?? '')
+      if (doiChanged) {
+        setEnriching(true)
+        try {
+          const crossref = await fetchCrossrefMetadata(form.doi.trim())
+          if (crossref) {
+            const hasAuthors = working.authors.some((a) => a.given.trim() || a.family.trim())
+            working = {
+              ...working,
+              title: working.title.trim() ? working.title : crossref.title ?? working.title,
+              authors: hasAuthors && crossref.authors ? working.authors : crossref.authors ?? working.authors,
+              year: working.year.trim() ? working.year : crossref.year?.toString() ?? working.year,
+              venue: working.venue.trim() ? working.venue : crossref.venue ?? working.venue,
+              volume: working.volume.trim() ? working.volume : crossref.volume ?? working.volume,
+              issue: working.issue.trim() ? working.issue : crossref.issue ?? working.issue,
+              pages: working.pages.trim() ? working.pages : crossref.pages ?? working.pages,
+              issn: working.issn.trim() ? working.issn : crossref.issn ?? working.issn,
+              type: working.type.trim() ? working.type : crossref.type ?? working.type,
+            }
+            setForm(working)
+            setEnrichNote('Fehlende Felder aus Crossref ergänzt.')
+          } else {
+            setEnrichNote('Crossref: keine Daten zu dieser DOI gefunden.')
+          }
+        } catch (enrichErr) {
+          setEnrichNote(`Crossref-Abfrage fehlgeschlagen: ${(enrichErr as Error).message}`)
+        } finally {
+          setEnriching(false)
+        }
+      }
+
+      const cleanedAuthors = working.authors.filter((a) => a.given.trim() || a.family.trim())
       await updateSource(id, {
-        type: form.type || null,
-        title: form.title,
+        type: working.type || null,
+        title: working.title,
         authors: cleanedAuthors.length > 0 ? cleanedAuthors : null,
-        year: form.year ? Number(form.year) : null,
-        venue: form.venue || null,
-        volume: form.volume || null,
-        issue: form.issue || null,
-        pages: form.pages || null,
-        page_offset: form.page_offset ? Number(form.page_offset) : 0,
-        issn: form.issn || null,
-        doi: form.doi || null,
-        abstract: form.abstract || null,
-        citation_count: form.citation_count ? Number(form.citation_count) : null,
-        url: form.url || null,
-        ranking_system: form.ranking_system || null,
-        ranking_value: form.ranking_value || null,
+        year: working.year ? Number(working.year) : null,
+        venue: working.venue || null,
+        volume: working.volume || null,
+        issue: working.issue || null,
+        pages: working.pages || null,
+        page_offset: working.page_offset ? Number(working.page_offset) : 0,
+        issn: working.issn || null,
+        doi: working.doi || null,
+        abstract: working.abstract || null,
+        citation_count: working.citation_count ? Number(working.citation_count) : null,
+        url: working.url || null,
+        ranking_system: working.ranking_system || null,
+        ranking_value: working.ranking_value || null,
         status: 'complete',
         status_hint: null,
       })
@@ -307,19 +393,28 @@ export function QuellenDetail() {
   if (!source || !form) return null
 
   return (
-    <div className="mx-auto max-w-5xl p-4 sm:p-6">
-      <Link to="/bibliothek" className="text-sm text-slate-500 hover:underline dark:text-slate-400">
-        ← Zurück zur Bibliothek
-      </Link>
+    <div className="mx-auto max-w-6xl p-4 sm:p-6">
+      <div className="flex items-center justify-between gap-2">
+        <Link to="/bibliothek" className="text-sm text-slate-500 hover:underline dark:text-slate-400">
+          ← Zurück zur Bibliothek
+        </Link>
+        <button
+          type="button"
+          onClick={() => setShowDeleteConfirm(true)}
+          className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-500 hover:border-red-300 hover:text-red-600 dark:border-slate-700 dark:text-slate-400 dark:hover:border-red-800 dark:hover:text-red-400"
+        >
+          🗑 Quelle löschen
+        </button>
+      </div>
 
       <div className="mb-4 mt-2 flex items-center gap-2">
-        <h1 className="text-xl font-semibold text-slate-800 dark:text-slate-100">Quelle bearbeiten</h1>
+        <h1 className="text-xl font-semibold text-slate-800 dark:text-slate-100">{source.title}</h1>
         <span className="text-sm text-slate-500 dark:text-slate-400">
           {STATUS_ICON[source.status]} {STATUS_LABEL[source.status]}
         </span>
       </div>
 
-      <div className="mb-4 flex flex-wrap items-center gap-2">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
         <span className="text-sm text-slate-500 dark:text-slate-400">Funktion:</span>
         {workFunctions.map((f) => {
           const active = activeFunctionIds.has(f.id)
@@ -338,6 +433,285 @@ export function QuellenDetail() {
             </button>
           )
         })}
+      </div>
+
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <span className="text-sm text-slate-500 dark:text-slate-400">Themenfelder:</span>
+        {allTopics.map((t) => {
+          const active = activeTopicIds.has(t.id)
+          return (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => toggleTopic(t.id)}
+              className={`rounded-full border px-3 py-1 text-xs font-medium ${
+                active
+                  ? 'border-slate-700 bg-slate-800 text-white dark:border-slate-300 dark:bg-slate-100 dark:text-slate-900'
+                  : 'border-slate-300 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800'
+              }`}
+            >
+              {t.name}
+            </button>
+          )
+        })}
+      </div>
+
+      <div className="mb-6 rounded-lg border border-slate-200 dark:border-slate-800">
+        <button
+          type="button"
+          onClick={() => setMetadataOpen((v) => !v)}
+          className="flex w-full items-center justify-between px-4 py-2 text-left text-sm font-medium text-slate-700 dark:text-slate-300"
+        >
+          <span>{metadataOpen ? '▾' : '▸'} Metadaten {metadataOpen ? 'verbergen' : 'anzeigen/bearbeiten'}</span>
+          <span className="text-xs font-normal text-slate-400">
+            {form.authors[0]?.family || '–'} {form.year || ''} · {TYPE_LABEL[form.type] ?? (form.type || 'Typ unbekannt')}
+          </span>
+        </button>
+
+        {metadataOpen && (
+          <form
+            onSubmit={handleSubmit}
+            className="flex flex-col gap-3 border-t border-slate-100 p-4 dark:border-slate-800"
+          >
+            <Field label="Typ">
+              <select value={form.type} onChange={(e) => updateField('type', e.target.value)} className={inputClass}>
+                <option value="">– unbekannt –</option>
+                <option value="journal">Journal</option>
+                <option value="konferenz">Konferenz</option>
+                <option value="buch">Buch</option>
+                <option value="grau">Graue Literatur</option>
+                <option value="dissertation">Doktorarbeit/wissenschaftliche Arbeit</option>
+              </select>
+            </Field>
+
+            <Field label="Titel">
+              <input
+                type="text"
+                value={form.title}
+                onChange={(e) => updateField('title', e.target.value)}
+                className={inputClass}
+              />
+            </Field>
+
+            <div className="flex flex-col gap-2">
+              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Autoren</span>
+              {form.authors.map((author, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    placeholder="Vorname"
+                    value={author.given}
+                    onChange={(e) => updateAuthor(i, 'given', e.target.value)}
+                    className={`${inputClass} flex-1`}
+                  />
+                  <input
+                    type="text"
+                    placeholder="Nachname"
+                    value={author.family}
+                    onChange={(e) => updateAuthor(i, 'family', e.target.value)}
+                    className={`${inputClass} flex-1`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeAuthor(i)}
+                    className="shrink-0 text-sm text-slate-400 hover:text-red-600 dark:hover:text-red-400"
+                    aria-label="Autor entfernen"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={addAuthor}
+                className="self-start text-sm text-slate-500 hover:underline dark:text-slate-400"
+              >
+                + Autor hinzufügen
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Jahr">
+                <input
+                  type="number"
+                  value={form.year}
+                  onChange={(e) => updateField('year', e.target.value)}
+                  className={inputClass}
+                />
+              </Field>
+              <Field label="Venue">
+                <input
+                  type="text"
+                  value={form.venue}
+                  onChange={(e) => updateField('venue', e.target.value)}
+                  className={inputClass}
+                />
+              </Field>
+              <Field label="Band">
+                <input
+                  type="text"
+                  value={form.volume}
+                  onChange={(e) => updateField('volume', e.target.value)}
+                  className={inputClass}
+                />
+              </Field>
+              <Field label="Heft">
+                <input
+                  type="text"
+                  value={form.issue}
+                  onChange={(e) => updateField('issue', e.target.value)}
+                  className={inputClass}
+                />
+              </Field>
+              <Field label="Seiten">
+                <input
+                  type="text"
+                  value={form.pages}
+                  onChange={(e) => updateField('pages', e.target.value)}
+                  className={inputClass}
+                />
+              </Field>
+              <Field label="Seiten-Offset (PDF-Seite → Zitationsseite)">
+                <input
+                  type="number"
+                  value={form.page_offset}
+                  onChange={(e) => updateField('page_offset', e.target.value)}
+                  className={inputClass}
+                />
+                <span className="text-xs text-slate-400">
+                  PDF-Seite 1 = zitiert als S. {1 + (Number(form.page_offset) || 0)}
+                </span>
+              </Field>
+              <Field label="ISSN">
+                <input
+                  type="text"
+                  value={form.issn}
+                  onChange={(e) => updateField('issn', e.target.value)}
+                  className={inputClass}
+                />
+              </Field>
+              <Field label="DOI">
+                <input
+                  type="text"
+                  value={form.doi}
+                  onChange={(e) => updateField('doi', e.target.value)}
+                  className={inputClass}
+                />
+                <span className="text-xs text-slate-400">
+                  Beim Speichern werden fehlende Felder automatisch aus Crossref ergänzt.
+                </span>
+              </Field>
+              <Field label="Zitationszahl">
+                <input
+                  type="number"
+                  value={form.citation_count}
+                  onChange={(e) => updateField('citation_count', e.target.value)}
+                  className={inputClass}
+                />
+              </Field>
+            </div>
+
+            <Field label="URL (v. a. graue Literatur)">
+              <input
+                type="text"
+                value={form.url}
+                onChange={(e) => updateField('url', e.target.value)}
+                className={inputClass}
+              />
+            </Field>
+
+            <Field label="Abstract">
+              <textarea
+                value={form.abstract}
+                onChange={(e) => updateField('abstract', e.target.value)}
+                rows={5}
+                className={inputClass}
+              />
+            </Field>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Ranking-Herkunft">
+                <select
+                  value={form.ranking_system}
+                  onChange={(e) => updateField('ranking_system', e.target.value)}
+                  className={inputClass}
+                >
+                  <option value="">– kein Ranking –</option>
+                  <option value="VHB">VHB</option>
+                  <option value="SJR">SJR</option>
+                  <option value="CORE">CORE</option>
+                </select>
+              </Field>
+              <Field label="Ranking-Wert">
+                <input
+                  type="text"
+                  placeholder="z. B. A, Q1"
+                  value={form.ranking_value}
+                  onChange={(e) => updateField('ranking_value', e.target.value)}
+                  className={inputClass}
+                />
+              </Field>
+            </div>
+
+            <div className="mt-2 flex items-center gap-3">
+              <button
+                type="submit"
+                disabled={saving}
+                className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
+              >
+                {saving ? (enriching ? 'Crossref wird abgefragt …' : 'Speichert …') : 'Speichern (setzt Status auf vollständig)'}
+              </button>
+              {saved && <span className="text-sm text-green-600 dark:text-green-400">Gespeichert.</span>}
+            </div>
+            {enrichNote && <p className="text-sm text-slate-500 dark:text-slate-400">{enrichNote}</p>}
+            {error && <p className="text-sm text-red-600 dark:text-red-400">Fehler: {error}</p>}
+          </form>
+        )}
+      </div>
+
+      <div className="mb-6">
+        <h2 className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-300">PDF</h2>
+        {source.extraction_status === 'extraction_failed' && (
+          <div className="mb-3 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-300">
+            <p className="font-medium">📄⚠️ Volltext nicht nutzbar</p>
+            {source.extraction_hint && <p className="mt-1">{source.extraction_hint}</p>}
+            <p className="mt-1 text-xs text-red-700 dark:text-red-400">
+              Diese Quelle ist nicht durchsuchbar und liefert keine belegbaren Zitate. Datei ggf. ersetzen.
+            </p>
+          </div>
+        )}
+        {source.storage_path && pdfUrl ? (
+          <>
+            <div className="mb-2 flex items-center gap-2">
+              <label className="text-sm text-slate-600 dark:text-slate-400" htmlFor="page-jump">
+                Seite
+              </label>
+              <input
+                id="page-jump"
+                type="number"
+                min={1}
+                value={pageInput}
+                onChange={(e) => setPageInput(e.target.value)}
+                className={`${inputClass} w-20`}
+              />
+              <button
+                type="button"
+                onClick={jumpToPage}
+                className="rounded-md border border-slate-300 px-2 py-1 text-sm hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800"
+              >
+                Springen
+              </button>
+            </div>
+            <iframe
+              key={pageJump}
+              src={`${pdfUrl}#page=${pageJump}`}
+              title="PDF-Viewer"
+              className="h-[85vh] w-full rounded-md border border-slate-200 dark:border-slate-800"
+            />
+          </>
+        ) : (
+          <p className="text-sm text-slate-400">Kein PDF hinterlegt.</p>
+        )}
       </div>
 
       {methodProfile && (
@@ -504,246 +878,16 @@ export function QuellenDetail() {
         />
       )}
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-          <Field label="Typ">
-            <select
-              value={form.type}
-              onChange={(e) => updateField('type', e.target.value)}
-              className={inputClass}
-            >
-              <option value="">– unbekannt –</option>
-              <option value="journal">Journal</option>
-              <option value="konferenz">Konferenz</option>
-              <option value="buch">Buch</option>
-              <option value="grau">Graue Literatur</option>
-            </select>
-          </Field>
-
-          <Field label="Titel">
-            <input
-              type="text"
-              value={form.title}
-              onChange={(e) => updateField('title', e.target.value)}
-              className={inputClass}
-            />
-          </Field>
-
-          <div className="flex flex-col gap-2">
-            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Autoren</span>
-            {form.authors.map((author, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <input
-                  type="text"
-                  placeholder="Vorname"
-                  value={author.given}
-                  onChange={(e) => updateAuthor(i, 'given', e.target.value)}
-                  className={`${inputClass} flex-1`}
-                />
-                <input
-                  type="text"
-                  placeholder="Nachname"
-                  value={author.family}
-                  onChange={(e) => updateAuthor(i, 'family', e.target.value)}
-                  className={`${inputClass} flex-1`}
-                />
-                <button
-                  type="button"
-                  onClick={() => removeAuthor(i)}
-                  className="shrink-0 text-sm text-slate-400 hover:text-red-600 dark:hover:text-red-400"
-                  aria-label="Autor entfernen"
-                >
-                  ✕
-                </button>
-              </div>
-            ))}
-            <button
-              type="button"
-              onClick={addAuthor}
-              className="self-start text-sm text-slate-500 hover:underline dark:text-slate-400"
-            >
-              + Autor hinzufügen
-            </button>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Jahr">
-              <input
-                type="number"
-                value={form.year}
-                onChange={(e) => updateField('year', e.target.value)}
-                className={inputClass}
-              />
-            </Field>
-            <Field label="Venue">
-              <input
-                type="text"
-                value={form.venue}
-                onChange={(e) => updateField('venue', e.target.value)}
-                className={inputClass}
-              />
-            </Field>
-            <Field label="Band">
-              <input
-                type="text"
-                value={form.volume}
-                onChange={(e) => updateField('volume', e.target.value)}
-                className={inputClass}
-              />
-            </Field>
-            <Field label="Heft">
-              <input
-                type="text"
-                value={form.issue}
-                onChange={(e) => updateField('issue', e.target.value)}
-                className={inputClass}
-              />
-            </Field>
-            <Field label="Seiten">
-              <input
-                type="text"
-                value={form.pages}
-                onChange={(e) => updateField('pages', e.target.value)}
-                className={inputClass}
-              />
-            </Field>
-            <Field label="Seiten-Offset (PDF-Seite → Zitationsseite)">
-              <input
-                type="number"
-                value={form.page_offset}
-                onChange={(e) => updateField('page_offset', e.target.value)}
-                className={inputClass}
-              />
-              <span className="text-xs text-slate-400">
-                PDF-Seite 1 = zitiert als S. {1 + (Number(form.page_offset) || 0)}
-              </span>
-            </Field>
-            <Field label="ISSN">
-              <input
-                type="text"
-                value={form.issn}
-                onChange={(e) => updateField('issn', e.target.value)}
-                className={inputClass}
-              />
-            </Field>
-            <Field label="DOI">
-              <input
-                type="text"
-                value={form.doi}
-                onChange={(e) => updateField('doi', e.target.value)}
-                className={inputClass}
-              />
-            </Field>
-            <Field label="Zitationszahl">
-              <input
-                type="number"
-                value={form.citation_count}
-                onChange={(e) => updateField('citation_count', e.target.value)}
-                className={inputClass}
-              />
-            </Field>
-          </div>
-
-          <Field label="URL (v. a. graue Literatur)">
-            <input
-              type="text"
-              value={form.url}
-              onChange={(e) => updateField('url', e.target.value)}
-              className={inputClass}
-            />
-          </Field>
-
-          <Field label="Abstract">
-            <textarea
-              value={form.abstract}
-              onChange={(e) => updateField('abstract', e.target.value)}
-              rows={5}
-              className={inputClass}
-            />
-          </Field>
-
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Ranking-Herkunft">
-              <select
-                value={form.ranking_system}
-                onChange={(e) => updateField('ranking_system', e.target.value)}
-                className={inputClass}
-              >
-                <option value="">– kein Ranking –</option>
-                <option value="VHB">VHB</option>
-                <option value="SJR">SJR</option>
-                <option value="CORE">CORE</option>
-              </select>
-            </Field>
-            <Field label="Ranking-Wert">
-              <input
-                type="text"
-                placeholder="z. B. A, Q1"
-                value={form.ranking_value}
-                onChange={(e) => updateField('ranking_value', e.target.value)}
-                className={inputClass}
-              />
-            </Field>
-          </div>
-
-          <div className="mt-2 flex items-center gap-3">
-            <button
-              type="submit"
-              disabled={saving}
-              className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
-            >
-              {saving ? 'Speichert …' : 'Speichern (setzt Status auf vollständig)'}
-            </button>
-            {saved && <span className="text-sm text-green-600 dark:text-green-400">Gespeichert.</span>}
-          </div>
-          {error && <p className="text-sm text-red-600 dark:text-red-400">Fehler: {error}</p>}
-        </form>
-
-        <div>
-          <h2 className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-300">PDF</h2>
-          {source.extraction_status === 'extraction_failed' && (
-            <div className="mb-3 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-300">
-              <p className="font-medium">📄⚠️ Volltext nicht nutzbar</p>
-              {source.extraction_hint && <p className="mt-1">{source.extraction_hint}</p>}
-              <p className="mt-1 text-xs text-red-700 dark:text-red-400">
-                Diese Quelle ist nicht durchsuchbar und liefert keine belegbaren Zitate. Datei ggf. ersetzen.
-              </p>
-            </div>
-          )}
-          {source.storage_path && pdfUrl ? (
-            <>
-              <div className="mb-2 flex items-center gap-2">
-                <label className="text-sm text-slate-600 dark:text-slate-400" htmlFor="page-jump">
-                  Seite
-                </label>
-                <input
-                  id="page-jump"
-                  type="number"
-                  min={1}
-                  value={pageInput}
-                  onChange={(e) => setPageInput(e.target.value)}
-                  className={`${inputClass} w-20`}
-                />
-                <button
-                  type="button"
-                  onClick={jumpToPage}
-                  className="rounded-md border border-slate-300 px-2 py-1 text-sm hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800"
-                >
-                  Springen
-                </button>
-              </div>
-              <iframe
-                key={pageJump}
-                src={`${pdfUrl}#page=${pageJump}`}
-                title="PDF-Viewer"
-                className="h-[70vh] w-full rounded-md border border-slate-200 dark:border-slate-800"
-              />
-            </>
-          ) : (
-            <p className="text-sm text-slate-400">Kein PDF hinterlegt.</p>
-          )}
-        </div>
-      </div>
+      {showDeleteConfirm && (
+        <ConfirmDialog
+          title="Quelle löschen"
+          message={`"${source.title}" wirklich löschen? Das entfernt auch alle Zitate, Bewertungen und das PDF dieser Quelle unwiderruflich.`}
+          busy={deleting}
+          onConfirm={handleDelete}
+          onCancel={() => setShowDeleteConfirm(false)}
+        />
+      )}
+      {deleteError && <p className="mt-3 text-sm text-red-600 dark:text-red-400">Fehler: {deleteError}</p>}
     </div>
   )
 }

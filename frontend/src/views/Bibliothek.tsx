@@ -2,14 +2,16 @@ import { useEffect, useMemo, useState, type MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { UploadPanel } from '../components/UploadPanel'
 import { GreyLiteratureDialog } from '../components/GreyLiteratureDialog'
-import { fetchSources, type Source } from '../lib/sources'
+import { deleteSource, fetchSources, type Source } from '../lib/sources'
 import { formatAuthorYear, formatRanking, STATUS_ICON, STATUS_LABEL, TYPE_LABEL } from '../lib/sourceFormat'
 import { fetchAllSourceFunctions, fetchWorkFunctions, type WorkFunction } from '../lib/functions'
 import { generateCitations, type GenerateCitationsResult } from '../lib/citations'
 import { CitationReviewDialog } from '../components/CitationReviewDialog'
-import { fetchReviewCounts } from '../lib/qsReview'
+import { ConfirmDialog } from '../components/ConfirmDialog'
+import { fetchAllSourceTopics, fetchAllTopics, fetchReviewCounts, type TopicOption } from '../lib/qsReview'
 
-type SortOption = 'year_desc' | 'year_asc' | 'title_asc'
+type SortKey = 'author_year' | 'title' | 'venue' | 'ranking' | 'status'
+type SortDir = 'asc' | 'desc'
 
 const TYPE_OPTIONS: Array<{ value: string; label: string }> = [
   { value: '', label: 'Alle Typen' },
@@ -17,6 +19,7 @@ const TYPE_OPTIONS: Array<{ value: string; label: string }> = [
   { value: 'konferenz', label: 'Konferenz' },
   { value: 'buch', label: 'Buch' },
   { value: 'grau', label: 'Graue Literatur' },
+  { value: 'dissertation', label: 'Doktorarbeit/wissenschaftliche Arbeit' },
 ]
 
 const RANKING_OPTIONS: Array<{ value: string; label: string }> = [
@@ -46,17 +49,24 @@ export function Bibliothek() {
   const [filterRanking, setFilterRanking] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [onlyExtractionIssues, setOnlyExtractionIssues] = useState(false)
-  const [sortBy, setSortBy] = useState<SortOption>('year_desc')
+  const [sortKey, setSortKey] = useState<SortKey>('author_year')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [showGreyDialog, setShowGreyDialog] = useState(false)
   const [workFunctions, setWorkFunctions] = useState<WorkFunction[]>([])
   const [filterFunction, setFilterFunction] = useState('')
   const [sourceIdsByFunction, setSourceIdsByFunction] = useState<Map<string, Set<string>>>(new Map())
+  const [allTopics, setAllTopics] = useState<TopicOption[]>([])
+  const [filterTopic, setFilterTopic] = useState('')
+  const [sourceIdsByTopic, setSourceIdsByTopic] = useState<Map<string, Set<string>>>(new Map())
   const [generatingId, setGeneratingId] = useState<string | null>(null)
   const [reviewResult, setReviewResult] = useState<{ sourceTitle: string; data: GenerateCitationsResult } | null>(
     null,
   )
   const [generateError, setGenerateError] = useState<string | null>(null)
   const [unconfirmedTotal, setUnconfirmedTotal] = useState(0)
+  const [deleteTarget, setDeleteTarget] = useState<Source | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchWorkFunctions().then(setWorkFunctions)
@@ -68,8 +78,46 @@ export function Bibliothek() {
       }
       setSourceIdsByFunction(map)
     })
+    fetchAllTopics().then(setAllTopics)
+    fetchAllSourceTopics().then((rows) => {
+      const map = new Map<string, Set<string>>()
+      for (const row of rows) {
+        if (!map.has(row.topic_id)) map.set(row.topic_id, new Set())
+        map.get(row.topic_id)!.add(row.source_id)
+      }
+      setSourceIdsByTopic(map)
+    })
     fetchReviewCounts().then((counts) => setUnconfirmedTotal(counts.reduce((sum, c) => sum + c.count, 0)))
   }, [])
+
+  function toggleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortKey(key)
+      setSortDir(key === 'author_year' ? 'desc' : 'asc')
+    }
+  }
+
+  function sortIndicator(key: SortKey) {
+    if (sortKey !== key) return ''
+    return sortDir === 'asc' ? ' ▲' : ' ▼'
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget) return
+    setDeleting(true)
+    setDeleteError(null)
+    try {
+      await deleteSource(deleteTarget.id, deleteTarget.storage_path)
+      setDeleteTarget(null)
+      load()
+    } catch (err) {
+      setDeleteError((err as Error).message)
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   function load() {
     setLoading(true)
@@ -125,16 +173,30 @@ export function Bibliothek() {
       const ids = sourceIdsByFunction.get(filterFunction) ?? new Set()
       result = result.filter((s) => ids.has(s.id))
     }
+    if (filterTopic) {
+      const ids = sourceIdsByTopic.get(filterTopic) ?? new Set()
+      result = result.filter((s) => ids.has(s.id))
+    }
     if (search.trim()) {
       const q = search.trim().toLowerCase()
       result = result.filter((s) => s.title.toLowerCase().includes(q))
     }
 
     result = [...result].sort((a, b) => {
-      if (sortBy === 'title_asc') return a.title.localeCompare(b.title)
-      const ay = a.year ?? 0
-      const by = b.year ?? 0
-      return sortBy === 'year_asc' ? ay - by : by - ay
+      let cmp = 0
+      if (sortKey === 'author_year') {
+        cmp = (a.year ?? 0) - (b.year ?? 0)
+        if (cmp === 0) cmp = formatAuthorYear(a).localeCompare(formatAuthorYear(b))
+      } else if (sortKey === 'title') {
+        cmp = a.title.localeCompare(b.title)
+      } else if (sortKey === 'venue') {
+        cmp = (a.venue ?? '').localeCompare(b.venue ?? '')
+      } else if (sortKey === 'ranking') {
+        cmp = formatRanking(a).localeCompare(formatRanking(b))
+      } else if (sortKey === 'status') {
+        cmp = a.status.localeCompare(b.status)
+      }
+      return sortDir === 'asc' ? cmp : -cmp
     })
 
     return result
@@ -145,9 +207,12 @@ export function Bibliothek() {
     filterRanking,
     filterFunction,
     sourceIdsByFunction,
+    filterTopic,
+    sourceIdsByTopic,
     onlyExtractionIssues,
     search,
-    sortBy,
+    sortKey,
+    sortDir,
   ])
 
   return (
@@ -257,15 +322,19 @@ export function Bibliothek() {
           ))}
         </select>
         <select
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value as SortOption)}
+          value={filterTopic}
+          onChange={(e) => setFilterTopic(e.target.value)}
           className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
         >
-          <option value="year_desc">Jahr (neu → alt)</option>
-          <option value="year_asc">Jahr (alt → neu)</option>
-          <option value="title_asc">Titel (A–Z)</option>
+          <option value="">Alle Themenfelder</option>
+          {allTopics.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.name}
+            </option>
+          ))}
         </select>
       </div>
+      <p className="mb-2 text-xs text-slate-400">Tabellenkopf anklicken zum Sortieren.</p>
 
       {loading && <p className="text-sm text-slate-400">Lädt …</p>}
       {error && <p className="text-sm text-red-600 dark:text-red-400">Fehler: {error}</p>}
@@ -280,11 +349,52 @@ export function Bibliothek() {
           <table className="hidden w-full table-auto border-collapse text-sm md:table">
             <thead>
               <tr className="border-b border-slate-200 text-left text-slate-500 dark:border-slate-800 dark:text-slate-400">
-                <th className="py-2 pr-3 font-medium">Autor/Jahr</th>
-                <th className="py-2 pr-3 font-medium">Titel</th>
-                <th className="py-2 pr-3 font-medium">Venue</th>
-                <th className="py-2 pr-3 font-medium">Ranking</th>
-                <th className="py-2 pr-3 font-medium">Status</th>
+                <th className="py-2 pr-3 font-medium">
+                  <button
+                    type="button"
+                    className="select-none hover:text-slate-700 dark:hover:text-slate-200"
+                    onClick={() => toggleSort('author_year')}
+                  >
+                    Autor/Jahr{sortIndicator('author_year')}
+                  </button>
+                </th>
+                <th className="py-2 pr-3 font-medium">
+                  <button
+                    type="button"
+                    className="select-none hover:text-slate-700 dark:hover:text-slate-200"
+                    onClick={() => toggleSort('title')}
+                  >
+                    Titel{sortIndicator('title')}
+                  </button>
+                </th>
+                <th className="py-2 pr-3 font-medium">
+                  <button
+                    type="button"
+                    className="select-none hover:text-slate-700 dark:hover:text-slate-200"
+                    onClick={() => toggleSort('venue')}
+                  >
+                    Venue{sortIndicator('venue')}
+                  </button>
+                </th>
+                <th className="py-2 pr-3 font-medium">
+                  <button
+                    type="button"
+                    className="select-none hover:text-slate-700 dark:hover:text-slate-200"
+                    onClick={() => toggleSort('ranking')}
+                  >
+                    Ranking{sortIndicator('ranking')}
+                  </button>
+                </th>
+                <th className="py-2 pr-3 font-medium">
+                  <button
+                    type="button"
+                    className="select-none hover:text-slate-700 dark:hover:text-slate-200"
+                    onClick={() => toggleSort('status')}
+                  >
+                    Status{sortIndicator('status')}
+                  </button>
+                </th>
+                <th className="py-2 pr-3 font-medium"></th>
                 <th className="py-2 pr-3 font-medium"></th>
               </tr>
             </thead>
@@ -324,6 +434,19 @@ export function Bibliothek() {
                       {generatingId === s.id ? 'Erzeugt …' : 'Zitate erzeugen'}
                     </button>
                   </td>
+                  <td className="whitespace-nowrap py-2 pr-3">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setDeleteTarget(s)
+                      }}
+                      className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-500 hover:border-red-300 hover:text-red-600 dark:border-slate-700 dark:text-slate-400 dark:hover:border-red-800 dark:hover:text-red-400"
+                      aria-label="Quelle löschen"
+                    >
+                      🗑
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -356,14 +479,27 @@ export function Bibliothek() {
                   {s.venue ?? '–'} · {formatRanking(s)}
                   {s.type ? ` · ${TYPE_LABEL[s.type] ?? s.type}` : ''}
                 </p>
-                <button
-                  type="button"
-                  disabled={generatingId === s.id}
-                  onClick={(e) => handleGenerate(s, e)}
-                  className="mt-2 rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
-                >
-                  {generatingId === s.id ? 'Erzeugt …' : 'Zitate erzeugen'}
-                </button>
+                <div className="mt-2 flex gap-2">
+                  <button
+                    type="button"
+                    disabled={generatingId === s.id}
+                    onClick={(e) => handleGenerate(s, e)}
+                    className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
+                  >
+                    {generatingId === s.id ? 'Erzeugt …' : 'Zitate erzeugen'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setDeleteTarget(s)
+                    }}
+                    className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-500 hover:border-red-300 hover:text-red-600 dark:border-slate-700 dark:text-slate-400 dark:hover:border-red-800 dark:hover:text-red-400"
+                    aria-label="Quelle löschen"
+                  >
+                    🗑
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
@@ -384,6 +520,17 @@ export function Bibliothek() {
           onClose={() => setReviewResult(null)}
         />
       )}
+
+      {deleteTarget && (
+        <ConfirmDialog
+          title="Quelle löschen"
+          message={`"${deleteTarget.title}" wirklich löschen? Das entfernt auch alle Zitate, Bewertungen und das PDF dieser Quelle unwiderruflich.`}
+          busy={deleting}
+          onConfirm={handleDelete}
+          onCancel={() => setDeleteTarget(null)}
+        />
+      )}
+      {deleteError && <p className="mt-3 text-sm text-red-600 dark:text-red-400">Fehler: {deleteError}</p>}
     </div>
   )
 }
