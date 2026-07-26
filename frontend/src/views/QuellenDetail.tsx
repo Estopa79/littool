@@ -8,6 +8,15 @@ import {
   setSourceFunction,
   type WorkFunction,
 } from '../lib/functions'
+import { fetchResearchQuestions, type ResearchQuestion } from '../lib/settings'
+import {
+  addManualCitation,
+  fetchPassagesForSource,
+  generateCitations,
+  type GenerateCitationsResult,
+  type Passage,
+} from '../lib/citations'
+import { CitationReviewDialog } from '../components/CitationReviewDialog'
 
 type FormState = {
   type: string
@@ -82,6 +91,18 @@ export function QuellenDetail() {
   const [pageJump, setPageJump] = useState(initialPage)
   const [workFunctions, setWorkFunctions] = useState<WorkFunction[]>([])
   const [activeFunctionIds, setActiveFunctionIds] = useState<Set<string>>(new Set())
+  const [researchQuestions, setResearchQuestions] = useState<ResearchQuestion[]>([])
+  const [passages, setPassages] = useState<Passage[]>([])
+  const [generating, setGenerating] = useState(false)
+  const [generateError, setGenerateError] = useState<string | null>(null)
+  const [reviewResult, setReviewResult] = useState<GenerateCitationsResult | null>(null)
+  const [manualRqId, setManualRqId] = useState('')
+  const [manualPage, setManualPage] = useState('')
+  const [manualOriginal, setManualOriginal] = useState('')
+  const [manualTranslation, setManualTranslation] = useState('')
+  const [manualRelevance, setManualRelevance] = useState('2')
+  const [manualSaving, setManualSaving] = useState(false)
+  const [manualError, setManualError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!id) return
@@ -101,7 +122,63 @@ export function QuellenDetail() {
 
     fetchWorkFunctions().then(setWorkFunctions)
     fetchSourceFunctions(id).then((rows) => setActiveFunctionIds(new Set(rows.map((r) => r.function_id))))
+    fetchResearchQuestions().then((rows) => {
+      setResearchQuestions(rows)
+      setManualRqId((prev) => prev || rows[0]?.id || '')
+    })
+    fetchPassagesForSource(id).then(setPassages)
   }, [id])
+
+  function reloadPassages() {
+    if (id) fetchPassagesForSource(id).then(setPassages)
+  }
+
+  async function handleGenerate() {
+    if (!id || !source) return
+    setGenerating(true)
+    setGenerateError(null)
+    try {
+      const data = await generateCitations(id)
+      setReviewResult(data)
+    } catch (err) {
+      setGenerateError((err as Error).message)
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  async function handleManualSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    if (!id || !source) return
+    const page = parseInt(manualPage, 10)
+    if (!manualRqId || Number.isNaN(page) || page <= 0 || !manualOriginal.trim()) {
+      setManualError('Forschungsfrage, Seite und Originaltext sind Pflicht.')
+      return
+    }
+    setManualSaving(true)
+    setManualError(null)
+    try {
+      await addManualCitation({
+        sourceId: id,
+        researchQuestionId: manualRqId,
+        page,
+        original: manualOriginal.trim(),
+        translation: manualTranslation.trim() || null,
+        relevance: Number(manualRelevance),
+        authors: source.authors,
+        year: source.year,
+        pageOffset: source.page_offset,
+      })
+      setManualPage('')
+      setManualOriginal('')
+      setManualTranslation('')
+      reloadPassages()
+    } catch (err) {
+      setManualError((err as Error).message)
+    } finally {
+      setManualSaving(false)
+    }
+  }
 
   async function toggleFunction(functionId: string) {
     if (!id) return
@@ -184,6 +261,13 @@ export function QuellenDetail() {
     if (!Number.isNaN(n) && n > 0) setPageJump(n)
   }
 
+  function jumpToSpecificPage(page: number) {
+    setPageInput(String(page))
+    setPageJump(page)
+  }
+
+  const rqCode = (rqId: string) => researchQuestions.find((r) => r.id === rqId)?.code ?? '?'
+
   if (loading) return <div className="p-6 text-sm text-slate-400">Lädt …</div>
   if (error && !form) {
     return <div className="p-6 text-sm text-red-600 dark:text-red-400">Fehler: {error}</div>
@@ -223,6 +307,112 @@ export function QuellenDetail() {
           )
         })}
       </div>
+
+      <div className="mb-6 rounded-lg border border-slate-200 p-4 dark:border-slate-800">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <h2 className="text-sm font-medium text-slate-700 dark:text-slate-300">Zitate</h2>
+          <button
+            type="button"
+            disabled={generating}
+            onClick={handleGenerate}
+            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+          >
+            {generating ? 'Erzeugt …' : 'Zitate erzeugen'}
+          </button>
+        </div>
+        {generateError && <p className="mb-3 text-sm text-red-600 dark:text-red-400">Fehler: {generateError}</p>}
+
+        {passages.filter((p) => p.confirmed).length === 0 ? (
+          <p className="text-sm text-slate-400">Noch keine bestätigten Zitate.</p>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {passages
+              .filter((p) => p.confirmed)
+              .map((p) => (
+                <li key={p.id} className="rounded-md border border-slate-100 p-2 text-sm dark:border-slate-800">
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                      {rqCode(p.research_question_id)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => jumpToSpecificPage(p.page)}
+                      className="text-xs text-slate-500 hover:underline dark:text-slate-400"
+                    >
+                      PDF S. {p.page} →
+                    </button>
+                  </div>
+                  <p className="italic text-slate-700 dark:text-slate-300">„{p.original}"</p>
+                  {p.translation && <p className="mt-1 text-slate-600 dark:text-slate-400">{p.translation}</p>}
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-500">{p.citation}</p>
+                </li>
+              ))}
+          </ul>
+        )}
+
+        <form onSubmit={handleManualSubmit} className="mt-4 flex flex-col gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
+          <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+            Zitat manuell hinzufügen (Text im PDF markieren, kopieren, hier einfügen)
+          </span>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <select value={manualRqId} onChange={(e) => setManualRqId(e.target.value)} className={inputClass}>
+              {researchQuestions.map((rq) => (
+                <option key={rq.id} value={rq.id}>
+                  {rq.code}
+                </option>
+              ))}
+            </select>
+            <input
+              type="number"
+              min={1}
+              placeholder="Seite"
+              value={manualPage}
+              onChange={(e) => setManualPage(e.target.value)}
+              className={inputClass}
+            />
+            <select value={manualRelevance} onChange={(e) => setManualRelevance(e.target.value)} className={inputClass}>
+              <option value="1">Relevanz 1</option>
+              <option value="2">Relevanz 2</option>
+              <option value="3">Relevanz 3</option>
+            </select>
+          </div>
+          <textarea
+            placeholder="Originaltext (wörtlich)"
+            value={manualOriginal}
+            onChange={(e) => setManualOriginal(e.target.value)}
+            rows={2}
+            className={inputClass}
+          />
+          <textarea
+            placeholder="Übersetzung (optional)"
+            value={manualTranslation}
+            onChange={(e) => setManualTranslation(e.target.value)}
+            rows={2}
+            className={inputClass}
+          />
+          {manualError && <p className="text-sm text-red-600 dark:text-red-400">{manualError}</p>}
+          <button
+            type="submit"
+            disabled={manualSaving}
+            className="self-start rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+          >
+            {manualSaving ? 'Speichert …' : '+ Zitat hinzufügen'}
+          </button>
+        </form>
+      </div>
+
+      {reviewResult && (
+        <CitationReviewDialog
+          sourceTitle={source.title}
+          candidates={reviewResult.results}
+          errors={reviewResult.errors}
+          discarded={reviewResult.discarded}
+          message={reviewResult.message}
+          onClose={() => setReviewResult(null)}
+          onPageJump={jumpToSpecificPage}
+          onChange={reloadPassages}
+        />
+      )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">

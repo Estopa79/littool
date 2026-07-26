@@ -30,6 +30,9 @@ oder danach und ohne Markdown-Codeblock:
 
 Regeln:
 - "original": muss wortwörtlich aus den Textauszügen stammen, ohne eigene Ergänzungen.
+- Nutze NIEMALS Einträge aus einem Literaturverzeichnis/Referenzenliste als Zitat - das sind \
+Verweise auf andere Werke, keine inhaltlichen Aussagen der Quelle selbst. Erkennbar an typischem \
+Referenz-Format (Autor, Jahr, Titel, Journal/Verlag, Seitenzahlen einer anderen Publikation).
 - Wenn nichts Zitierfähiges zur Forschungsfrage passt: "passages": [] (leeres Array).
 - "translation": sinngemäße, flüssige deutsche Übersetzung des Zitats.
 - relevance: 1 = am Rande relevant, 2 = relevant, 3 = zentral relevant für die Forschungsfrage.

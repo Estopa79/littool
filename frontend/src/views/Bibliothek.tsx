@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { UploadPanel } from '../components/UploadPanel'
 import { GreyLiteratureDialog } from '../components/GreyLiteratureDialog'
 import { fetchSources, type Source } from '../lib/sources'
 import { formatAuthorYear, formatRanking, STATUS_ICON, STATUS_LABEL, TYPE_LABEL } from '../lib/sourceFormat'
 import { fetchAllSourceFunctions, fetchWorkFunctions, type WorkFunction } from '../lib/functions'
+import { generateCitations, type GenerateCitationsResult } from '../lib/citations'
+import { CitationReviewDialog } from '../components/CitationReviewDialog'
 
 type SortOption = 'year_desc' | 'year_asc' | 'title_asc'
 
@@ -48,6 +50,11 @@ export function Bibliothek() {
   const [workFunctions, setWorkFunctions] = useState<WorkFunction[]>([])
   const [filterFunction, setFilterFunction] = useState('')
   const [sourceIdsByFunction, setSourceIdsByFunction] = useState<Map<string, Set<string>>>(new Map())
+  const [generatingId, setGeneratingId] = useState<string | null>(null)
+  const [reviewResult, setReviewResult] = useState<{ sourceTitle: string; data: GenerateCitationsResult } | null>(
+    null,
+  )
+  const [generateError, setGenerateError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchWorkFunctions().then(setWorkFunctions)
@@ -75,6 +82,20 @@ export function Bibliothek() {
   useEffect(() => {
     load()
   }, [])
+
+  async function handleGenerate(source: Source, e: MouseEvent) {
+    e.stopPropagation()
+    setGeneratingId(source.id)
+    setGenerateError(null)
+    try {
+      const data = await generateCitations(source.id)
+      setReviewResult({ sourceTitle: source.title, data })
+    } catch (err) {
+      setGenerateError((err as Error).message)
+    } finally {
+      setGeneratingId(null)
+    }
+  }
 
   const needsReviewCount = useMemo(
     () => sources.filter((s) => s.status === 'needs_review').length,
@@ -251,6 +272,7 @@ export function Bibliothek() {
                 <th className="py-2 pr-3 font-medium">Venue</th>
                 <th className="py-2 pr-3 font-medium">Ranking</th>
                 <th className="py-2 pr-3 font-medium">Status</th>
+                <th className="py-2 pr-3 font-medium"></th>
               </tr>
             </thead>
             <tbody>
@@ -278,6 +300,16 @@ export function Bibliothek() {
                         📄⚠️
                       </span>
                     )}
+                  </td>
+                  <td className="whitespace-nowrap py-2 pr-3">
+                    <button
+                      type="button"
+                      disabled={generatingId === s.id}
+                      onClick={(e) => handleGenerate(s, e)}
+                      className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
+                    >
+                      {generatingId === s.id ? 'Erzeugt …' : 'Zitate erzeugen'}
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -311,10 +343,33 @@ export function Bibliothek() {
                   {s.venue ?? '–'} · {formatRanking(s)}
                   {s.type ? ` · ${TYPE_LABEL[s.type] ?? s.type}` : ''}
                 </p>
+                <button
+                  type="button"
+                  disabled={generatingId === s.id}
+                  onClick={(e) => handleGenerate(s, e)}
+                  className="mt-2 rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
+                >
+                  {generatingId === s.id ? 'Erzeugt …' : 'Zitate erzeugen'}
+                </button>
               </li>
             ))}
           </ul>
         </>
+      )}
+
+      {generateError && (
+        <p className="mt-3 text-sm text-red-600 dark:text-red-400">Fehler: {generateError}</p>
+      )}
+
+      {reviewResult && (
+        <CitationReviewDialog
+          sourceTitle={reviewResult.sourceTitle}
+          candidates={reviewResult.data.results}
+          errors={reviewResult.data.errors}
+          discarded={reviewResult.data.discarded}
+          message={reviewResult.data.message}
+          onClose={() => setReviewResult(null)}
+        />
       )}
     </div>
   )
