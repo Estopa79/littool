@@ -29,12 +29,14 @@ def _pace() -> None:
     _last_request_at = time.monotonic()
 
 
-def embed_batch(texts: list[str], api_key: str) -> tuple[list[list[float]], int]:
+def embed_batch(
+    texts: list[str], api_key: str, input_type: str = "document"
+) -> tuple[list[list[float]], int]:
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     payload = {
         "input": texts,
         "model": MODEL,
-        "input_type": "document",  # Gegenstück "query" kommt bei der Suche (Paket 5/6)
+        "input_type": input_type,
         "output_dimension": OUTPUT_DIMENSION,
     }
 
@@ -57,6 +59,13 @@ def embed_batch(texts: list[str], api_key: str) -> tuple[list[list[float]], int]
 
 def _vec_literal(values: list[float]) -> str:
     return "[" + ",".join(f"{x:.6f}" for x in values) + "]"
+
+
+def embed_query(query: str, api_key: str) -> list[float]:
+    """Bettet einen einzelnen Suchtext ein. input_type="query" statt "document" -
+    Voyage optimiert die beiden Modi unterschiedlich (asymmetrische Suche)."""
+    embeddings, _tokens = embed_batch([query], api_key, input_type="query")
+    return embeddings[0]
 
 
 def run_embedding(client: Client, api_key: str, batch_size: int = BATCH_SIZE) -> dict[str, float]:

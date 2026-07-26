@@ -94,10 +94,20 @@ Da dieser Fehlerfall (Extraktion technisch „erfolgreich", Inhalt aber Müll) b
 
 Bestandsweite Prüfung final: 148 `extracted`, 2 `ocr_done`, 2 `extraction_failed` (die zwei genannten Duplikate), 3 ohne PDF (keine Extraktion nötig) – macht zusammen alle 155 Quellen. `search_fulltext`-RPC danach erneut gegen den vollen Bestand getestet, funktioniert weiterhin korrekt.
 
-## Paket 6 – Semantische Suche (Backend) ☐
+## Paket 6 – Semantische Suche (Backend) ☑
 
 - Query-Embedding + pgvector-Ähnlichkeitssuche (Cosine, Schwellwert, Top-k), gleiche Rückgabestruktur wie Paket 5.
 - **Fertig, wenn:** Eine inhaltliche Frage („Wie wird Vertrauen zwischen Business und IT operationalisiert?") findet passende Stellen, die die Volltextsuche nicht findet.
+
+**Notizen:** Migration 0010 – Funktion `search_semantic(query_embedding, filter_ranking_system, filter_type, match_limit, match_threshold)`, Cosine-Ähnlichkeit (`1 - (embedding <=> query_embedding)`) über den HNSW-Index aus Paket 1, gleiche Rückgabestruktur wie `search_fulltext` (Voraussetzung für die Zusammenführung in Paket 7). „snippet" ist hier der volle Chunk-Text ohne Hervorhebung, da es keine Suchbegriffe zum Markieren gibt.
+
+Bewusste Scope-Abgrenzung: Das Query-Embedding selbst braucht den Voyage-Key, der niemals ins Frontend darf. Für dieses Paket reicht ein Python-Testwerkzeug (`worker/littool_worker/search.py`, CLI-Befehl `search-semantic "Frage"`); die dafür nötige serverseitige Vermittlung fürs Frontend (vermutlich eine Supabase Edge Function) ist Sache von Paket 8, wenn die Such-Ansicht tatsächlich gebaut wird. `embeddings.py:embed_batch` um einen `input_type`-Parameter erweitert (Default weiterhin `"document"` fürs Ingest, `"query"` für die neue `embed_query()"`-Funktion – Voyage optimiert beide Modi unterschiedlich, sogenannte asymmetrische Suche).
+
+Echter Bug unterwegs gefunden: die erste Version von `search_semantic` (Migration 0010) lief beim ersten Test gegen den vollen Bestand (18.886 Chunks) in einen Postgres-Statement-Timeout, weil der optionale Schwellwert-Filter die Distanz ein zweites Mal in der WHERE-Klausel berechnete – der Planer konnte die „ORDER BY ... LIMIT"-Form dadurch nicht mehr sauber auf den HNSW-Index abbilden. Migration 0011 behebt das: die Nächste-Nachbarn-Suche läuft unverändert in einer inneren Subquery (Index wird genutzt), der Schwellwert filtert erst danach auf dem bereits kleinen Ergebnis. Zusätzlich stellte sich heraus, dass nach dem Bulk-Chunking/-Embedding noch kein `ANALYZE` auf `chunks` gelaufen war – veraltete Tabellenstatistik hätte den Planer auch bei korrekter Query-Form zu falschen Entscheidungen verleiten können; `VACUUM ANALYZE public.chunks` als Wartungsschritt ergänzt (keine eigene Migration, da keine Schemaänderung).
+
+Nebenbei einen Absturz im CLI-Testbefehl behoben: Windows-Konsole (cp1252) kann nicht jedes Unicode-Zeichen aus Quellentiteln darstellen (z. B. U+2010-Bindestrich) – `sys.stdout` wird jetzt in `cli.py` auf UTF-8 mit Ersatzzeichen umgestellt, damit die Ausgabe nicht abstürzt.
+
+Test bestanden: Die Beispielfrage „Wie wird Vertrauen zwischen Business und IT operationalisiert?" liefert per semantischer Suche 5 inhaltlich einschlägige Treffer zu Kommunikation, geteiltem Domänenwissen und sozialer Angleichung zwischen Business und IT – keiner enthält das Wort „Vertrauen" wörtlich. Die Volltextsuche nach „Vertrauen" liefert 5 komplett andere Quellen (Deloitte-Trendstudie, Digitalisierungsstrategie-Arbeit u. a.) – keine Überschneidung mit den semantischen Treffern, damit ist das Fertig-Kriterium klar erfüllt.
 
 ## Paket 7 – Hybrid-Ranking ☐
 

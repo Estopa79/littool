@@ -9,6 +9,7 @@ from .enrich import run_metadata_enrichment
 from .env import require_env
 from .fulltext import run_fulltext_extraction
 from .ranking import run_ranking_match
+from .search import run_semantic_search
 from .supabase_client import get_client, load_config
 
 
@@ -101,7 +102,32 @@ def cmd_embed(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_search_semantic(args: argparse.Namespace) -> int:
+    client = get_client()
+    api_key = require_env("VOYAGE_API_KEY")
+    results = run_semantic_search(
+        client,
+        api_key,
+        args.query,
+        filter_ranking_system=args.ranking,
+        filter_type=args.type,
+        match_limit=args.limit,
+        match_threshold=args.threshold,
+    )
+    if not results:
+        print("Keine Treffer.")
+        return 0
+    for r in results:
+        print(f"[{r['rank']:.3f}] {r['title']} (S. {r['page']})")
+        print(f"  {r['snippet'][:200]}")
+    return 0
+
+
 def main() -> None:
+    # Windows-Konsole nutzt oft cp1252, das nicht jedes Unicode-Zeichen aus
+    # Quellentiteln abbilden kann (z. B. U+2010 statt "-") - Ausgabe soll
+    # deswegen nicht abstürzen.
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     parser = argparse.ArgumentParser(prog="littool-worker")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -142,6 +168,18 @@ def main() -> None:
         "--batch-size", type=int, default=100, help="Chunks pro API-Aufruf (Default 100)"
     )
     embed_parser.set_defaults(func=cmd_embed)
+
+    search_semantic_parser = subparsers.add_parser(
+        "search-semantic", help="Semantische Suche testen (Query-Embedding + pgvector)"
+    )
+    search_semantic_parser.add_argument("query", help="Suchtext")
+    search_semantic_parser.add_argument("--ranking", default=None, help="Filter Ranking-System")
+    search_semantic_parser.add_argument("--type", default=None, help="Filter Quellentyp")
+    search_semantic_parser.add_argument("--limit", type=int, default=20, help="Max. Treffer")
+    search_semantic_parser.add_argument(
+        "--threshold", type=float, default=None, help="Mindest-Ähnlichkeit (0-1)"
+    )
+    search_semantic_parser.set_defaults(func=cmd_search_semantic)
 
     args = parser.parse_args()
     sys.exit(args.func(args))
