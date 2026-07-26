@@ -232,12 +232,18 @@ Zwei Einstiegspunkte wie im Plan: (1) ¶-Button an bestätigten Passagen-Karten 
 
 Live getestet (beide Pfade): Karten-¶-Button erzeugt Vorschlag, „Übernehmen" schreibt korrekt in `passages.paraphrase` (per Direktabfrage verifiziert); manuelles Formular erzeugt Paraphrase aus dem Originaltext-Feld und speichert sie beim Absenden mit demselben Zitat. Mobile Ansicht (375px) geprüft: Karte inkl. Paraphrase-Anzeige und „¶ neu erzeugen"-Button bleibt lesbar, kein Überlauf.
 
-## Paket 10 – Backfill & Kalibrier-Abschluss ☐
+## Paket 10 – Backfill & Kalibrier-Abschluss ☐ (Analyse fertig, QS-Durchgang beim Nutzer)
 
 - Analyse (Pakete 3 und 5: Themen, Relevanz, Funktion, Methodenprofile) über den gesamten Bestand laufen lassen; Kosten notieren. **Zitate ausdrücklich nicht im Batch** – sie entstehen auf Abruf beim Arbeiten.
 - QS-Durchgang: mindestens die Quellen mit hoher Relevanz vollständig bestätigen.
 - Stichproben-Ehrlichkeitstest: 10 bereits bestätigte Zitate im PDF verifizieren (Text, Seite, Zitation).
 - **Fertig, wenn:** Der Bestand ist analysiert, die wichtigsten Zuordnungen sind bestätigt → Phase 3 abgeschlossen. 🎉
+
+**Notizen:**
+
+Analyse-Teil abgeschlossen: `profile-methods` einmalig über den gesamten Bestand gelaufen (Themen/Relevanz/Funktion liefen bereits aus Paket 3/F) - 145 Quellen profiliert, 2 Fehler (dieselben zwei vorbestehenden Faelle ohne Chunks, s. Paket 0/F), Kosten ca. $1,34. Damit sind alle vier Analyse-Dimensionen (Themen, Relevanz, Funktion, Methodenprofil) für 150 von 152 Quellen durchgelaufen.
+
+QS-Durchgang und Ehrlichkeitstest bewusst NICHT von mir übernommen: beim Stichprobencheck fiel auf, dass erst 6 Passagen ueberhaupt bestaetigt sind (ausschliesslich eigene Testdaten aus den Live-Verifikationen der Pakete 4/6/7/9) - ein „10-Zitate-Ehrlichkeitstest" waere an diesem Punkt nur ein Test der eigenen Testdaten gewesen. Wichtiger: Relevanz-/Themen-Bestaetigung ist eine fachliche, wissenschaftliche Einschaetzung - genau dafuer wurde die QS-Ansicht (Paket 6) gebaut, das darf nicht die KI fuer den Autor "durchwinken". Mit dem Nutzer abgestimmt: er uebernimmt den QS-Durchgang selbst über `/pruefen` (30 Quellen haben mindestens eine Relevanz-Bewertung „zentral" = 3, davon 40 einzelne unbestätigte Bewertungen als Ausgangspunkt). Der Stichproben-Ehrlichkeitstest folgt, sobald ausreichend echte Bestätigungen vorliegen - Paket 10 bleibt bis dahin offen markiert.
 
 ## Paket 11 – Evaluationsmatrix: Kriterien & KI-Vorbewertung ☐
 
