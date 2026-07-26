@@ -63,6 +63,16 @@ export async function discardPassage(id: string): Promise<void> {
   if (error) throw error
 }
 
+// Fuer die QS-Ansicht (Paket 6): Original/Uebersetzung korrigieren und im
+// selben Zug bestaetigen - eine manuelle Korrektur gilt als Bestaetigung.
+export async function updateAndConfirmPassage(
+  id: string,
+  patch: { original: string; translation: string | null },
+): Promise<void> {
+  const { error } = await supabase.from('passages').update({ ...patch, confirmed: true }).eq('id', id)
+  if (error) throw error
+}
+
 // Manueller Weg (aus Paket 7 vorgezogen): Text im PDF-Viewer markieren/kopieren,
 // hier einfuegen - gilt sofort als bestaetigt (menschliche Aktion, kein KI-Vorschlag).
 export async function addManualCitation(params: {

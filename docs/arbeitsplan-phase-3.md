@@ -178,11 +178,19 @@ Migration `0024_method_profiles.sql`: `method_profiles` 1:1 zur Quelle (`source_
 
 Kalibrierung an 5 bewusst unterschiedlichen Quellentypen: Teece et al. (Dynamic Capabilities, Theoriepaper) → `konzeptionell`; Rundschreiben 3/2009 VA (Verordnung) → `nicht_anwendbar`; McKinsey-Marktbericht → `nicht_anwendbar`; systematisches Literatur-Review → `review` mit korrekt erkannter Datengrundlage (112 Paper aus IEEE/ACM/ICEIS); Charoensuk et al. (Survey-Studie) → `quantitativ` mit SEM als Auswertungsverfahren. Alle five korrekt, keine Nacharbeit am Prompt nötig. Anzeige + Bestätigen-Button auf der Quellen-Detailseite (`lib/methodProfiles.ts`), inkl. Sprung zur Methodenteil-Seite im PDF-Viewer. Frontend kompiliert/lintet sauber.
 
-## Paket 6 – QS-Workflow ☐
+## Paket 6 – QS-Workflow ☑
 
 - Prüf-Ansicht (in Bibliothek und FF-Ansicht erreichbar): alle unbestätigten Zuordnungen, Relevanzen, Passagen, Methodenprofile als Karten – bestätigen, korrigieren (Relevanz ändern, Thema entfernen/ergänzen, Passage bearbeiten/löschen).
 - Zähler „n unbestätigt" als Badge; Korrekturen setzen `confirmed`.
 - **Fertig, wenn:** Ein kompletter Quellen-Durchlauf lässt sich in wenigen Minuten prüfen; mobil bedienbar.
+
+**Notizen:**
+
+Scope-Vereinfachung (gleiches Prinzip wie bei Paket 4): Die FF-Ansicht existiert noch nicht (Paket 7, aktuell Platzhalter) - die Prüf-Ansicht ist deshalb vorerst nur aus der Bibliothek erreichbar (Badge „🔍 n unbestätigte KI-Zuordnungen prüfen" oben, analog zur bestehenden „⚠️ n zu prüfen"-Badge). Ein Link von der FF-Ansicht kann ergänzt werden, sobald Paket 7 existiert.
+
+Zwei neue Routen: `/pruefen` (Liste aller Quellen mit >0 unbestätigten Zeilen, absteigend sortiert, Zaehlung aggregiert clientseitig ueber alle fuenf Dimensionen - `lib/qsReview.ts`) und `/pruefen/:sourceId` (Karten je Dimension: Themenfelder mit Bestätigen/Entfernen + „Thema ergänzen"-Auswahl, Relevanz mit änderbarem Wert, Zitate mit editierbarem Original/Übersetzung, Methodenprofil, Funktion). Jede Aktion schreibt direkt in die jeweilige Tabelle (kein Batch-Speichern) und entfernt die Karte lokal.
+
+Live getestet an einer Quelle mit gemischtem Inhalt (Themenfeld bestätigen/entfernen, Relevanz-Karten, Zitat bestätigen) - alle Aktionen persistieren korrekt in der DB, verifiziert per Direktabfrage. Dabei ein echter Bug gefunden und behoben: nach dem Bestätigen eines Themas erschien es faelschlich wieder im „Thema ergänzen"-Dropdown, weil die Verfügbarkeitsprüfung nur gegen die (jetzt gefilterte) unbestätigte Liste lief statt gegen alle zugewiesenen Themen - behoben über ein separates `assignedTopicIds`-Set, das unabhaengig vom Bestätigt-Status aktuell bleibt. Mobile Ansicht (375px) geprüft: einspaltig, keine Überläufe.
 
 ## Paket 7 – Forschungsfragen-Ansicht ☐
 

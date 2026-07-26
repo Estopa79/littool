@@ -7,6 +7,7 @@ import { formatAuthorYear, formatRanking, STATUS_ICON, STATUS_LABEL, TYPE_LABEL 
 import { fetchAllSourceFunctions, fetchWorkFunctions, type WorkFunction } from '../lib/functions'
 import { generateCitations, type GenerateCitationsResult } from '../lib/citations'
 import { CitationReviewDialog } from '../components/CitationReviewDialog'
+import { fetchReviewCounts } from '../lib/qsReview'
 
 type SortOption = 'year_desc' | 'year_asc' | 'title_asc'
 
@@ -55,6 +56,7 @@ export function Bibliothek() {
     null,
   )
   const [generateError, setGenerateError] = useState<string | null>(null)
+  const [unconfirmedTotal, setUnconfirmedTotal] = useState(0)
 
   useEffect(() => {
     fetchWorkFunctions().then(setWorkFunctions)
@@ -66,6 +68,7 @@ export function Bibliothek() {
       }
       setSourceIdsByFunction(map)
     })
+    fetchReviewCounts().then((counts) => setUnconfirmedTotal(counts.reduce((sum, c) => sum + c.count, 0)))
   }, [])
 
   function load() {
@@ -173,6 +176,16 @@ export function Bibliothek() {
           className="mb-4 mr-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300 dark:hover:bg-amber-900"
         >
           ⚠️ {needsReviewCount} zu prüfen
+        </button>
+      )}
+
+      {unconfirmedTotal > 0 && (
+        <button
+          type="button"
+          onClick={() => navigate('/pruefen')}
+          className="mb-4 mr-2 rounded-md border border-sky-300 bg-sky-50 px-3 py-1.5 text-sm font-medium text-sky-800 hover:bg-sky-100 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-300 dark:hover:bg-sky-900"
+        >
+          🔍 {unconfirmedTotal} unbestätigte KI-Zuordnungen prüfen
         </button>
       )}
 
