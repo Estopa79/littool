@@ -192,11 +192,19 @@ Zwei neue Routen: `/pruefen` (Liste aller Quellen mit >0 unbestätigten Zeilen, 
 
 Live getestet an einer Quelle mit gemischtem Inhalt (Themenfeld bestätigen/entfernen, Relevanz-Karten, Zitat bestätigen) - alle Aktionen persistieren korrekt in der DB, verifiziert per Direktabfrage. Dabei ein echter Bug gefunden und behoben: nach dem Bestätigen eines Themas erschien es faelschlich wieder im „Thema ergänzen"-Dropdown, weil die Verfügbarkeitsprüfung nur gegen die (jetzt gefilterte) unbestätigte Liste lief statt gegen alle zugewiesenen Themen - behoben über ein separates `assignedTopicIds`-Set, das unabhaengig vom Bestätigt-Status aktuell bleibt. Mobile Ansicht (375px) geprüft: einspaltig, keine Überläufe.
 
-## Paket 7 – Forschungsfragen-Ansicht ☐
+## Paket 7 – Forschungsfragen-Ansicht ☑
 
 - UI gemäß Wireframe: FF-Liste mit Zitate-Zähler links, rechts die **bestätigten Zitate aus dem Pool** als Karten (Sterne, Original einklappbar, Übersetzung, Zitation kopieren, PDF-Sprung, ¶, 💬-Platzhalter für Phase 5). Der Pool wächst durch dein Arbeiten – die Ansicht zeigt nur Geprüftes.
 - Sortierung (Relevanz/Quelle/Jahr), Filter (Thema, Ranking, Studientyp, Funktion).
 - **Fertig, wenn:** Pro FF entsteht ein brauchbarer Arbeitsüberblick, mobil wie Desktop.
+
+**Notizen:**
+
+Ersetzt den Platzhalter-View. Karte enthält bewusst KEIN ¶ (Paraphrase - kommt erst mit Paket 9) und ein deaktiviertes 💬 (Tooltip "kommt in Phase 5", exakt wie im Plan vorgesehen). Das „☐ verwendet"-Häkchen aus dem Wireframe wurde bewusst weggelassen - gehört laut Konzept zu `UsedCitation`/der „Verwendet"-Ansicht, die explizit erst in Phase 4 geplant ist (siehe Notiz Zeile 241), nicht Phase 3. Der „[Matrix]"-Umschalter im Wireframe führt zu Paket 8 (noch nicht gebaut) und wurde ebenfalls ausgelassen.
+
+Daten: `lib/ffView.ts` holt bestätigte Passagen einer FF in einem einzigen verschachtelten Postgrest-Select (`passages → sources → source_topics/method_profiles/source_functions`), Filter (Thema/Ranking/Studientyp/Funktion) laufen clientseitig auf dem bereits geladenen, kleinen Ergebnis. Zähler je FF (`●n`) zählt bestätigte Passagen unabhängig vom aktuellen Filter.
+
+Live getestet: FF-Liste mit korrekten Zählern, Kartenanzeige (Sterne, Original auf-/zuklappbar, Übersetzung, Zitation, PDF-Deep-Link mit Seiten-Sprung), Themenfilter reduziert sichtbare Karten korrekt auf 0 bei Nichttreffer. "Zitation kopieren" scheiterte in der automatisierten Testumgebung an einer Clipboard-Berechtigung des Browser-Tools selbst (`Write permission denied`, per direktem JS-Test bestätigt, kein Code-Fehler) - trotzdem eine sichtbare Fehlerrückmeldung ergänzt (`✗ fehlgeschlagen`) statt stillschweigend nichts zu tun. Mobile Ansicht (375px): Master-Detail-Umschaltung (FF-Liste ↔ Karten mit „← Zur FF-Liste") funktioniert wie in der Bibliothek/Quellen-Detail-Ansicht etabliert.
 
 ## Paket 8 – Matrix-Ansicht ☐
 
