@@ -15,8 +15,16 @@ TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 BACKUP_DIR="backups/${TIMESTAMP}"
 mkdir -p "${BACKUP_DIR}"
 
-echo "== DB-Dump =="
-npx supabase db dump --linked -f "${BACKUP_DIR}/db_dump.sql"
+echo "== DB-Dump (Schema) =="
+# `supabase db dump --linked` ist per Default IMMER --schema-only (keine
+# Zeilendaten) - Schema liegt ohnehin schon versioniert in
+# supabase/migrations/, hier nur als zusaetzliche Absicherung/Referenzstand.
+npx supabase db dump --linked -f "${BACKUP_DIR}/schema.sql"
+
+echo "== DB-Dump (Daten) =="
+# Die eigentlich schuetzenswerten Zeilendaten (Quellen, Chunks+Embeddings,
+# Passagen, ...) - --use-copy fuer effizienten Export der grossen Tabellen.
+npx supabase db dump --linked --data-only --use-copy -f "${BACKUP_DIR}/data.sql"
 
 echo "== PDF-Bucket-Sync (pdfs) =="
 npx supabase storage cp -r --linked --experimental "ss:///pdfs" "${BACKUP_DIR}/pdfs"

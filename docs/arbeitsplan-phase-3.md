@@ -8,7 +8,7 @@ Voraussetzung: Phase 2 abgeschlossen (Bestand gechunkt, eingebettet, durchsuchba
 
 ---
 
-## ⚠️ Eingeschobenes Paket K – Seiten-Offset & Backup (SOFORT, vor allem Weiteren) ☐
+## ⚠️ Eingeschobenes Paket K – Seiten-Offset & Backup (SOFORT, vor allem Weiteren) ☑
 
 Hintergrund: Journal-Artikel beginnen im PDF bei Seite 1, im Journal aber z. B. bei Seite 1319. Bisher wird die PDF-Seite auch für Zitationen verwendet – das wäre falsch. Außerdem fehlt eine Datensicherung.
 
@@ -30,7 +30,9 @@ Stichprobe (Paket-Kriterium): mehrere Passagen gegen den tatsächlichen PDF-Text
 
 Quellen-Detailseite: neues Feld „Seiten-Offset (PDF-Seite → Zitationsseite)" mit Plausibilitätstext („PDF-Seite 1 = zitiert als S. …").
 
-`scripts/backup.sh`: PDF-Bucket-Sync (`supabase storage cp -r --linked --experimental`) getestet und funktionsfähig. Der DB-Dump-Teil (`supabase db dump --linked`) braucht Docker Desktop, das auf diesem Rechner noch nicht installiert ist - **offen**, Autor installiert es bei Gelegenheit, dann Dump + Restore-Test nachholen. Paket K bleibt bis dahin offen (☐).
+`scripts/backup.sh` fertig getestet, nachdem Docker Desktop installiert war: `supabase db dump --linked` ohne Zusatzflag ist per Default **immer `--schema-only`** (Zeilendaten fehlen) - Skript macht deshalb zwei Dumps, `schema.sql` (Referenzstand, Schema liegt ohnehin schon in `supabase/migrations/`) und `data.sql` (`--data-only --use-copy`, die eigentlich schützenswerten Zeilendaten). Plus PDF-Bucket-Sync (`supabase storage cp -r --linked --experimental`).
+
+Restore-Test: `schema.sql` + `data.sql` in einen frischen, isolierten `supabase/postgres`-Docker-Container geladen (nicht gegen die echte DB) - alle 9 eigenen Tabellen exakt mit den erwarteten Zeilenzahlen wiederhergestellt (152 sources, 18910 chunks, 282 passages, 1050 source_rq_relevance, 230 source_topics, 7 research_questions, 3 topics, 365 ai_log_entries). Vereinzelte Fehler beim Laden betrafen ausschließlich Supabase-interne System-Tabellen (`auth.*`, `storage.*`) - irrelevant für unsere Daten. Container danach entfernt.
 
 ---
 
@@ -199,7 +201,8 @@ Umgeplant (Autor brachte Konzept v0.6 mit): ursprünglich als Batch über den ga
 - Matrix-Modus in der FF-Ansicht: Zeilen nach Schnittmengen gruppiert, Zellen ●/◐/○, Spalten VHB + Score, eigene Arbeit als hervorgehobene Referenzzeile; Filter (Schnittmenge, VHB, Neu), Suche; Zelle anklicken → Wert ändern, Begründung sehen (zählt als Bestätigung).
 - **Export HTML:** eigenständige interaktive Datei im Stil der Design-Referenz (Filter, Suche, Legende, Kernaussage-Callout, Score-Statistik) – ohne Abhängigkeit zum Tool weitergebbar.
 - Export CSV.
-- **Fertig, wenn:** Die aus dem Tool exportierte HTML-Matrix der handgebauten Vorlage ebenbürtig ist und sich mit einem Klick aktualisiert erzeugen lässt.
+- **Venn-Grafik der Schnittmengen (noch offen, nicht vergessen):** Themenfelder als Venn-Diagramm mit Quellen-Zähler je Schnittmenge, Klick öffnet die Quellen; Export als Bild für die Arbeit. War in einer früheren Notiz fälschlich als "bereits umgesetzt" vermerkt - ist es nicht, steht noch aus.
+- **Fertig, wenn:** Die aus dem Tool exportierte HTML-Matrix der handgebauten Vorlage ebenbürtig ist und sich mit einem Klick aktualisiert erzeugen lässt; die Venn-Grafik zeigt die drei Themenfelder mit korrekten Schnittmengen-Zählern.
 
 ---
 
