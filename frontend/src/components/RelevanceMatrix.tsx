@@ -4,6 +4,7 @@ import { formatAuthorYear } from '../lib/sourceFormat'
 import { STUDY_TYPE_LABEL, type StudyType } from '../lib/methodProfiles'
 import { fetchMatrixData, fetchCellReasoning, type MatrixRow, type MatrixRq } from '../lib/matrix'
 import { fetchConfirmedPassagesForCell, type Passage } from '../lib/citations'
+import { fetchAllTopics, type TopicOption } from '../lib/qsReview'
 
 const RELEVANCE_DOTS: Record<number, string> = { 1: '•', 2: '••', 3: '•••' }
 
@@ -93,6 +94,8 @@ export function RelevanceMatrix() {
   const [error, setError] = useState<string | null>(null)
   const [filterRanking, setFilterRanking] = useState('')
   const [filterStudyType, setFilterStudyType] = useState('')
+  const [filterTopic, setFilterTopic] = useState('')
+  const [allTopics, setAllTopics] = useState<TopicOption[]>([])
   const [sortBy, setSortBy] = useState<'title' | 'relevance'>('title')
   const [cell, setCell] = useState<{ sourceId: string; sourceTitle: string; rqId: string; rqCode: string } | null>(null)
 
@@ -104,6 +107,7 @@ export function RelevanceMatrix() {
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false))
+    fetchAllTopics().then(setAllTopics)
   }, [])
 
   const visible = useMemo(() => {
@@ -111,6 +115,7 @@ export function RelevanceMatrix() {
     if (filterRanking === 'kein Ranking') result = result.filter((r) => !r.ranking_system)
     else if (filterRanking) result = result.filter((r) => r.ranking_system === filterRanking)
     if (filterStudyType) result = result.filter((r) => r.study_type === filterStudyType)
+    if (filterTopic) result = result.filter((r) => r.topics.includes(filterTopic))
 
     result = [...result].sort((a, b) => {
       if (sortBy === 'relevance') {
@@ -121,7 +126,7 @@ export function RelevanceMatrix() {
       return formatAuthorYear(a).localeCompare(formatAuthorYear(b))
     })
     return result
-  }, [rows, filterRanking, filterStudyType, sortBy])
+  }, [rows, filterRanking, filterStudyType, filterTopic, sortBy])
 
   function exportCsv() {
     const csv = toCsv(rqs, visible)
@@ -139,7 +144,24 @@ export function RelevanceMatrix() {
 
   return (
     <div className="p-4 sm:p-6">
+      <p className="mb-4 max-w-2xl text-sm text-slate-500 dark:text-slate-400">
+        Zeigt, wie stark die KI jede Quelle für jede Forschungsfrage einschätzt (Punkte = Relevanz 0–3). Hilft dir zu
+        sehen, welche Quellen für eine Forschungsfrage am wichtigsten sind – und wo im Bestand noch Lücken liegen.
+        Zelle anklicken für die Begründung und ggf. schon bestätigte Zitate.
+      </p>
       <div className="mb-4 flex flex-wrap items-center gap-2">
+        <select
+          value={filterTopic}
+          onChange={(e) => setFilterTopic(e.target.value)}
+          className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+        >
+          <option value="">Alle Themenfelder</option>
+          {allTopics.map((t) => (
+            <option key={t.id} value={t.name}>
+              {t.name}
+            </option>
+          ))}
+        </select>
         <select
           value={filterRanking}
           onChange={(e) => setFilterRanking(e.target.value)}

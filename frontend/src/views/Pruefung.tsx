@@ -19,9 +19,15 @@ export function Pruefung() {
       <Link to="/bibliothek" className="text-sm text-slate-500 hover:underline dark:text-slate-400">
         ← Zurück zur Bibliothek
       </Link>
-      <h1 className="mb-4 mt-2 text-xl font-semibold text-slate-800 dark:text-slate-100">
+      <h1 className="mb-2 mt-2 text-xl font-semibold text-slate-800 dark:text-slate-100">
         Unbestätigte KI-Zuordnungen
       </h1>
+      <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
+        Zählt fünf verschiedene KI-Vorschläge zusammen, die noch deine Prüfung brauchen: Themenfeld-Zuordnung,
+        Relevanz-Einschätzung je Forschungsfrage (mit Begründung – keine Zitate, sondern die Einschätzung der KI, wie
+        wichtig die Quelle für die Frage ist), Zitat-Kandidaten, Methodenprofil und Funktion. Klicke eine Quelle an, um
+        pro Karte zu bestätigen oder zu korrigieren.
+      </p>
 
       {loading && <p className="text-sm text-slate-400">Lädt …</p>}
       {error && <p className="text-sm text-red-600 dark:text-red-400">Fehler: {error}</p>}

@@ -277,7 +277,13 @@ Nach Abschluss der Analyse-Batches (Paket 10/11) hat der Autor die App Schritt f
 - **Quellen-Detail-Layout umgebaut** (Nutzer-Feedback: PDF-Ansicht zu klein): Metadaten-Formular ist jetzt ein auf-/zuklappbarer Bereich oben (Default zugeklappt, zeigt Kurzinfo Autor/Jahr/Typ), PDF-Viewer volle Breite darunter (`h-[85vh]` statt der alten halben Spalte), Methodenprofil und Zitate darunter. Themenfeld-Zuordnung ist jetzt auch direkt in der Detailansicht sichtbar und änderbar (Chips analog zur Funktion), nicht mehr nur über `/pruefen`.
 - **Begriffsklärungen** (kein Code, nur Verständnis): Unterschied zwischen Quelle×FF-Relevanz (0-3, Matrix) und Zitat-Relevanz (1-3, Sterne an der Karte); FF-Ansicht = Arbeitsansicht für gesammelte bestätigte Zitate je Forschungsfrage; Relevanzmatrix = Überblick, welche Quellen wie stark auf welche FF einzahlen (Forschungslücken-Argument); „unbestätigte KI-Zuordnungen" sind eine Summe über fünf verschiedene Dimensionen (Themen, Relevanz, Zitate, Methodenprofil, Funktion), nicht nur Zitate.
 
-Noch offen aus dem gleichen Feedback-Durchgang (Forschungsfragen-Ansicht, Relevanzmatrix): Erklärtext auf beiden Seiten ergänzen, Themenfeld als Filter-/Sortierkriterium auch in der Relevanzmatrix ergänzen.
+**Zweite Runde desselben Feedback-Durchgangs:**
+
+- **Erklärtexte ergänzt:** Kurzer Hinweis auf der Forschungsfragen-Ansicht (was der Zitate-Pool ist), auf der Relevanzmatrix (wofür sie da ist), auf `/pruefen` (welche fünf Dimensionen gezählt werden, dass die Begründungen KI-Einschätzungen sind - keine Zitate/Text aus der Quelle) und in `PruefungQuelle.tsx` (Relevanz-Begründung jetzt explizit als „KI-Einschätzung:" beschriftet).
+- **Themenfeld-Filter in der Relevanzmatrix** ergänzt (`lib/matrix.ts` liefert jetzt `topics` je Zeile mit).
+- **Themen-/Relevanz-Analyse auf Pull-Modell umgestellt** (gleicher Architekturwechsel wie schon bei Zitaten/Paraphrase): läuft nicht mehr automatisch/im Batch, sondern über einen Button „KI-Einordnung starten" in einem neuen auf-/zuklappbaren Bereich „Themen & Relevanz je Forschungsfrage" auf der Quellen-Detailseite. Neue Edge Function `generate-topic-relevance`, 1:1 portiert aus `worker/littool_worker/analysis.py` (SYSTEM_PROMPT, Prompt-Aufbau, Parsing, Speicherlogik - nur unbestätigte Zuordnungen werden ersetzt). Visuelle Anzeige „🤖 KI-eingeordnet" (aus `sources.analysis_status`) direkt neben dem Titel. Im aufgeklappten Bereich sind die Relevanz-Werte je Forschungsfrage auch von Hand änderbar (Dropdown + Speichern setzt `confirmed`), live getestet und in der DB verifiziert. Der alte Batch-Weg (`analyze-topics` CLI) bleibt als Werkzeug bestehen, ist aber nicht mehr der vorgesehene Weg für neue/erneute Einordnungen.
+
+Alle Punkte aus dem Feedback-Durchgang sind damit abgearbeitet.
 
 ---
 

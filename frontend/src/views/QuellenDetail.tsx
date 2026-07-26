@@ -11,11 +11,15 @@ import {
 import {
   addTopic,
   fetchAllTopics,
+  fetchSourceRelevance,
   fetchSourceTopics,
   removeTopic,
+  saveRelevance,
+  type ReviewRelevance,
   type ReviewTopic,
   type TopicOption,
 } from '../lib/qsReview'
+import { generateTopicRelevance } from '../lib/topicRelevance'
 import { fetchResearchQuestions, type ResearchQuestion } from '../lib/settings'
 import {
   addManualCitation,
@@ -132,6 +136,10 @@ export function QuellenDetail() {
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [enriching, setEnriching] = useState(false)
   const [enrichNote, setEnrichNote] = useState<string | null>(null)
+  const [relevanceOpen, setRelevanceOpen] = useState(false)
+  const [sourceRelevance, setSourceRelevance] = useState<ReviewRelevance[]>([])
+  const [classifying, setClassifying] = useState(false)
+  const [classifyError, setClassifyError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!id) return
@@ -159,6 +167,7 @@ export function QuellenDetail() {
     fetchMethodProfile(id).then(setMethodProfile)
     fetchAllTopics().then(setAllTopics)
     fetchSourceTopics(id).then(setSourceTopics)
+    fetchSourceRelevance(id).then(setSourceRelevance)
   }, [id])
 
   async function handleConfirmMethodProfile() {
@@ -168,6 +177,36 @@ export function QuellenDetail() {
   }
 
   const activeTopicIds = new Set(sourceTopics.map((t) => t.topic_id))
+
+  async function handleClassify() {
+    if (!id) return
+    setClassifying(true)
+    setClassifyError(null)
+    try {
+      await generateTopicRelevance(id)
+      const [refreshedSource, refreshedTopics, refreshedRelevance] = await Promise.all([
+        fetchSource(id),
+        fetchSourceTopics(id),
+        fetchSourceRelevance(id),
+      ])
+      setSource(refreshedSource)
+      setSourceTopics(refreshedTopics)
+      setSourceRelevance(refreshedRelevance)
+      setRelevanceOpen(true)
+    } catch (err) {
+      setClassifyError((err as Error).message)
+    } finally {
+      setClassifying(false)
+    }
+  }
+
+  async function handleSaveRelevance(rqId: string, value: number) {
+    if (!id) return
+    await saveRelevance(id, rqId, value)
+    setSourceRelevance((prev) =>
+      prev.map((r) => (r.research_question_id === rqId ? { ...r, relevance: value, confirmed: true } : r)),
+    )
+  }
 
   async function toggleTopic(topicId: string) {
     if (!id) return
@@ -412,6 +451,22 @@ export function QuellenDetail() {
         <span className="text-sm text-slate-500 dark:text-slate-400">
           {STATUS_ICON[source.status]} {STATUS_LABEL[source.status]}
         </span>
+        {source.analysis_status === 'complete' && (
+          <span
+            className="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-800 dark:bg-sky-950 dark:text-sky-300"
+            title="Themen und Relevanz je Forschungsfrage wurden von der KI eingeschätzt"
+          >
+            🤖 KI-eingeordnet
+          </span>
+        )}
+        {source.analysis_status === 'failed' && (
+          <span
+            className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+            title={source.analysis_hint ?? undefined}
+          >
+            ⚠️ KI-Einordnung fehlgeschlagen
+          </span>
+        )}
       </div>
 
       <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -454,6 +509,76 @@ export function QuellenDetail() {
             </button>
           )
         })}
+      </div>
+
+      <div className="mb-6 rounded-lg border border-slate-200 dark:border-slate-800">
+        <button
+          type="button"
+          onClick={() => setRelevanceOpen((v) => !v)}
+          className="flex w-full items-center justify-between px-4 py-2 text-left text-sm font-medium text-slate-700 dark:text-slate-300"
+        >
+          <span>
+            {relevanceOpen ? '▾' : '▸'} Themen &amp; Relevanz je Forschungsfrage {relevanceOpen ? 'verbergen' : 'anzeigen'}
+          </span>
+          <span className="text-xs font-normal text-slate-400">
+            {source.analysis_status === 'complete' ? '🤖 KI-eingeordnet' : 'noch nicht eingeordnet'}
+          </span>
+        </button>
+
+        {relevanceOpen && (
+          <div className="border-t border-slate-100 p-4 dark:border-slate-800">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Ordnet die Quelle Themenfeldern zu und schätzt je Forschungsfrage ein, wie relevant sie ist (0 = nicht,
+                3 = zentral) - samt Ein-Satz-Begründung. Läuft nur, wenn du es hier anstößt, nicht automatisch beim
+                Hochladen. Werte lassen sich unten auch von Hand ändern.
+              </p>
+              <button
+                type="button"
+                disabled={classifying}
+                onClick={handleClassify}
+                className="shrink-0 rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+              >
+                {classifying ? 'Ordnet ein …' : source.analysis_status === 'complete' ? 'Neu einordnen' : 'KI-Einordnung starten'}
+              </button>
+            </div>
+            {classifyError && <p className="mb-3 text-sm text-red-600 dark:text-red-400">Fehler: {classifyError}</p>}
+
+            {sourceRelevance.length === 0 ? (
+              <p className="text-sm text-slate-400">Noch keine Relevanz-Einschätzung vorhanden.</p>
+            ) : (
+              <ul className="flex flex-col gap-2">
+                {sourceRelevance.map((r) => (
+                  <li key={r.research_question_id} className="rounded-md border border-slate-100 p-2 text-sm dark:border-slate-800">
+                    <div className="mb-1 flex items-center justify-between gap-2">
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                        {r.rq_code}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        {r.confirmed && <span className="text-xs text-green-600 dark:text-green-400">✔️ bestätigt</span>}
+                        <select
+                          value={r.relevance}
+                          onChange={(e) => handleSaveRelevance(r.research_question_id, Number(e.target.value))}
+                          className="rounded-md border border-slate-300 px-2 py-0.5 text-xs dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                        >
+                          <option value={0}>0 – nicht relevant</option>
+                          <option value={1}>1 – am Rande</option>
+                          <option value={2}>2 – relevant</option>
+                          <option value={3}>3 – zentral</option>
+                        </select>
+                      </div>
+                    </div>
+                    {r.reasoning && (
+                      <p className="text-slate-600 dark:text-slate-400">
+                        <span className="font-medium">KI-Einschätzung:</span> {r.reasoning}
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="mb-6 rounded-lg border border-slate-200 dark:border-slate-800">

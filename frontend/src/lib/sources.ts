@@ -21,6 +21,8 @@ export type Source = {
   storage_path: string | null
 }
 
+export type AnalysisStatus = 'complete' | 'failed' | null
+
 export type SourceDetail = Source & {
   volume: string | null
   issue: string | null
@@ -31,12 +33,14 @@ export type SourceDetail = Source & {
   abstract: string | null
   citation_count: number | null
   url: string | null
+  analysis_status: AnalysisStatus
+  analysis_hint: string | null
 }
 
 const SOURCE_COLUMNS =
   'id, type, title, authors, year, venue, ranking_system, ranking_value, status, status_hint, extraction_status, extraction_hint, storage_path'
 
-const DETAIL_COLUMNS = `${SOURCE_COLUMNS}, volume, issue, pages, page_offset, issn, doi, abstract, citation_count, url`
+const DETAIL_COLUMNS = `${SOURCE_COLUMNS}, volume, issue, pages, page_offset, issn, doi, abstract, citation_count, url, analysis_status, analysis_hint`
 
 export async function fetchSources(): Promise<Source[]> {
   const { data, error } = await supabase

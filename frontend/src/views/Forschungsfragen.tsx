@@ -276,10 +276,14 @@ export function Forschungsfragen() {
         </button>
 
         {selectedRq && (
-          <h2 className="mb-3 text-base font-medium text-slate-800 dark:text-slate-100">
+          <h2 className="mb-1 text-base font-medium text-slate-800 dark:text-slate-100">
             {selectedRq.code}: {selectedRq.question}
           </h2>
         )}
+        <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
+          Dein Arbeitspool für diese Forschungsfrage: nur bereits bestätigte Zitate, die du beim Schreiben direkt
+          verwenden kannst. Neue kommen über „Zitate erzeugen" an der Quelle dazu.
+        </p>
 
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <select

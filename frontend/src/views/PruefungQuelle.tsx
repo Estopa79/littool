@@ -63,7 +63,11 @@ function RelevanceCard({
           <option value={3}>3 – zentral</option>
         </select>
       </div>
-      {item.reasoning && <p className="text-slate-600 dark:text-slate-400">{item.reasoning}</p>}
+      {item.reasoning && (
+        <p className="text-slate-600 dark:text-slate-400">
+          <span className="font-medium">KI-Einschätzung:</span> {item.reasoning}
+        </p>
+      )}
       <button
         type="button"
         disabled={saving}
