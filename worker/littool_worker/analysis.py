@@ -416,3 +416,145 @@ def run_topic_relevance_analysis(
         )
 
     return stats
+
+
+METHOD_STUDY_TYPES = {"qualitativ", "quantitativ", "mixed", "konzeptionell", "review", "nicht_anwendbar"}
+
+METHOD_SYSTEM_PROMPT = """Du erstellst ein Methodenprofil einer wissenschaftlichen Quelle für eine \
+Dissertation zu Business-IT Alignment und digitale Transformation in der deutschen Sachversicherung.
+
+Antworte AUSSCHLIESSLICH mit einem JSON-Objekt in genau diesem Format, ohne Erklärung davor \
+oder danach und ohne Markdown-Codeblock:
+
+{"study_type": "<Typ>", "method": "<Methode oder null>", "data_basis": "<Datengrundlage/Sample oder null>", \
+"analysis_method": "<Auswertungsverfahren oder null>", "page_hint": <Seitenzahl oder null>}
+
+Regeln:
+- "study_type": genau einer von "qualitativ", "quantitativ", "mixed", "konzeptionell", "review", \
+"nicht_anwendbar".
+- "nicht_anwendbar" NUR für graue Literatur ohne eigene empirische/konzeptionelle Studie (z. B. \
+Markt-/Praxisberichte, Gesetzestexte, Verordnungen, Statistiken ohne Methodenteil) - in diesem \
+Fall "method", "data_basis", "analysis_method" und "page_hint" jeweils null.
+- "method": kurze Bezeichnung der Forschungsmethode (z. B. "Fallstudie", "Online-Survey", \
+"Systematic Literature Review", "Design Science Research"), null wenn nicht bestimmbar.
+- "data_basis": Datengrundlage/Sample knapp beschrieben (z. B. "15 Experteninterviews in der \
+Versicherungsbranche", "n=245 Survey-Antworten"), null wenn nicht bestimmbar.
+- "analysis_method": Auswertungsverfahren (z. B. "Thematische Analyse", "PLS-SEM", "Regression"), \
+null wenn nicht bestimmbar.
+- "page_hint": die Seitenzahl (nur die Zahl aus den "[S. x]"-Markierungen unten) der Textstelle, an \
+der der Methodenteil beginnt/am deutlichsten erkennbar ist. Nur eine Zahl verwenden, die auch \
+tatsächlich als "[S. x]"-Marke unten vorkommt - sonst null.
+"""
+
+
+def _fetch_method_profile_source_ids(client: Client) -> set[str]:
+    return {r["source_id"] for r in client.table("method_profiles").select("source_id").execute().data or []}
+
+
+def _build_method_prompt(source: dict, chunks: list[dict]) -> str:
+    chunks_block = "\n\n".join(f"[S. {c['page']}] {c['text'][:MAX_CHUNK_CHARS]}" for c in chunks)
+    return (
+        f"Quelle: {source['title']} ({source.get('year') or 'o. J.'})\n"
+        f"Typ: {source.get('type') or 'unbekannt'}\n"
+        f"Abstract: {source.get('abstract') or '(kein Abstract vorhanden)'}\n\n"
+        f"Textauszüge aus der Quelle:\n{chunks_block or '(keine Textauszüge vorhanden)'}"
+    )
+
+
+def _parse_method_response(text: str, valid_pages: set[int]) -> dict:
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```(json)?\n?", "", cleaned)
+        cleaned = re.sub(r"\n?```$", "", cleaned)
+    data = json.loads(cleaned)
+
+    study_type = data.get("study_type")
+    if study_type not in METHOD_STUDY_TYPES:
+        raise ValueError(f"unbekannter study_type in Antwort: {study_type!r}")
+
+    page_hint = data.get("page_hint")
+    if page_hint is not None and (not isinstance(page_hint, int) or page_hint not in valid_pages):
+        page_hint = None  # nicht nachweisbare Seite lieber verwerfen als eine erfundene uebernehmen
+
+    return {
+        "study_type": study_type,
+        "method": data.get("method") or None,
+        "data_basis": data.get("data_basis") or None,
+        "analysis_method": data.get("analysis_method") or None,
+        "page_hint": page_hint,
+    }
+
+
+def run_method_profile_extraction(
+    client: Client,
+    api_key: str,
+    limit: int | None = None,
+    source_ids: list[str] | None = None,
+) -> dict:
+    """Eigener Lauf fuer das Methodenprofil (Paket 5) - wie run_function_suggestion
+    bewusst getrennt von der Themen-/Relevanz-Analyse, damit spaeteres Nachtragen
+    nicht die bereits bezahlte Analyse anderer Quellen erneut anstoesst."""
+    stats = {"profiliert": 0, "fehler": 0, "tokens_in": 0, "tokens_out": 0, "kosten_usd": 0.0}
+
+    if source_ids:
+        rows = (
+            client.table("sources")
+            .select("id, title, type, year, abstract")
+            .in_("id", source_ids)
+            .execute()
+            .data
+            or []
+        )
+    else:
+        already_profiled = _fetch_method_profile_source_ids(client)
+        all_rows = (
+            client.table("sources").select("id, title, type, year, abstract").order("created_at").execute().data
+            or []
+        )
+        rows = [r for r in all_rows if r["id"] not in already_profiled]
+        if limit:
+            rows = rows[:limit]
+
+    claude = claude_client.get_client(api_key)
+
+    for row in rows:
+        source_id = row["id"]
+        chunks = _select_representative_chunks(client, source_id)
+        if not chunks:
+            print(f"{row['title'][:60]}: keine Chunks, uebersprungen")
+            stats["fehler"] += 1
+            continue
+        valid_pages = {c["page"] for c in chunks}
+
+        user_prompt = _build_method_prompt(row, chunks)
+        call_stats: dict = {}
+        try:
+            response_text = claude_client.call(
+                claude, user_prompt, system=METHOD_SYSTEM_PROMPT, max_tokens=500, stats=call_stats
+            )
+            profile = _parse_method_response(response_text, valid_pages)
+        except Exception as exc:  # noqa: BLE001 - Fehler sichtbar melden statt abzustuerzen
+            print(f"{row['title'][:60]}: FEHLER - {exc}")
+            stats["fehler"] += 1
+            continue
+
+        client.table("method_profiles").delete().eq("source_id", source_id).eq("confirmed", False).execute()
+        client.table("method_profiles").insert({"source_id": source_id, "confirmed": False, **profile}).execute()
+
+        tokens_total = call_stats.get("tokens_in", 0) + call_stats.get("tokens_out", 0)
+        client.table("ai_log_entries").insert(
+            {
+                "action_type": "methodenprofil",
+                "source_id": source_id,
+                "description": f"Methodenprofil erstellt: {profile['study_type']}",
+                "tokens": tokens_total,
+            }
+        ).execute()
+
+        stats["profiliert"] += 1
+        stats["tokens_in"] += call_stats.get("tokens_in", 0)
+        stats["tokens_out"] += call_stats.get("tokens_out", 0)
+        stats["kosten_usd"] = round(stats["kosten_usd"] + call_stats.get("kosten_usd", 0.0), 4)
+        print(f"{row['title'][:60]}: {profile['study_type']} / {profile['method']}, {tokens_total} Tokens")
+
+    return stats

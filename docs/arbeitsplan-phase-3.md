@@ -166,11 +166,17 @@ Kalibrierung an Charoensuk et al. (2014): 2 Läufe direkt gegen die Edge Functio
 
 Zweite Kalibrier-Quelle live in der Produktions-App getestet (Weber, 2019, "Digitale Transformation bei Versicherungsunternehmen"): Button erzeugt Kandidaten über alle relevanten FFs (TSFF1a, HFF, …), Prüf-Dialog zeigt Original + Übersetzung + korrekte Zitation je Karte, „Übernehmen"/„Verwerfen" funktionierte flüssig. Dabei mit dem Nutzer geklärt: die Funktion-Chips (Paket F) und die Zitat-Erzeugung sind bewusst unabhängige Dimensionen - die Chip-Auswahl (z. B. „Einleitung/Problemstellung") schränkt die erzeugten FFs nicht ein, das ist kein Fehler. Beide Kalibrier-Kriterien damit erfüllt - Frontend zusätzlich mit `tsc`/Lint sauber.
 
-## Paket 5 – Methodenprofil-Extraktion ☐
+## Paket 5 – Methodenprofil-Extraktion ☑
 
 - Worker-Job je Quelle: Studientyp (qualitativ/quantitativ/mixed/konzeptionell/Review), Methode, Datengrundlage/Sample, Auswertungsverfahren – strukturiert, mit Fundstellen-Hinweis (Seite des Methodenteils), als `unbestätigt`.
 - Graue Literatur: Studientyp „nicht anwendbar" zulässig.
 - **Fertig, wenn:** 5 Kalibrier-Quellen korrekt profiliert; Anzeige auf der Quellen-Detailseite inkl. Bestätigen-Button.
+
+**Notizen:**
+
+Migration `0024_method_profiles.sql`: `method_profiles` 1:1 zur Quelle (`source_id` direkt als Primary Key, anders als die n:m-Tabellen `source_topics`/`source_functions`). Eigener Worker-Job `run_method_profile_extraction` (`analysis.py`, CLI `profile-methods`) - wie Paket F bewusst getrennt von der Themen-/Relevanz-Analyse, damit Nachtragen nicht die bereits bezahlte Analyse erneut anstößt. `page_hint` wird gegen die tatsächlich mitgeschickten Chunk-Seiten validiert (nicht nachweisbare Seite → `null`), analog zum Verifikationsprinzip aus Paket 4 - verhindert erfundene Seitenangaben.
+
+Kalibrierung an 5 bewusst unterschiedlichen Quellentypen: Teece et al. (Dynamic Capabilities, Theoriepaper) → `konzeptionell`; Rundschreiben 3/2009 VA (Verordnung) → `nicht_anwendbar`; McKinsey-Marktbericht → `nicht_anwendbar`; systematisches Literatur-Review → `review` mit korrekt erkannter Datengrundlage (112 Paper aus IEEE/ACM/ICEIS); Charoensuk et al. (Survey-Studie) → `quantitativ` mit SEM als Auswertungsverfahren. Alle five korrekt, keine Nacharbeit am Prompt nötig. Anzeige + Bestätigen-Button auf der Quellen-Detailseite (`lib/methodProfiles.ts`), inkl. Sprung zur Methodenteil-Seite im PDF-Viewer. Frontend kompiliert/lintet sauber.
 
 ## Paket 6 – QS-Workflow ☐
 

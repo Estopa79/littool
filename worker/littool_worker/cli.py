@@ -227,6 +227,17 @@ def cmd_suggest_functions(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_profile_methods(args: argparse.Namespace) -> int:
+    client = get_client()
+    api_key = require_env("ANTHROPIC_API_KEY")
+    stats = analysis.run_method_profile_extraction(client, api_key, limit=args.limit, source_ids=args.source_id or None)
+    print(
+        f"Methodenprofil-Extraktion abgeschlossen: {stats['profiliert']} profiliert, {stats['fehler']} Fehler, "
+        f"{stats['tokens_in']}+{stats['tokens_out']} Tokens, ca. ${stats['kosten_usd']:.4f}."
+    )
+    return 0
+
+
 def cmd_test_claude(_args: argparse.Namespace) -> int:
     api_key = require_env("ANTHROPIC_API_KEY")
     client = claude_client.get_client(api_key)
@@ -353,6 +364,20 @@ def main() -> None:
         help="Gezielt eine Quelle bearbeiten (wiederholbar) - fuer die Kalibrierung",
     )
     suggest_functions_parser.set_defaults(func=cmd_suggest_functions)
+
+    profile_methods_parser = subparsers.add_parser(
+        "profile-methods", help="Methodenprofil je Quelle erstellen (Paket 5) - unabhaengig von Themen/Relevanz/Funktion"
+    )
+    profile_methods_parser.add_argument(
+        "--limit", type=int, default=None, help="Nur die ersten N noch nicht profilierten Quellen verarbeiten"
+    )
+    profile_methods_parser.add_argument(
+        "--source-id",
+        action="append",
+        default=[],
+        help="Gezielt eine Quelle profilieren (wiederholbar) - fuer die Kalibrierung",
+    )
+    profile_methods_parser.set_defaults(func=cmd_profile_methods)
 
     extract_passages_parser = subparsers.add_parser(
         "extract-passages", help="Woertliche Passagen je Quelle x relevanter Forschungsfrage extrahieren + uebersetzen"

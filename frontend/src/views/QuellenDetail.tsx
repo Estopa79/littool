@@ -17,6 +17,12 @@ import {
   type Passage,
 } from '../lib/citations'
 import { CitationReviewDialog } from '../components/CitationReviewDialog'
+import {
+  confirmMethodProfile,
+  fetchMethodProfile,
+  STUDY_TYPE_LABEL,
+  type MethodProfile,
+} from '../lib/methodProfiles'
 
 type FormState = {
   type: string
@@ -103,6 +109,7 @@ export function QuellenDetail() {
   const [manualRelevance, setManualRelevance] = useState('2')
   const [manualSaving, setManualSaving] = useState(false)
   const [manualError, setManualError] = useState<string | null>(null)
+  const [methodProfile, setMethodProfile] = useState<MethodProfile | null>(null)
 
   useEffect(() => {
     if (!id) return
@@ -127,7 +134,14 @@ export function QuellenDetail() {
       setManualRqId((prev) => prev || rows[0]?.id || '')
     })
     fetchPassagesForSource(id).then(setPassages)
+    fetchMethodProfile(id).then(setMethodProfile)
   }, [id])
+
+  async function handleConfirmMethodProfile() {
+    if (!id) return
+    await confirmMethodProfile(id)
+    setMethodProfile((prev) => (prev ? { ...prev, confirmed: true } : prev))
+  }
 
   function reloadPassages() {
     if (id) fetchPassagesForSource(id).then(setPassages)
@@ -307,6 +321,46 @@ export function QuellenDetail() {
           )
         })}
       </div>
+
+      {methodProfile && (
+        <div className="mb-6 rounded-lg border border-slate-200 p-4 dark:border-slate-800">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <h2 className="text-sm font-medium text-slate-700 dark:text-slate-300">Methodenprofil</h2>
+            {methodProfile.confirmed ? (
+              <span className="text-xs text-green-600 dark:text-green-400">✔️ Bestätigt</span>
+            ) : (
+              <button
+                type="button"
+                onClick={handleConfirmMethodProfile}
+                className="rounded-md border border-slate-300 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+              >
+                Bestätigen
+              </button>
+            )}
+          </div>
+          <p className="text-sm text-slate-700 dark:text-slate-300">
+            <span className="font-medium">{STUDY_TYPE_LABEL[methodProfile.study_type]}</span>
+            {methodProfile.method && <> · {methodProfile.method}</>}
+          </p>
+          {methodProfile.data_basis && (
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Datengrundlage: {methodProfile.data_basis}</p>
+          )}
+          {methodProfile.analysis_method && (
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+              Auswertung: {methodProfile.analysis_method}
+            </p>
+          )}
+          {methodProfile.page_hint && (
+            <button
+              type="button"
+              onClick={() => jumpToSpecificPage(methodProfile.page_hint!)}
+              className="mt-1 text-xs text-slate-500 hover:underline dark:text-slate-400"
+            >
+              Methodenteil: PDF S. {methodProfile.page_hint} →
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="mb-6 rounded-lg border border-slate-200 p-4 dark:border-slate-800">
         <div className="mb-3 flex items-center justify-between gap-2">
