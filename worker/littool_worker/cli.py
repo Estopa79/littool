@@ -238,6 +238,19 @@ def cmd_profile_methods(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_preassess_criteria(args: argparse.Namespace) -> int:
+    client = get_client()
+    api_key = require_env("ANTHROPIC_API_KEY")
+    stats = analysis.run_criteria_preassessment(
+        client, api_key, set_id=args.set_id, limit=args.limit, source_ids=args.source_id or None
+    )
+    print(
+        f"Kriterien-Vorbewertung abgeschlossen: {stats['bewertet']} Quellen bewertet, {stats['fehler']} Fehler, "
+        f"{stats['tokens_in']}+{stats['tokens_out']} Tokens, ca. ${stats['kosten_usd']:.4f}."
+    )
+    return 0
+
+
 def cmd_test_claude(_args: argparse.Namespace) -> int:
     api_key = require_env("ANTHROPIC_API_KEY")
     client = claude_client.get_client(api_key)
@@ -378,6 +391,23 @@ def main() -> None:
         help="Gezielt eine Quelle profilieren (wiederholbar) - fuer die Kalibrierung",
     )
     profile_methods_parser.set_defaults(func=cmd_profile_methods)
+
+    preassess_criteria_parser = subparsers.add_parser(
+        "preassess-criteria", help="KI-Vorbewertung je Quelle x Kriterium fuer die Evaluationsmatrix (Paket 11)"
+    )
+    preassess_criteria_parser.add_argument(
+        "--set-id", default=None, help="Nur Kriterien dieses Sets bewerten (Default: alle Sets)"
+    )
+    preassess_criteria_parser.add_argument(
+        "--limit", type=int, default=None, help="Nur die ersten N noch nicht bewerteten Quellen verarbeiten"
+    )
+    preassess_criteria_parser.add_argument(
+        "--source-id",
+        action="append",
+        default=[],
+        help="Gezielt eine Quelle bewerten (wiederholbar) - fuer die Kalibrierung",
+    )
+    preassess_criteria_parser.set_defaults(func=cmd_preassess_criteria)
 
     extract_passages_parser = subparsers.add_parser(
         "extract-passages", help="Woertliche Passagen je Quelle x relevanter Forschungsfrage extrahieren + uebersetzen"

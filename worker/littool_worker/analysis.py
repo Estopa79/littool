@@ -558,3 +558,166 @@ def run_method_profile_extraction(
         print(f"{row['title'][:60]}: {profile['study_type']} / {profile['method']}, {tokens_total} Tokens")
 
     return stats
+
+
+CRITERIA_SYSTEM_PROMPT = """Du bewertest eine wissenschaftliche Quelle für die Evaluationsmatrix \
+einer Dissertation zu Business-IT Alignment und digitale Transformation in der deutschen \
+Sachversicherung. Du bekommst eine Liste von Kriterien und Textauszüge aus der Quelle.
+
+Bewerte JEDES Kriterium mit einem Wert:
+- 0 = nicht abgedeckt (die Quelle liefert dazu nichts)
+- 1 = teilweise abgedeckt (die Quelle berührt das Kriterium am Rande oder unvollständig)
+- 2 = voll abgedeckt (die Quelle behandelt das Kriterium substanziell)
+
+Antworte AUSSCHLIESSLICH mit einem JSON-Objekt in genau diesem Format, ohne Erklärung davor \
+oder danach und ohne Markdown-Codeblock:
+
+{
+  "evaluations": [
+    {"short_name": "<Kurzname exakt wie vorgegeben>", "value": <0-2>, "reasoning": "<Ein-Satz-Begründung>"}
+  ]
+}
+
+Regeln:
+- Für JEDES vorgegebene Kriterium (per Kurzname) genau ein Eintrag, auch bei Wert 0.
+- reasoning: ein knapper Satz auf Deutsch, der die Einschätzung nachvollziehbar begründet.
+"""
+
+
+def _fetch_criteria(client: Client, set_id: str | None) -> list[dict]:
+    query = client.table("criteria").select("id, name, short_name, sort_order").order("sort_order")
+    if set_id:
+        query = query.eq("set_id", set_id)
+    return query.execute().data or []
+
+
+def _build_criteria_prompt(source: dict, chunks: list[dict], criteria: list[dict]) -> str:
+    criteria_block = "\n".join(f'- "{c["short_name"]}": {c["name"]}' for c in criteria)
+    chunks_block = "\n\n".join(f"[S. {c['page']}] {c['text'][:MAX_CHUNK_CHARS]}" for c in chunks)
+    return (
+        f"Kriterien:\n{criteria_block}\n\n"
+        f"Quelle: {source['title']} ({source.get('year') or 'o. J.'})\n"
+        f"Abstract: {source.get('abstract') or '(kein Abstract vorhanden)'}\n\n"
+        f"Textauszüge aus der Quelle:\n{chunks_block or '(keine Textauszüge vorhanden)'}"
+    )
+
+
+def _parse_criteria_response(text: str, criteria_by_short_name: dict[str, dict]) -> list[dict]:
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```(json)?\n?", "", cleaned)
+        cleaned = re.sub(r"\n?```$", "", cleaned)
+    data = json.loads(cleaned)
+
+    parsed = []
+    for entry in data.get("evaluations", []):
+        short_name = entry.get("short_name")
+        value = entry.get("value")
+        if short_name not in criteria_by_short_name:
+            raise ValueError(f"unbekannter Kurzname in Antwort: {short_name!r}")
+        if not isinstance(value, int) or value not in (0, 1, 2):
+            raise ValueError(f"ungültiger Wert in Antwort: {entry!r}")
+        parsed.append(
+            {
+                "criterion_id": criteria_by_short_name[short_name]["id"],
+                "value": value,
+                "reasoning": entry.get("reasoning") or None,
+            }
+        )
+    return parsed
+
+
+def run_criteria_preassessment(
+    client: Client,
+    api_key: str,
+    set_id: str | None = None,
+    limit: int | None = None,
+    source_ids: list[str] | None = None,
+) -> dict:
+    """KI-Vorbewertung je Quelle x Kriterium (Paket 11) - eigener Lauf, analog
+    zu run_function_suggestion/run_method_profile_extraction. Quellen mit
+    bereits vollstaendigem Bewertungssatz (z. B. die von Hand importierten
+    aus der Evaluationsmatrix_Interaktiv.html) werden uebersprungen."""
+    stats = {"bewertet": 0, "fehler": 0, "tokens_in": 0, "tokens_out": 0, "kosten_usd": 0.0}
+
+    criteria = _fetch_criteria(client, set_id)
+    if not criteria:
+        raise RuntimeError("keine Kriterien gefunden - Migration 0025 ausgefuehrt und Set angelegt?")
+    criteria_by_short_name = {c["short_name"]: c for c in criteria}
+    criterion_ids = [c["id"] for c in criteria]
+
+    if source_ids:
+        rows = (
+            client.table("sources")
+            .select("id, title, year, abstract")
+            .in_("id", source_ids)
+            .execute()
+            .data
+            or []
+        )
+    else:
+        existing_counts: dict[str, int] = {}
+        for row in client.table("source_criteria").select("source_id, criterion_id").execute().data or []:
+            if row["criterion_id"] in criterion_ids:
+                existing_counts[row["source_id"]] = existing_counts.get(row["source_id"], 0) + 1
+        already_complete = {sid for sid, count in existing_counts.items() if count >= len(criteria)}
+
+        all_rows = client.table("sources").select("id, title, year, abstract").order("created_at").execute().data or []
+        rows = [r for r in all_rows if r["id"] not in already_complete]
+        if limit:
+            rows = rows[:limit]
+
+    claude = claude_client.get_client(api_key)
+
+    for row in rows:
+        source_id = row["id"]
+        chunks = _select_representative_chunks(client, source_id)
+        if not chunks:
+            print(f"{row['title'][:60]}: keine Chunks, uebersprungen")
+            stats["fehler"] += 1
+            continue
+
+        user_prompt = _build_criteria_prompt(row, chunks, criteria)
+        call_stats: dict = {}
+        try:
+            response_text = claude_client.call(
+                claude, user_prompt, system=CRITERIA_SYSTEM_PROMPT, max_tokens=1500, stats=call_stats
+            )
+            evaluations = _parse_criteria_response(response_text, criteria_by_short_name)
+        except Exception as exc:  # noqa: BLE001 - Fehler sichtbar melden statt abzustuerzen
+            print(f"{row['title'][:60]}: FEHLER - {exc}")
+            stats["fehler"] += 1
+            continue
+
+        client.table("source_criteria").delete().eq("source_id", source_id).in_(
+            "criterion_id", criterion_ids
+        ).eq("confirmed", False).execute()
+        for evaluation in evaluations:
+            client.table("source_criteria").insert(
+                {
+                    "source_id": source_id,
+                    "criterion_id": evaluation["criterion_id"],
+                    "value": evaluation["value"],
+                    "reasoning": evaluation["reasoning"],
+                    "confirmed": False,
+                }
+            ).execute()
+
+        tokens_total = call_stats.get("tokens_in", 0) + call_stats.get("tokens_out", 0)
+        client.table("ai_log_entries").insert(
+            {
+                "action_type": "analyse",
+                "source_id": source_id,
+                "description": f"{len(evaluations)} Kriterien bewertet",
+                "tokens": tokens_total,
+            }
+        ).execute()
+
+        stats["bewertet"] += 1
+        stats["tokens_in"] += call_stats.get("tokens_in", 0)
+        stats["tokens_out"] += call_stats.get("tokens_out", 0)
+        stats["kosten_usd"] = round(stats["kosten_usd"] + call_stats.get("kosten_usd", 0.0), 4)
+        total_score = sum(e["value"] for e in evaluations)
+        print(f"{row['title'][:60]}: Score {total_score}/{2 * len(criteria)}, {tokens_total} Tokens")
+
+    return stats
