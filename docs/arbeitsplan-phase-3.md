@@ -26,11 +26,17 @@ Kein kritischer Fund - alle offenen Punkte sind bereits dokumentiert und bewusst
 
 *Claude-API-Hilfsschicht:* `worker/littool_worker/claude_client.py` - `call()` kapselt `messages.create()` einheitlich für alle künftigen Worker-Jobs. Modell `claude-sonnet-4-6` (CLAUDE.md-Vorgabe), `output_config.effort` parametrisierbar (Default `medium` - Klassifikations-/Extraktionsaufgaben der folgenden Pakete brauchen kein `high`/`xhigh`, schlank bleiben). Retry bei Rate-Limits/5xx läuft über den SDK-eigenen Mechanismus (`max_retries`), Verbindungs-/Statusfehler werden als sichtbare `RuntimeError` mit Klartext weitergereicht statt verschluckt. Kosten-Zählung: optionales `stats`-dict im gleichen Muster wie `embeddings.run_embedding` (`tokens_in`, `tokens_out`, `kosten_usd`) - Grundlage für die `AiLogEntry`-Einträge ab Paket 1. Test über neuen CLI-Befehl `littool-worker test-claude`: Ein Beispiel-Prompt lief durch, Tokens und Kosten wurden korrekt protokolliert.
 
-## Paket 1 – Schema: Analyse-Entitäten ☐
+## Paket 1 – Schema: Analyse-Entitäten ☑
 
 - Migration: `research_questions` (kürzel, text, sortierung), `topics`, `source_topics` (n:m), `passages` (source_id, page, original, translation, paraphrase, rq_id, relevance 1–3, citation, confirmed), `ai_log_entries` (datum, art, bezug, kurzbeschreibung, tokens).
 - Relevanz an `source_topics` bzw. je Quelle-FF-Paar (für die Matrix): Tabelle `source_rq_relevance` (source_id, rq_id, relevance 0–3, begründung, confirmed).
 - **Fertig, wenn:** Migration läuft, Beziehungen per SQL testbar, RLS greift.
+
+**Notizen:**
+
+Migration `0014_analyse_schema.sql`. Spaltennamen konsequent englisch (`code`/`question`/`sort_order` statt `kürzel`/`text`/`sortierung`, `description` statt `kurzbeschreibung`, `reasoning` statt `begründung`, `action_type` statt `art`) - Konvention aus CLAUDE.md. `source_topics` bewusst ohne Relevanzwert: Relevanz hängt an der Forschungsfrage, nicht am Themenfeld, deshalb ausschließlich in `source_rq_relevance` (0–3, Grundlage der Matrix) - `passages.relevance` ist 1–3, weil Passagen laut Paket 4 erst ab Relevanz ≥ 1 extrahiert werden. `ai_log_entries` deckt in dieser Phase nur Quellen-/Passagen-Bezug ab (`source_id`/`passage_id`, mindestens eins Pflicht); `section_id` für die Schreibwerkstatt kommt erst mit Phase 5 per eigener Migration dazu, genau wie `extraction_status` in Phase 2 nachträglich ergänzt wurde statt vorgebaut.
+
+Verifikation: Testdatensatz über alle sechs Tabellen angelegt (Quelle → Forschungsfrage → Thema → Passage → AI-Log), Join über `sources`/`research_questions` aus `passages` funktioniert, anschließend wieder gelöscht. RLS geprüft, indem derselbe Zugriff mit dem `anon`-Key (kein eingeloggter Nutzer) probiert wurde - alle sechs Tabellen liefern `permission denied for table ...`, wie erwartet.
 
 ## Paket 2 – Einstellungen: Thema, FFs, Themenfelder ☐
 
