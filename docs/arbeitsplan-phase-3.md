@@ -122,6 +122,7 @@ Batch-Lauf über den gesamten Bestand: 150 von 152 Quellen analysiert, 2 Fehler 
 
 - Migration: `criterion_sets`, `criteria`, `source_criteria` (wert 0/1/2, begründung, confirmed) gemäß Konzept.
 - Einstellungs-Bereich: Kriterien-Set anlegen (Name + Kriterien mit Kurznamen, sortierbar); das reale Set der Forschungslücken-Matrix (8 Kriterien) eintragen.
+- **Kriterien-Vorschlag:** Button „Kriterien vorschlagen" – Claude leitet aus Thema, FFs, Themenfeldern und dem Quellenbestand ein Kriterien-Set her; jedes Kriterium mit Begründung und Herleitung. Vorschläge einzeln übernehmen/ändern/verwerfen; Herleitung wird am Kriterium gespeichert; AiLog-Eintrag.
 - Worker-Job: KI-Vorbewertung je Quelle × Kriterium (voll/teilweise/nicht, mit Ein-Satz-Begründung), als `unbestätigt`; läuft über die Analyse-Hilfsschicht, AiLog inklusive.
 - Bestehende Bewertungen aus der vorhandenen `Evaluationsmatrix_Interaktiv.html` (liegt als Referenz in `docs/`) als Startdaten importieren – die dort per Hand bewerteten Quellen gelten als `bestätigt`.
 - **Fertig, wenn:** Das 8-Kriterien-Set steht, importierte Bewertungen stimmen mit der HTML-Vorlage überein, neue Quellen werden vorbewertet.
