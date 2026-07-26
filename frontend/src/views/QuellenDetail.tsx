@@ -361,6 +361,15 @@ export function QuellenDetail() {
 
         <div>
           <h2 className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-300">PDF</h2>
+          {source.extraction_status === 'extraction_failed' && (
+            <div className="mb-3 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-300">
+              <p className="font-medium">📄⚠️ Volltext nicht nutzbar</p>
+              {source.extraction_hint && <p className="mt-1">{source.extraction_hint}</p>}
+              <p className="mt-1 text-xs text-red-700 dark:text-red-400">
+                Diese Quelle ist nicht durchsuchbar und liefert keine belegbaren Zitate. Datei ggf. ersetzen.
+              </p>
+            </div>
+          )}
           {source.storage_path && pdfUrl ? (
             <>
               <div className="mb-2 flex items-center gap-2">

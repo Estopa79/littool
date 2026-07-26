@@ -72,11 +72,27 @@ Test am kompletten Bestand (weit mehr als die 10 aus Paket 2): 151 Quellen, 18.8
 
 Ergebnis: **18.886 von 18.886 Chunks eingebettet, 0 fehlend.** 5.389.072 Tokens verbraucht, macht bei $0.06/1 Mio. Token ca. **$0,32** - liegt komplett innerhalb von Voyages 200-Mio.-Token-Freikontingent für neue Accounts, tatsächliche Kosten also voraussichtlich $0.
 
-## Paket 5 – Volltextsuche (Backend) ☐
+## Paket 5 – Volltextsuche (Backend) ☑
 
 - Suchfunktion (RPC/Edge Function): websearch-Syntax, Treffer mit Quelle, Seite, Snippet mit Hervorhebung (ts_headline), Ranking.
 - Filter: Themenfeld (ab Phase 3), Ranking, Quellentyp, Studientyp.
 - **Fertig, wenn:** Bekannte Begriffe („dynamic capabilities", deutscher Begriff aus einer grauen Quelle) liefern die erwarteten Stellen.
+
+**Notizen:** Migration 0009 – Funktion `search_fulltext(search_query, filter_ranking_system, filter_type, match_limit)`, kombiniertes `websearch_to_tsquery('german', …) || websearch_to_tsquery('english', …)` passend zur `chunks.fts`-Spalte aus Paket 1, Rückgabe inkl. `ts_headline`-Snippet und `ts_rank`. Themenfeld-/Studientyp-Filter bewusst noch nicht implementiert (Schema dafür kommt erst in Phase 3). `revoke ... from public` + `grant execute ... to authenticated`, wie bei allen sicherheitsrelevanten Objekten in diesem Projekt.
+
+Test: „dynamic capabilities" (Englisch) und „Risikostrategie" gefiltert auf `type=grau` (Deutsch) liefern beide die erwarteten Stellen mit korrektem Snippet/Hervorhebung/Seite.
+
+Bei diesem Test als graue Testquelle zunächst eine erfundene Angabe verwendet ("Rundschreiben 5/2023 (VA)") – das existiert nicht und wäre ein Verstoß gegen das Belegbarkeits-Prinzip gewesen. Korrigiert auf die echte Quelle: BaFin-Rundschreiben 3/2009 (VA), "MaRisk VA" (2009, aufgehoben 2016), reales PDF von bafin.de nachgeladen.
+
+Bei dieser echten Testquelle zwei zusätzliche, tiefere Fehlerklassen gefunden und behoben, die über den ursprünglichen Testfall hinaus für den gesamten Bestand relevant sind:
+1. **OCR-Erkennung zu schwach:** reine Zeichenanzahl pro Seite erkennt keine kaputte Font-Kodierung (viele, aber falsch gemappte Zeichen). Ergänzt um einen Alphabetanteil-Schwellwert (`MIN_ALPHA_RATIO = 0.4`). Zusätzlich `--skip-text` durch `--force-ocr` ersetzt, weil `--skip-text` Seiten mit *irgendeiner* (auch kaputter) Textebene überspringt.
+2. **Cloudflare-CDN-Cache-Bug:** Nach dem Überschreiben einer Storage-Datei (z. B. OCR ersetzt das Original) lieferte ein einfacher `download()` teils dauerhaft die alte Version zurück, obwohl der Upload serverseitig korrekt durchgelaufen war (per curl mit Cache-Buster-Query-Parameter und `CF-Cache-Status`-Header verifiziert). Behoben durch einen zentralen `download_pdf()`-Helper (`supabase_client.py`) mit zufälligem Cache-Buster-Query-Parameter bei jedem Download, in allen drei Aufrufern (`doi.py`, `chunking.py`, `fulltext.py`) verwendet.
+
+Anschließend proaktiv den gesamten Bestand auf dieselbe Fehlerklasse geprüft (über den ursprünglichen Testfall hinaus, aber notwendig, um „Fertig, wenn"-Kriterium seriös zu erfüllen): 2 weitere Quellen gefunden mit sichtbar kaputten Umlauten (`949184f9…`/„BF03353515" und `95c74c8a…`/„Business Alignment Versicherungsfachwissen als Kompetenz der IT" – beide Duplikate desselben Aufsatzes, Gruhn/Ringel/Rosenbaum, ZVersWiss 95 (2006), DOI 10.1007/BF03353515). Hier liegt der Defekt nicht in der Textebene, sondern schon im gerenderten Bild der PDF-Seite selbst (kaputtes Font-Encoding im Original) – auch `--force-ocr` liest an den Umlaut-Stellen dieselbe Kodierungsstörung, weil OCR die tatsächlich gezeichneten (fehlerhaften) Pixel liest. Keine sauberere Version auffindbar (Springer-Artikel, paywalled). Beide Quellen als `extraction_status = 'extraction_failed'` mit erklärendem `extraction_hint` markiert statt fehlerhaften Text durchsuchbar/zitierbar zu machen (Belegbarkeits-Prinzip).
+
+Da dieser Fehlerfall (Extraktion technisch „erfolgreich", Inhalt aber Müll) bisher nirgends in der UI sichtbar war – nur der Ingest-`status` aus Phase 1 wurde angezeigt, nicht `extraction_status`/`extraction_hint` –, auf Wunsch des Nutzers ergänzt: Bibliothek zeigt einen Sammel-Hinweis „📄⚠️ N Extraktionsfehler" (analog zum bestehenden „zu prüfen"-Hinweis) plus Icon je betroffener Zeile/Karte mit Tooltip; Detailseite zeigt eine ausführliche Warnbox mit dem `extraction_hint`-Text über dem PDF-Viewer. So kann der Nutzer selbst entscheiden, ob er die Datei ersetzt oder mit der Einschränkung lebt.
+
+Bestandsweite Prüfung final: 148 `extracted`, 2 `ocr_done`, 2 `extraction_failed` (die zwei genannten Duplikate), 3 ohne PDF (keine Extraktion nötig) – macht zusammen alle 155 Quellen. `search_fulltext`-RPC danach erneut gegen den vollen Bestand getestet, funktioniert weiterhin korrekt.
 
 ## Paket 6 – Semantische Suche (Backend) ☐
 

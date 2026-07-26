@@ -5,6 +5,8 @@ import statistics
 import fitz  # PyMuPDF
 from supabase import Client
 
+from .supabase_client import download_pdf
+
 TARGET_CHARS = 1000
 MAX_CHARS = 1200
 OVERLAP_CHARS = 150
@@ -211,7 +213,7 @@ def run_chunking(client: Client, limit: int | None = None) -> dict[str, int]:
 
     for row in todo:
         try:
-            pdf_bytes = client.storage.from_("pdfs").download(row["storage_path"])
+            pdf_bytes = download_pdf(client, row["storage_path"])
             chunks = chunk_document(pdf_bytes)
             if not chunks:
                 continue

@@ -8,8 +8,16 @@ from pathlib import Path
 import fitz  # PyMuPDF
 from supabase import Client
 
+from .supabase_client import download_pdf
+
 TESSDATA_DIR = Path(__file__).resolve().parent.parent / ".tessdata"
 MIN_CHARS_PER_PAGE = 30
+# Manche Behörden-/Altbestand-PDFs haben genug Zeichen, aber eine kaputte
+# Font-Kodierung (Buchstaben werden auf falsche Codepoints gemappt) - dann
+# hilft die reine Zeichenanzahl nicht. Anteil alphabetischer Zeichen als
+# zweites Signal: viele Zeichen, aber kaum Buchstaben darunter = vermutlich
+# unbrauchbar, auch wenn nicht "leer".
+MIN_ALPHA_RATIO = 0.4
 
 
 def _ensure_ocr_env() -> None:
@@ -33,8 +41,20 @@ def extract_pages(pdf_bytes: bytes) -> list[str]:
 def needs_ocr(pages: list[str]) -> bool:
     if not pages:
         return True
-    avg = sum(len(p.strip()) for p in pages) / len(pages)
-    return avg < MIN_CHARS_PER_PAGE
+
+    total_chars = 0
+    alpha_chars = 0
+    for p in pages:
+        stripped = p.strip()
+        total_chars += len(stripped)
+        alpha_chars += sum(1 for ch in stripped if ch.isalpha())
+
+    avg = total_chars / len(pages)
+    if avg < MIN_CHARS_PER_PAGE:
+        return True
+
+    alpha_ratio = alpha_chars / total_chars if total_chars else 0
+    return alpha_ratio < MIN_ALPHA_RATIO
 
 
 def run_ocr(pdf_bytes: bytes) -> bytes:
@@ -48,7 +68,7 @@ def run_ocr(pdf_bytes: bytes) -> bytes:
                 sys.executable,
                 "-m",
                 "ocrmypdf",
-                "--skip-text",
+                "--force-ocr",  # verwirft eine ggf. vorhandene, aber kaputte Textebene
                 "--language",
                 "deu+eng",
                 str(in_path),
@@ -79,7 +99,7 @@ def run_fulltext_extraction(client: Client, limit: int | None = None) -> dict[st
         source_id = row["id"]
         storage_path = row["storage_path"]
         try:
-            pdf_bytes = client.storage.from_("pdfs").download(storage_path)
+            pdf_bytes = download_pdf(client, storage_path)
             pages = extract_pages(pdf_bytes)
 
             if needs_ocr(pages):

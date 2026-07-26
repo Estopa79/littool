@@ -41,6 +41,7 @@ export function Bibliothek() {
   const [filterType, setFilterType] = useState('')
   const [filterRanking, setFilterRanking] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
+  const [onlyExtractionIssues, setOnlyExtractionIssues] = useState(false)
   const [sortBy, setSortBy] = useState<SortOption>('year_desc')
   const [showGreyDialog, setShowGreyDialog] = useState(false)
 
@@ -64,11 +65,17 @@ export function Bibliothek() {
     [sources],
   )
 
+  const extractionFailedCount = useMemo(
+    () => sources.filter((s) => s.extraction_status === 'extraction_failed').length,
+    [sources],
+  )
+
   const visible = useMemo(() => {
     let result = sources
 
     if (filterType) result = result.filter((s) => s.type === filterType)
     if (filterStatus) result = result.filter((s) => s.status === filterStatus)
+    if (onlyExtractionIssues) result = result.filter((s) => s.extraction_status === 'extraction_failed')
     if (filterRanking === 'kein Ranking') {
       result = result.filter((s) => !s.ranking_system)
     } else if (filterRanking) {
@@ -87,7 +94,7 @@ export function Bibliothek() {
     })
 
     return result
-  }, [sources, filterType, filterStatus, filterRanking, search, sortBy])
+  }, [sources, filterType, filterStatus, filterRanking, onlyExtractionIssues, search, sortBy])
 
   return (
     <div className="p-4 sm:p-6">
@@ -112,9 +119,23 @@ export function Bibliothek() {
         <button
           type="button"
           onClick={() => setFilterStatus('needs_review')}
-          className="mb-4 rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300 dark:hover:bg-amber-900"
+          className="mb-4 mr-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300 dark:hover:bg-amber-900"
         >
           ⚠️ {needsReviewCount} zu prüfen
+        </button>
+      )}
+
+      {extractionFailedCount > 0 && (
+        <button
+          type="button"
+          onClick={() => setOnlyExtractionIssues((v) => !v)}
+          className={`mb-4 rounded-md border px-3 py-1.5 text-sm font-medium ${
+            onlyExtractionIssues
+              ? 'border-red-400 bg-red-100 text-red-900 dark:border-red-700 dark:bg-red-900 dark:text-red-200'
+              : 'border-red-300 bg-red-50 text-red-800 hover:bg-red-100 dark:border-red-800 dark:bg-red-950 dark:text-red-300 dark:hover:bg-red-900'
+          }`}
+        >
+          📄⚠️ {extractionFailedCount} Extraktionsfehler
         </button>
       )}
 
@@ -210,6 +231,11 @@ export function Bibliothek() {
                   </td>
                   <td className="whitespace-nowrap py-2 pr-3">
                     {STATUS_ICON[s.status]} {STATUS_LABEL[s.status]}
+                    {s.extraction_status === 'extraction_failed' && (
+                      <span title={s.extraction_hint ?? undefined} className="ml-1">
+                        📄⚠️
+                      </span>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -231,6 +257,11 @@ export function Bibliothek() {
                   </span>
                   <span className="shrink-0 text-sm">
                     {STATUS_ICON[s.status]} {STATUS_LABEL[s.status]}
+                    {s.extraction_status === 'extraction_failed' && (
+                      <span title={s.extraction_hint ?? undefined} className="ml-1">
+                        📄⚠️
+                      </span>
+                    )}
                   </span>
                 </div>
                 <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">{s.title}</p>

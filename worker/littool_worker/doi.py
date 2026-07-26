@@ -3,6 +3,8 @@ import re
 import fitz  # PyMuPDF
 from supabase import Client
 
+from .supabase_client import download_pdf
+
 DOI_PATTERN = re.compile(r"10\.\d{4,9}/[^\s\"'<>)\]]+", re.IGNORECASE)
 _TRAILING_PUNCTUATION = ".,;:)]}>\"'"
 
@@ -55,7 +57,7 @@ def run_doi_extraction(client: Client) -> dict[str, int]:
             continue
 
         try:
-            pdf_bytes = client.storage.from_("pdfs").download(storage_path)
+            pdf_bytes = download_pdf(client, storage_path)
             doi = extract_doi_from_pdf(pdf_bytes)
         except Exception as exc:  # noqa: BLE001 - Ingest-Fehler müssen sichtbar bleiben, nicht abstürzen
             client.table("sources").update(

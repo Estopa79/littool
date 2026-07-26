@@ -3,6 +3,7 @@ import { supabase } from './supabase'
 export type Author = { given: string; family: string }
 
 export type SourceStatus = 'processing' | 'needs_review' | 'complete' | 'failed'
+export type ExtractionStatus = 'extracted' | 'ocr_done' | 'extraction_failed' | null
 
 export type Source = {
   id: string
@@ -15,6 +16,8 @@ export type Source = {
   ranking_value: string | null
   status: SourceStatus
   status_hint: string | null
+  extraction_status: ExtractionStatus
+  extraction_hint: string | null
 }
 
 export type SourceDetail = Source & {
@@ -30,7 +33,7 @@ export type SourceDetail = Source & {
 }
 
 const SOURCE_COLUMNS =
-  'id, type, title, authors, year, venue, ranking_system, ranking_value, status, status_hint'
+  'id, type, title, authors, year, venue, ranking_system, ranking_value, status, status_hint, extraction_status, extraction_hint'
 
 const DETAIL_COLUMNS = `${SOURCE_COLUMNS}, volume, issue, pages, issn, doi, abstract, citation_count, url, storage_path`
 
