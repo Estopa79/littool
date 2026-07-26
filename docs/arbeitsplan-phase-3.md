@@ -45,6 +45,16 @@ Hintergrund: Von ~150 PDFs im Bestand konnten 88 nicht automatisch mit Metadaten
 - Bericht am Ende: n per DOI, n per Titel, n manuell, n offen, n neu angelegt.
 - **Fertig, wenn:** Die Zahl der `needs_review`-Quellen deutlich gesunken ist und die graue Literatur vollständige Metadaten trägt.
 
+**Notizen:**
+
+`worker/littool_worker/bibtex_import.py` + CLI `import-bibtex <pfad> [--apply] [--verbose]` (Dry-Run per Default). Parser: `bibtexparser` (neue Abhängigkeit, v1.x - v2 hat eine noch instabile API), LaTeX-Escaping (Umlaute, `{\ss}`, deutsche Anführungszeichen) wird über `convert_to_unicode` aufgelöst. Autoren-Split behandelt sowohl "Family, Given"- als auch klammerte "Given Family"-Form (Citavi-Artefakt bei nicht eindeutig trennbaren Namen).
+
+Matching wie geplant dreistufig: 1) DOI exakt, 2) Titel-Ähnlichkeit (`SequenceMatcher`, gleiche Schwelle 0.85 wie `duplicates.py`) + Jahr-Plausibilität (±1), 3) Rest unmatched. Titel-Normalisierung behandelt Bindestriche/Unterstriche als Leerzeichen (viele Bestandstitel sind aus dem PDF-Dateinamen abgeleitet, nicht kuratiert) - ohne das wären etliche offensichtliche Treffer durchgefallen. Übernahme-Regel exakt wie im Plan: nur leere Felder werden gefüllt, Konflikte (beide Seiten haben einen abweichenden Wert) werden nur gemeldet, nie überschrieben - Stichprobe der Konflikte zeigte ausschließlich harmlose Formatierungsunterschiede (ISSN mit/ohne Bindestrich, DOI-Großschreibung) plus zwei echte Jahres-Abweichungen (2026↔2025, 2023↔2022), korrekt unangetastet gelassen.
+
+Lauf gegen `ISP_Daten_neu.bib` (91 Einträge): 38 per DOI, 17 per Titel automatisch zugeordnet; von den verbleibenden 36 wurden 9 nach kurzer Rücksprache im Chat (eindeutig trotz niedrigerem Score, z. B. Tippfehler im Bestandstitel) ergänzt. `needs_review` 104 → 89, `complete` 48 → 63.
+
+Kein dediziertes Zuordnungs-UI gebaut (Autor-Entscheidung: einmalige Aufräumaktion, schneller im Chat klären als eine wiederverwendbare Oberfläche für einen Vorgang, der nicht regelmäßig anfällt) - stattdessen Liste der 28 verbleibenden unmatched Einträge (inkl. jeweils ähnlichstem Kandidaten im Bestand als Anhaltspunkt) als Datei an den Autor übergeben, für spätere manuelle Prüfung/Übertragung. Neuanlage von Quellen ohne PDF für Einträge ohne Bestandstreffer bewusst nicht automatisch gemacht (nur "optional" laut Plan).
+
 ---
 
 ## ⚠️ Eingeschobenes Paket F – Funktion-Dimension ☐

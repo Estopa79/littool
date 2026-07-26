@@ -7,7 +7,7 @@ name = "littool-worker"
 version = "0.1.0"
 description = "PDF-Verarbeitung, Metadaten-Anreicherung und Embeddings für LitTool"
 requires-python = ">=3.12"
-dependencies = ["python-dotenv>=1.0", "supabase>=2.9", "pymupdf>=1.24", "pip-system-certs>=4.0", "ocrmypdf>=17.0", "anthropic>=0.40"]
+dependencies = ["python-dotenv>=1.0", "supabase>=2.9", "pymupdf>=1.24", "pip-system-certs>=4.0", "ocrmypdf>=17.0", "anthropic>=0.40", "bibtexparser>=1.4,<2"]
 
 [project.scripts]
 littool-worker = "littool_worker.cli:main"

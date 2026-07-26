@@ -2,6 +2,7 @@ import argparse
 import sys
 
 from . import analysis
+from . import bibtex_import
 from .chunking import run_chunking
 from . import claude_client
 from .doi import run_doi_extraction
@@ -161,6 +162,44 @@ def cmd_analyze_topics(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_import_bibtex(args: argparse.Namespace) -> int:
+    client = get_client()
+    entries = bibtex_import.parse_bibtex_file(args.path)
+    sources = (
+        client.table("sources")
+        .select("id, type, title, authors, year, venue, volume, issue, pages, issn, doi, abstract, url")
+        .execute()
+        .data
+        or []
+    )
+    matches = bibtex_import.match_entries(entries, sources)
+
+    print(f"BibTeX-Einträge: {len(entries)} | Quellen im Bestand: {len(sources)}")
+    print(f"  per DOI zugeordnet: {len(matches['matched_by_doi'])}")
+    print(f"  per Titel zugeordnet: {len(matches['matched_by_title'])}")
+    print(f"  nicht zugeordnet: {len(matches['unmatched'])}")
+
+    if args.verbose:
+        print("\n-- per Titel zugeordnet (Ähnlichkeit) --")
+        for entry, source, ratio in matches["matched_by_title"]:
+            print(f"  {ratio:.0%} | {entry['title'][:55]!r} <-> {source['title'][:55]!r}")
+        print("\n-- nicht zugeordnet --")
+        for entry in matches["unmatched"]:
+            print(f"  {entry.get('bibtex_id')} | {entry.get('title')}")
+
+    if args.apply:
+        stats = bibtex_import.apply_matches(client, matches)
+        print(
+            f"\nÜbernommen: {stats['per_doi']} per DOI, {stats['per_titel']} per Titel, "
+            f"{stats['vollstaendig']} davon jetzt vollständig, {stats['konflikte']} mit Feld-Konflikten "
+            f"(nicht überschrieben), {stats['unmatched']} weiterhin unmatched."
+        )
+    else:
+        print("\n(Dry-Run - nichts geschrieben. --apply zum Übernehmen.)")
+
+    return 0
+
+
 def cmd_extract_passages(args: argparse.Namespace) -> int:
     client = get_client()
     anthropic_api_key = require_env("ANTHROPIC_API_KEY")
@@ -303,6 +342,18 @@ def main() -> None:
         help="Gezielt eine Quelle bearbeiten (wiederholbar, alle ihre relevanten FFs) - fuer die Kalibrierung",
     )
     extract_passages_parser.set_defaults(func=cmd_extract_passages)
+
+    import_bibtex_parser = subparsers.add_parser(
+        "import-bibtex", help="Citavi-BibTeX-Export gegen bestehende Quellen abgleichen (Paket B)"
+    )
+    import_bibtex_parser.add_argument("path", help="Pfad zur .bib-Datei")
+    import_bibtex_parser.add_argument(
+        "--apply", action="store_true", help="Aenderungen wirklich schreiben (sonst nur Dry-Run-Bericht)"
+    )
+    import_bibtex_parser.add_argument(
+        "--verbose", action="store_true", help="Titel-Matches und unmatched Eintraege einzeln auflisten"
+    )
+    import_bibtex_parser.set_defaults(func=cmd_import_bibtex)
 
     args = parser.parse_args()
     sys.exit(args.func(args))
