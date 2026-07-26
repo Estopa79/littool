@@ -109,10 +109,23 @@ Nebenbei einen Absturz im CLI-Testbefehl behoben: Windows-Konsole (cp1252) kann 
 
 Test bestanden: Die Beispielfrage „Wie wird Vertrauen zwischen Business und IT operationalisiert?" liefert per semantischer Suche 5 inhaltlich einschlägige Treffer zu Kommunikation, geteiltem Domänenwissen und sozialer Angleichung zwischen Business und IT – keiner enthält das Wort „Vertrauen" wörtlich. Die Volltextsuche nach „Vertrauen" liefert 5 komplett andere Quellen (Deloitte-Trendstudie, Digitalisierungsstrategie-Arbeit u. a.) – keine Überschneidung mit den semantischen Treffern, damit ist das Fertig-Kriterium klar erfüllt.
 
-## Paket 7 – Hybrid-Ranking ☐
+## Paket 7 – Hybrid-Ranking ☑
 
 - Kombination beider Suchen per Reciprocal Rank Fusion (RRF); Modus wählbar: Hybrid (Standard) / nur Volltext / nur semantisch.
 - **Fertig, wenn:** Hybrid liefert bei 5 Testfragen subjektiv die beste Trefferliste.
+
+**Notizen:** Migration 0012 – Funktion `search_hybrid(search_query, query_embedding, filter_ranking_system, filter_type, match_limit, search_mode)`, `search_mode` ∈ {`hybrid` (Standard), `fulltext`, `semantic`}. RRF-Score je Treffer: 1/(60+Rang) pro Liste, bei Überschneidung aufsummiert (k=60, Standardwert aus der RRF-Literatur). Beide Kandidatenlisten (Volltext/semantisch) werden pro Aufruf auf `greatest(match_limit*3, 50)` begrenzt, bevor fusioniert wird. `search_query`/`query_embedding` bewusst beide nullable, damit z. B. der "nur Volltext"-Modus keine Voyage-Embedding-Berechnung braucht (spart den API-Call). Testwerkzeug analog Paket 5/6: `worker/littool_worker/search.py:run_hybrid_search` + CLI-Befehl `search-hybrid "Frage" [--mode hybrid|fulltext|semantic]`.
+
+Ein echter Bug direkt beim Schreiben gefunden und noch vor dem ersten Test behoben: die Volltext-Kandidatenliste berechnete zwar einen `row_number()`-Rang, aber ohne explizites `ORDER BY` unmittelbar vor dem `LIMIT` - SQL garantiert dann nicht, dass die per Fensterfunktion ermittelten Top-Ränge auch tatsächlich die zurückgegebenen Zeilen sind. Ergänzt.
+
+Test mit 5 Fragen, jeweils alle drei Modi verglichen:
+1. „dynamic capabilities" (Englisch, präziser Fachbegriff) - Hybrid und Volltext liefern nahezu identische, klar einschlägige Trefferliste; semantisch findet zusätzlich einen thematisch passenden Klassiker (Teece/Pisano/Shuen 1997), der im Volltext-Fenster nicht auftaucht.
+2. „Wie wird Vertrauen zwischen Business und IT operationalisiert?" (Deutsch, ganzer Satz) - **Volltext liefert 0 Treffer** (websearch_to_tsquery verundet alle Wörter eines ganzen Satzes, kein Chunk enthält sie alle) - Hybrid fällt sauber auf die semantischen Treffer zurück (identische RRF-Werte wie reines Semantik-Ranking, da nur ein Zweig beiträgt) und findet trotzdem 5 einschlägige Stellen zu Kommunikation/sozialer Angleichung.
+3. „Risikostrategie" gefiltert auf `type=grau` (Deutsch, Fachbegriff) - Hybrid liefert exakt die erwarteten <mark>-hervorgehobenen Stellen aus der MaRisk-VA-Testquelle.
+4. „IT governance maturity models" (Englisch, mittlere Präzision) - Hybrid liefert eine durchgehend einschlägige, stark hervorgehobene Trefferliste zu Reifegradmodellen.
+5. „Wie beeinflusst Digitalisierung die Zusammenarbeit zwischen Fachbereich und IT?" (Deutsch, ganzer Satz) - wie bei Frage 2: Volltext 0 Treffer, Hybrid fällt auf semantische Treffer zurück, alle 5 inhaltlich einschlägig (IT-Organisation im Wandel, Business-IT-Integration, Silos).
+
+Subjektives Fazit: Hybrid ist nie schlechter als der jeweils bessere Einzelmodus - bei präzisen Fachbegriffen deckt er sich mit der Volltextsuche, bei natürlichsprachigen Fragen (2 von 5 Testfragen, und vermutlich der Regelfall für echte Recherchefragen dieser Arbeit) rettet er die Suche komplett, wo die Volltextsuche allein leer ausgeht. Damit klar die beste Standardeinstellung.
 
 ## Paket 8 – Such-Ansicht (Frontend) ☐
 

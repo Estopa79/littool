@@ -9,7 +9,7 @@ from .enrich import run_metadata_enrichment
 from .env import require_env
 from .fulltext import run_fulltext_extraction
 from .ranking import run_ranking_match
-from .search import run_semantic_search
+from .search import run_hybrid_search, run_semantic_search
 from .supabase_client import get_client, load_config
 
 
@@ -123,6 +123,27 @@ def cmd_search_semantic(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_search_hybrid(args: argparse.Namespace) -> int:
+    client = get_client()
+    api_key = require_env("VOYAGE_API_KEY")
+    results = run_hybrid_search(
+        client,
+        api_key,
+        args.query,
+        search_mode=args.mode,
+        filter_ranking_system=args.ranking,
+        filter_type=args.type,
+        match_limit=args.limit,
+    )
+    if not results:
+        print("Keine Treffer.")
+        return 0
+    for r in results:
+        print(f"[{r['rank']:.4f}] {r['title']} (S. {r['page']})")
+        print(f"  {r['snippet'][:200]}")
+    return 0
+
+
 def main() -> None:
     # Windows-Konsole nutzt oft cp1252, das nicht jedes Unicode-Zeichen aus
     # Quellentiteln abbilden kann (z. B. U+2010 statt "-") - Ausgabe soll
@@ -180,6 +201,21 @@ def main() -> None:
         "--threshold", type=float, default=None, help="Mindest-Ähnlichkeit (0-1)"
     )
     search_semantic_parser.set_defaults(func=cmd_search_semantic)
+
+    search_hybrid_parser = subparsers.add_parser(
+        "search-hybrid", help="Hybrid-Suche testen (RRF aus Volltext + semantisch)"
+    )
+    search_hybrid_parser.add_argument("query", help="Suchtext")
+    search_hybrid_parser.add_argument(
+        "--mode",
+        choices=["hybrid", "fulltext", "semantic"],
+        default="hybrid",
+        help="Suchmodus (Default: hybrid)",
+    )
+    search_hybrid_parser.add_argument("--ranking", default=None, help="Filter Ranking-System")
+    search_hybrid_parser.add_argument("--type", default=None, help="Filter Quellentyp")
+    search_hybrid_parser.add_argument("--limit", type=int, default=20, help="Max. Treffer")
+    search_hybrid_parser.set_defaults(func=cmd_search_hybrid)
 
     args = parser.parse_args()
     sys.exit(args.func(args))
