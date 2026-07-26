@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Evaluationsmatrix – BITA Forschungslücke</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --navy:   #1B3A5C;
+  --navy2:  #2E5F8A;
+  --ice:    #4FC3F7;
+  --green:  #2E7D32;
+  --gbg:    #C8E6C9;
+  --yellow: #E65100;
+  --ybg:    #FFF9C4;
+  --red:    #B71C1C;
+  --rbg:    #FFCDD2;
+  --newbg:  #F1F8E9;
+  --dissbg: #E3F2FD;
+  --white:  #FAFAFA;
+  --gray:   #F5F5F5;
+}
+
+body {
+  font-family: 'Outfit', sans-serif;
+  background: #f0f4f8;
+  color: #1a1a1a;
+  min-height: 100vh;
+}
+
+.page-header {
+  background: linear-gradient(135deg, var(--navy) 0%, #0f2240 100%);
+  color: white;
+  padding: 28px 40px 22px;
+  border-bottom: 3px solid var(--ice);
+}
+.page-header h1 {
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.page-header p {
+  font-size: 13px;
+  color: #90b8d4;
+  margin-bottom: 14px;
+}
+.callout {
+  background: rgba(229,57,53,0.15);
+  border: 1px solid rgba(229,57,53,0.4);
+  border-radius: 6px;
+  padding: 10px 16px;
+  font-size: 13px;
+  color: #FFCDD2;
+  line-height: 1.6;
+  max-width: 900px;
+}
+.callout strong { color: #FF8A80; }
+
+/* ── CONTROLS ── */
+.controls {
+  background: white;
+  padding: 14px 40px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  border-bottom: 1px solid #e2e8f0;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+.controls label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--navy);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-right: 4px;
+}
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.filter-btn {
+  border: 1px solid #cbd5e0;
+  background: white;
+  border-radius: 4px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-family: 'Outfit', sans-serif;
+  cursor: pointer;
+  transition: all 0.15s;
+  color: #4a5568;
+}
+.filter-btn:hover { border-color: var(--navy2); color: var(--navy); }
+.filter-btn.active { background: var(--navy); color: white; border-color: var(--navy); }
+.sep { width: 1px; height: 28px; background: #e2e8f0; }
+.search-box {
+  border: 1px solid #cbd5e0;
+  border-radius: 4px;
+  padding: 5px 10px;
+  font-size: 13px;
+  font-family: 'Outfit', sans-serif;
+  width: 200px;
+  outline: none;
+}
+.search-box:focus { border-color: var(--navy2); }
+
+/* ── LEGEND ── */
+.legend {
+  padding: 12px 40px;
+  background: white;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.leg-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  color: #4a5568;
+}
+.leg-dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.leg-voll   { background: var(--gbg);  color: var(--green); }
+.leg-teil   { background: var(--ybg);  color: var(--yellow); }
+.leg-nein   { background: var(--rbg);  color: var(--red); }
+.leg-new    { background: var(--newbg); color: var(--green); border: 1px solid #a5d6a7; }
+.leg-diss   { background: var(--dissbg); color: #1565C0; border: 1px solid #90CAF9; }
+
+/* ── TABLE WRAPPER ── */
+.table-wrap {
+  overflow-x: auto;
+  padding: 24px 40px 40px;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 1200px;
+  font-size: 12.5px;
+  background: white;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* ── COLUMN HEADERS ── */
+thead th {
+  background: var(--navy);
+  color: white;
+  padding: 10px 8px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  line-height: 1.4;
+  vertical-align: bottom;
+  white-space: normal;
+  min-width: 70px;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+thead th.th-left { text-align: left; min-width: 160px; }
+thead th.th-title { min-width: 220px; }
+thead th.th-vhb { min-width: 55px; }
+
+/* Criteria header highlight on hover */
+thead th.crit { cursor: default; }
+thead th.crit:hover { background: var(--navy2); }
+
+/* ── SECTION ROWS ── */
+tr.section-row td {
+  background: var(--navy2);
+  color: white;
+  font-weight: 600;
+  font-size: 12px;
+  padding: 7px 12px;
+  letter-spacing: 0.2px;
+}
+
+/* ── DATA ROWS ── */
+tr.data-row { transition: background 0.1s; }
+tr.data-row:hover td { filter: brightness(0.95); }
+tr.data-row.hidden { display: none; }
+
+td { border: 1px solid #e2e8f0; padding: 7px 8px; vertical-align: top; }
+td.td-author { font-weight: 600; color: var(--navy); white-space: nowrap; }
+td.td-title  { color: #374151; line-height: 1.5; }
+td.td-vhb    { text-align: center; font-family: 'JetBrains Mono', monospace; font-size: 11px; white-space: nowrap; }
+
+/* ── AMPEL CELLS ── */
+td.c-voll { background: var(--gbg); text-align: center; font-size: 16px; }
+td.c-teil { background: var(--ybg); text-align: center; font-size: 16px; }
+td.c-nein { background: var(--rbg); text-align: center; font-size: 16px; }
+
+/* ── ROW TYPES ── */
+tr.row-new td.td-author { color: var(--green); }
+tr.row-new td           { background: #F1F8E9 !important; }
+tr.row-new td.c-voll    { background: #A5D6A7 !important; }
+tr.row-new td.c-teil    { background: #E6EE9C !important; }
+tr.row-new td.c-nein    { background: #FFCDD2 !important; }
+
+tr.row-diss td           { background: var(--dissbg) !important; }
+tr.row-diss td.td-author { color: #0D47A1; font-size: 13px; }
+tr.row-diss td.td-title  { color: #1565C0; font-style: italic; }
+tr.row-diss td.c-voll    { background: #90CAF9 !important; font-size: 18px; }
+
+/* ── SCORE BAR ── */
+td.td-score { vertical-align: middle; min-width: 90px; }
+.score-bar-wrap { display: flex; align-items: center; gap: 6px; }
+.score-bar {
+  flex: 1;
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.score-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #ef5350, #ffa726, #66bb6a);
+  background-size: 300% 100%;
+}
+.score-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: #4a5568;
+  min-width: 28px;
+}
+
+/* ── STATS BAR ── */
+.stats-bar {
+  padding: 16px 40px;
+  background: white;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.stat-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #4a5568;
+}
+.stat-chip strong { color: var(--navy); font-size: 18px; }
+#row-count { color: var(--navy2); font-weight: 600; }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1>Evaluationsmatrix: Forschungsfeld-Abdeckung und Forschungslücke</h1>
+  <p>Dissertation: Business-IT Alignment als dynamische und soziale Fähigkeit in der deutschen Sachversicherung &nbsp;|&nbsp; Ruben Beltran Ollero (MUDR/0964) &nbsp;|&nbsp; März 2026</p>
+  <div class="callout">
+    <strong>Kernaussage:</strong> Jede Zeile zeigt eine Quelle. Jede farbige Spalte zeigt, ob ein Forschungskriterium abgedeckt ist. <strong>Keine einzige Quelle deckt alle 8 Kriterien gleichzeitig ab</strong> — das ist die Forschungslücke dieser Dissertation. Nur die letzte Zeile (blau) schließt sie.
+  </div>
+</div>
+
+<div class="controls">
+  <div class="filter-group">
+    <label>Filter:</label>
+    <button class="filter-btn active" data-filter="all">Alle</button>
+    <button class="filter-btn" data-filter="s1">S1: BITA ∩ DT</button>
+    <button class="filter-btn" data-filter="s2">S2: DT ∩ P&C</button>
+    <button class="filter-btn" data-filter="s3">S3: BITA ∩ P&C</button>
+    <button class="filter-btn" data-filter="new">🆕 Neu (EBSCO)</button>
+    <button class="filter-btn" data-filter="diss">⭐ Dissertation</button>
+  </div>
+  <div class="sep"></div>
+  <div class="filter-group">
+    <label>VHB:</label>
+    <button class="filter-btn" data-vhb="A+">A+</button>
+    <button class="filter-btn" data-vhb="A">A</button>
+    <button class="filter-btn" data-vhb="B">B</button>
+    <button class="filter-btn" data-vhb="C">C</button>
+  </div>
+  <div class="sep"></div>
+  <input class="search-box" type="text" placeholder="🔍  Suche Autor / Titel …" id="searchInput">
+</div>
+
+<div class="legend">
+  <div class="leg-item"><div class="leg-dot leg-voll">●</div> Voll abgedeckt</div>
+  <div class="leg-item"><div class="leg-dot leg-teil">◐</div> Teilweise abgedeckt</div>
+  <div class="leg-item"><div class="leg-dot leg-nein">○</div> Nicht abgedeckt</div>
+  <div class="leg-item"><div class="leg-dot leg-new">🆕</div> Neu hinzugefügt (EBSCO März 2026)</div>
+  <div class="leg-item"><div class="leg-dot leg-diss">⭐</div> Eigene Dissertation</div>
+</div>
+
+<div class="table-wrap">
+<table id="mainTable">
+<thead>
+  <tr>
+    <th class="th-left">Autor (Jahr)</th>
+    <th class="th-title">Titel (Kurzform)</th>
+    <th class="th-vhb">VHB</th>
+    <th class="crit" title="BITA explizit als theoretisches Konstrukt verwendet">BITA-<br>Konstrukt</th>
+    <th class="crit" title="Dynamic Capabilities Theory (Teece) als Rahmen">Dynamic<br>Capabilities</th>
+    <th class="crit" title="Social Alignment (Reich & Benbasat) berücksichtigt">Social<br>Alignment</th>
+    <th class="crit" title="Digitale Transformation als abhängige Variable">DT als<br>abhäng. Variable</th>
+    <th class="crit" title="Dt. P&C-Versicherung als Untersuchungskontext">Dt. P&C-<br>Versicherung</th>
+    <th class="crit" title="DORA oder VAIT explizit berücksichtigt">Regulatorik<br>DORA/VAIT</th>
+    <th class="crit" title="Empirische Methodik (quantitativ, qualitativ oder mixed)">Empirische<br>Methodik</th>
+    <th class="crit" title="Operationalisierung / Survey-Instrument vorhanden">Operationa-<br>lisierung/Survey</th>
+    <th>Score<br><span style="font-size:10px;font-weight:400">(von 8)</span></th>
+  </tr>
+</thead>
+<tbody id="tableBody">
+</tbody>
+</table>
+</div>
+
+<div class="stats-bar">
+  <div class="stat-chip">Angezeigte Quellen: <strong id="row-count">–</strong></div>
+  <div class="stat-chip">Quellen mit Score 8/8: <strong id="perfect-count">–</strong></div>
+  <div class="stat-chip">Durchschnittlicher Score: <strong id="avg-score">–</strong></div>
+</div>
+
+<script>
+// ── DATA ──
+// [author, title, vhb, c1..c8, section, isNew]
+// c values: 'voll'=2, 'teil'=1, 'nein'=0
+const SRC = [
+  // S1
+  ["Henderson & Venkatraman (1993)", "Strategic Alignment Model (SAM) – Grundlagenmodell", "A+",     2,0,0,0,0,0,0,0, "s1", false],
+  ["Reich & Benbasat (2000)",        "Social Dimension of IT Alignment",                   "A+",     2,0,2,0,0,0,2,0, "s1", false],
+  ["Bharadwaj et al. (2013)",        "Digital Business Strategy – Next Generation",        "A+",     2,0,0,2,0,0,0,0, "s1", false],
+  ["Yeow, Soh & Hansen (2018)",      "Dynamic Capabilities Approach to DT Alignment",     "A",      2,2,0,2,0,0,2,0, "s1", false],
+  ["Pelletier & Raymond (2024)",     "BITA as Contextualised Process for Digital Renewal","A",      2,2,0,2,0,0,2,0, "s1", false],
+  ["Syed et al. (2025)",             "BITA Mediates DCT & Big Data Performance",           "A",      2,2,0,2,0,0,2,0, "s1", false],
+  ["Van de Wetering et al. (2020)",  "IT Flexibility & Dynamic Capabilities Alignment",   "B",      2,2,0,2,0,0,2,2, "s1", false],
+  ["Queiroz et al. (2020)",          "IT Alignment & Agility in Multi-Business Orgs.",    "A",      2,0,0,2,0,0,2,2, "s1", false],
+  ["Sabherwal et al. (2019)",        "Strategic Alignment, IT Investment & Firm Performance","A+",   2,1,0,2,0,0,2,2, "s1", true],
+  ["Jia, Wang & Ge (2018)",          "BITA Literature Review: A Bibliometric Analysis",   "k.R.",   2,1,0,1,0,0,0,0, "s1", true],
+  ["Jonathan et al. (2022)",         "IT Alignment & Digital Transformation Success",     "k.R.",   2,0,0,2,0,0,2,2, "s1", false],
+  ["Levkov et al. (2022)",           "Social Capital & Operational BITA",                 "k.R.",   2,0,2,0,0,0,2,0, "s1", false],
+  ["Riedinger et al. (2024)",        "12 Organisationale Fähigkeiten für BITA",           "k.R.",   2,0,1,0,0,0,2,0, "s1", false],
+  ["Sieber (2024)",                  "Competing Values Framework & IT Alignment",         "B",      2,0,2,0,0,0,2,2, "s1", false],
+  ["Luftman (2000)",                 "Assessing Business-IT Alignment Maturity (SAMM)",   "k.R.",   2,0,1,0,0,0,0,2, "s1", false],
+  // S2
+  ["Eling & Lehmann (2018)",         "Impact of Digitalization on Insurance Value Chain", "k.R.",   0,0,0,2,2,0,0,0, "s2", false],
+  ["Eden (2023)",                    "DT: Chancen und Herausforderungen (Dissertation)",  "k.R.",   1,0,0,2,2,2,2,2, "s2", false],
+  ["Eckert et al. (2021)",           "Status quo DT in German Insurance Sales",           "k.R.",   0,0,0,2,2,0,2,2, "s2", false],
+  ["Wrede, Velamuri & Dauth (2022)", "VAIT als Treiber von IT-Alignment dt. Versicherung","C",      2,0,1,0,2,2,2,0, "s2", false],
+  ["Eling, Lehmann & Schaper (2022)","Optimal Labor & Capital in German P&C Insurance",  "B",      0,0,0,2,2,0,2,0, "s2", false],
+  ["Lünendonk & Hossenfelder (2024)","IT-Trends in der Versicherungswirtschaft 2024",    "k.R.",   0,0,0,2,2,2,1,0, "s2", false],
+  ["Van Veldhoven et al. (2021)",    "Digital Transformation in P&C Insurance",          "k.R.",   0,0,0,2,2,0,0,0, "s2", false],
+  ["Gupta, Ghardallou & Pandey (2022)","AI Adoption in Insurance: TOE Framework Evidence","B",     0,0,0,2,2,0,2,2, "s2", false],
+  ["Eling, Nuessle & Staubli (2022)","AI Along the Insurance Value Chain",               "k.R.",   0,0,0,2,2,0,0,0, "s2", false],
+  ["BaFin (2022)",                   "VAIT – Versicherungsaufsichtliche Anforderungen IT","k.R.",   0,0,0,0,2,2,0,0, "s2", false],
+  ["EU / Europ. Parlament (2022)",   "DORA – Digital Operational Resilience Act",        "k.R.",   0,0,0,0,2,2,0,0, "s2", false],
+  ["EY Innovalue (2019)",            "IT in der Digitalisierung von Versicherern",        "k.R.",   1,0,0,2,2,0,2,0, "s2", false],
+  ["Asatiani et al. (2025)",         "Technical Debt Is Killing Digital Transformation", "B",      0,0,0,2,0,0,1,0, "s2", true],
+  ["Oberthür, Baum & Lütje (2025)",  "IT-Governance DT als Erfolgsfaktor bei ROLAND AG", "k.R.",   1,0,0,2,2,2,1,0, "s2", true],
+  // S3
+  ["Nissen & Termer (2014)",         "IT-Führung & BITA in der dt. Finanzbranche",       "C",      2,0,1,0,2,0,2,2, "s3", false],
+  ["Gruhn et al. (2006)",            "Business Alignment: Versicherungswissen als IT-Kompetenz","C",2,0,0,0,2,0,0,0, "s3", false],
+  ["Eckert & Osterrieder (2020)",    "How Digitalization Affects Insurance Companies",   "k.R.",   0,0,0,2,2,0,0,0, "s3", false],
+  ["Charoensuk et al. (2014)",       "Business-IT Alignment: A Practical Research Approach","k.R.",2,0,0,0,0,0,2,2, "s3", false],
+  // DISS
+  ["⭐ Beltran Ollero (2026/27)",     "BITA als dynamic & social capability in dt. Sachversicherung","DBA",2,2,2,2,2,2,2,2, "diss", false],
+];
+
+const CRIT_LABELS = [
+  "BITA-Konstrukt","Dynamic Capabilities","Social Alignment","DT als AV",
+  "Dt. P&C-Versicherung","Regulatorik DORA/VAIT","Empirische Methodik","Operationalisierung/Survey"
+];
+
+function ampelHtml(v) {
+  if (v === 2) return `<td class="c-voll" title="Voll abgedeckt">●</td>`;
+  if (v === 1) return `<td class="c-teil" title="Teilweise abgedeckt">◐</td>`;
+  return `<td class="c-nein" title="Nicht abgedeckt">○</td>`;
+}
+
+function scoreHtml(pts, isDiss) {
+  const pct = Math.round((pts / 16) * 100);
+  const color = isDiss ? '#1565C0' : (pct >= 75 ? '#388e3c' : pct >= 40 ? '#f57c00' : '#c62828');
+  const display = (pts/2).toFixed(1).replace('.0','');
+  return `<td class="td-score">
+    <div class="score-bar-wrap">
+      <div class="score-bar"><div class="score-fill" style="width:${pct}%;background:${color};"></div></div>
+      <span class="score-label">${display}/8</span>
+    </div>
+  </td>`;
+}
+
+function vhbBadge(vhb) {
+  const colors = { 'A+':'#1B5E20', 'A':'#2E7D32', 'B':'#1565C0', 'C':'#4527A0', 'DBA':'#B71C1C' };
+  const c = colors[vhb] || '#78909C';
+  return `<span style="color:${c};font-weight:700">${vhb}</span>`;
+}
+
+function buildTable(data) {
+  const tbody = document.getElementById('tableBody');
+  tbody.innerHTML = '';
+  
+  const sections = { s1: "Schnittmenge 1: BITA ∩ Digitale Transformation", s2: "Schnittmenge 2: Digitale Transformation ∩ Deutsche Sachversicherung", s3: "Schnittmenge 3: BITA ∩ Deutsche Sachversicherung", diss: "⭐ Eigene Dissertation – schließt die Forschungslücke" };
+  let lastSection = null;
+
+  data.forEach(row => {
+    const [author, title, vhb, c1,c2,c3,c4,c5,c6,c7,c8, section, isNew] = row;
+    const isDiss = section === 'diss';
+
+    // Section header
+    if (section !== lastSection) {
+      const tr = document.createElement('tr');
+      tr.className = 'section-row';
+      tr.innerHTML = `<td colspan="12">${sections[section]}</td>`;
+      tbody.appendChild(tr);
+      lastSection = section;
+    }
+
+    const pts = c1+c2+c3+c4+c5+c6+c7+c8;
+    const cls = isDiss ? 'data-row row-diss' : (isNew ? 'data-row row-new' : 'data-row');
+    const tr = document.createElement('tr');
+    tr.className = cls;
+    tr.dataset.section = section;
+    tr.dataset.vhb = vhb;
+    tr.dataset.search = (author + ' ' + title).toLowerCase();
+    tr.dataset.new = isNew ? '1' : '0';
+    tr.dataset.diss = isDiss ? '1' : '0';
+    tr.dataset.score = pts;
+
+    tr.innerHTML = `
+      <td class="td-author">${isNew ? '🆕 ' : ''}${author}</td>
+      <td class="td-title">${title}</td>
+      <td class="td-vhb">${vhbBadge(vhb)}</td>
+      ${ampelHtml(c1)}${ampelHtml(c2)}${ampelHtml(c3)}${ampelHtml(c4)}
+      ${ampelHtml(c5)}${ampelHtml(c6)}${ampelHtml(c7)}${ampelHtml(c8)}
+      ${scoreHtml(pts, isDiss)}
+    `;
+    tbody.appendChild(tr);
+  });
+
+  updateStats();
+}
+
+// ── FILTERS ──
+let activeFilter = 'all';
+let activeVhb = null;
+let searchTerm = '';
+
+function applyFilters() {
+  const rows = document.querySelectorAll('tr.data-row');
+  let visible = 0;
+  let totalScore = 0;
+  let perfect = 0;
+
+  // Need to handle section rows too
+  const tbody = document.getElementById('tableBody');
+  const allRows = tbody.querySelectorAll('tr');
+  let lastSectionVisible = null;
+  let lastSectionTr = null;
+  let lastSectionHasVisible = false;
+
+  allRows.forEach(tr => {
+    if (tr.classList.contains('section-row')) {
+      if (lastSectionTr && !lastSectionHasVisible) {
+        lastSectionTr.style.display = 'none';
+      }
+      lastSectionTr = tr;
+      lastSectionHasVisible = false;
+      tr.style.display = '';
+      return;
+    }
+    if (!tr.classList.contains('data-row')) return;
+
+    let show = true;
+    if (activeFilter !== 'all') {
+      if (activeFilter === 'new'  && tr.dataset.new  !== '1') show = false;
+      if (activeFilter === 'diss' && tr.dataset.diss !== '1') show = false;
+      if (['s1','s2','s3'].includes(activeFilter) && tr.dataset.section !== activeFilter) show = false;
+    }
+    if (activeVhb && tr.dataset.vhb !== activeVhb) show = false;
+    if (searchTerm && !tr.dataset.search.includes(searchTerm)) show = false;
+
+    tr.style.display = show ? '' : 'none';
+    if (show) {
+      visible++;
+      lastSectionHasVisible = true;
+      const s = parseInt(tr.dataset.score);
+      totalScore += s;
+      if (s >= 16) perfect++;
+    }
+  });
+  if (lastSectionTr && !lastSectionHasVisible) lastSectionTr.style.display = 'none';
+
+  document.getElementById('row-count').textContent = visible;
+  document.getElementById('perfect-count').textContent = perfect;
+  document.getElementById('avg-score').textContent = visible > 0 ? ((totalScore/2/visible).toFixed(1) + '/8') : '–';
+}
+
+function updateStats() { applyFilters(); }
+
+// Filter buttons
+document.querySelectorAll('.filter-btn[data-filter]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.filter-btn[data-filter]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeFilter = btn.dataset.filter;
+    applyFilters();
+  });
+});
+
+document.querySelectorAll('.filter-btn[data-vhb]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (btn.classList.contains('active')) {
+      btn.classList.remove('active');
+      activeVhb = null;
+    } else {
+      document.querySelectorAll('.filter-btn[data-vhb]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeVhb = btn.dataset.vhb;
+    }
+    applyFilters();
+  });
+});
+
+document.getElementById('searchInput').addEventListener('input', e => {
+  searchTerm = e.target.value.toLowerCase();
+  applyFilters();
+});
+
+// ── INIT ──
+buildTable(SRC);
+</script>
+</body>
+</html>

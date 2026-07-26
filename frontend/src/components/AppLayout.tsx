@@ -1,4 +1,4 @@
-import { Outlet, useNavigate } from 'react-router-dom'
+import { Outlet, useNavigate, Link } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { BottomTabBar } from './BottomTabBar'
 import { supabase } from '../lib/supabase'
@@ -31,13 +31,23 @@ export function AppLayout() {
               className="w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
             />
           </form>
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="ml-4 shrink-0 text-sm text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100"
-          >
-            Abmelden
-          </button>
+          <div className="ml-4 flex shrink-0 items-center gap-3">
+            <Link
+              to="/einstellungen"
+              title="Einstellungen"
+              aria-label="Einstellungen"
+              className="text-lg text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100"
+            >
+              ⚙️
+            </Link>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="text-sm text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100"
+            >
+              Abmelden
+            </button>
+          </div>
         </header>
         <main className="min-h-0 flex-1 overflow-auto">
           <Outlet />

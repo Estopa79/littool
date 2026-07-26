@@ -1,6 +1,6 @@
 # Konzept: Persönliches Literatur- und Recherche-Tool („LitTool")
 
-**Version 0.4 · Juli 2026 · Grundlage für die Umsetzung mit Claude Code**
+**Version 0.5 · Juli 2026 · Grundlage für die Umsetzung mit Claude Code**
 
 ---
 
@@ -68,6 +68,7 @@ Stack analog Valmora-Chroniken:
 - **Paraphrase auf Knopfdruck:** Markierten Originaltext (Passage oder freie Auswahl im Text) per Klick paraphrasieren lassen – Ergebnis ist ein sinngemäßes Zitat mit korrekter Zitation (Autor, Jahr, S. x), als prüfbarer Vorschlag neben dem Original. Übernahme nur nach Prüfung; jede Paraphrase landet im KI-Verzeichnis.
 - **Methodenprofil je Quelle:** Claude extrahiert automatisch das Studiendesign – Studientyp (qualitativ / quantitativ / mixed / konzeptionell / Literaturreview), Methode (z. B. Fallstudie, Survey, PLS-SEM, Interviews), Datengrundlage/Sample, Auswertungsverfahren. Angezeigt in Bibliothek und Quellen-Detail, filterbar, bestätigbar im QS-Workflow; Grundlage für Methodentabellen (Deskriptionsmatrix).
 - Matrix-Ansicht: Quellen × Forschungsfragen (Vorstufe zu Deskriptions-/Stringenzmatrix).
+- **Evaluationsmatrix (Kriterien-Matrix):** Frei definierbare Kriterien-Sets (z. B. acht Forschungskriterien für die Forschungslücke). Jede Quelle wird je Kriterium bewertet: voll (●) / teilweise (◐) / nicht abgedeckt (○) – KI-vorbewertet mit Begründung, im QS-Workflow bestätigbar/korrigierbar. Darstellung: Zeilen gruppiert nach Schnittmengen (Themenfelder), Spalten = Kriterien, dazu VHB-Rating und Score-Spalte (Summe); Filter nach Schnittmenge, Ranking, Neu-Markierung; **eigene Arbeit als hervorgehobene Referenzzeile** (Forschungslücken-Argument: keine Quelle deckt alles ab, die Dissertation schon). Export als eigenständige interaktive HTML-Datei (mit Filtern/Suche, weitergebbar) und als CSV.
 - QS-Workflow: KI-Zuordnungen bestätigen/korrigieren.
 
 ### Modul 4 – Verwendungs-Tracking & Verzeichnisse
@@ -108,6 +109,9 @@ Stack analog Valmora-Chroniken:
 | **Draft** | id, section_id, version, text, passage_ids, erstellt_von (Agent/Autor), status |
 | **DiscussionEntry** | id, section_id, draft_id, autor (Persona/User), text, zeitstempel |
 | **UsedCitation** | passage_id, document_id (Häkchen pro Dokument) |
+| **CriterionSet** | id, name (z. B. „Forschungslücke ISP"), beschreibung |
+| **Criterion** | id, set_id, name, kurzname, sortierung |
+| **SourceCriterion** | source_id, criterion_id, wert (0=nicht/1=teilweise/2=voll), begründung, bestätigt |
 | **Persona** | id, name, rolle, systemprompt |
 | **AiLogEntry** | id, datum, art (Übersetzung/Entwurf/Zitatvorschlag/Analyse), section_id/source_id, kurzbeschreibung |
 | **ActivityLog** | datum, aktionstyp, referenz (abgeleitet aus Zeitstempeln) |

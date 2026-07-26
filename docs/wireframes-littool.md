@@ -105,7 +105,9 @@ Navigation: feste Seitenleiste links (einklappbar) mit den sechs Ansichten. Oben
 └────────┴────────────────────────────┘
 ```
 
-- Links FF-Liste mit Passagen-Zähler; unten Umschalter zur **Matrix** (Quellen × FF, Zellen = Relevanz, Klick öffnet Passagen).
+- Links FF-Liste mit Passagen-Zähler; unten Umschalter zur **Matrix** mit zwei Modi:
+  1. **Relevanz-Matrix:** Quellen × FF, Zellen = Relevanz, Klick öffnet Passagen.
+  2. **Evaluationsmatrix:** Quellen × frei definierte Kriterien (Set wählbar), Zellen ● / ◐ / ○, Zeilen gruppiert nach Schnittmengen, Spalten VHB + Score, eigene Arbeit als hervorgehobene Referenzzeile; Zelle anklicken → Wert ändern + Begründung sehen; Buttons „KI-Vorbewertung", „Export HTML", „Export CSV". Der HTML-Export ist eine eigenständige interaktive Datei (Filter, Suche, Legende – Stil wie die vorhandene Evaluationsmatrix_Interaktiv.html, die als Design-Referenz in docs/ liegt).
 - Karte: Relevanz-Sterne, Original einklappbar/DE-Übersetzung, Zitation kopieren, Häkchen, PDF-Sprung, 💬 = Passage in Schreibwerkstatt-Diskussion ziehen, **¶ = Paraphrase erzeugen** (sinngemäßes Zitat mit Zitation, erscheint als prüfbarer Vorschlag unter dem Original, Übernahme per Klick; wird im KI-Verzeichnis protokolliert).
 - QS-Leiste oben: „12 unbestätigte KI-Zuordnungen prüfen" → Karte für Karte bestätigen/korrigieren.
 

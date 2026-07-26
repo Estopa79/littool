@@ -38,11 +38,23 @@ Migration `0014_analyse_schema.sql`. Spaltennamen konsequent englisch (`code`/`q
 
 Verifikation: Testdatensatz über alle sechs Tabellen angelegt (Quelle → Forschungsfrage → Thema → Passage → AI-Log), Join über `sources`/`research_questions` aus `passages` funktioniert, anschließend wieder gelöscht. RLS geprüft, indem derselbe Zugriff mit dem `anon`-Key (kein eingeloggter Nutzer) probiert wurde - alle sechs Tabellen liefern `permission denied for table ...`, wie erwartet.
 
-## Paket 2 – Einstellungen: Thema, FFs, Themenfelder ☐
+## Paket 2 – Einstellungen: Thema, FFs, Themenfelder ☑
 
 - Einstellungs-Ansicht: Dissertationsthema (Freitext), Forschungsfragen (FF1…FFn, sortierbar), Themenfelder (Name + Kurzbeschreibung) anlegen/bearbeiten.
 - Die echten Forschungsfragen und Themenfelder der Arbeit eintragen (Autor liefert sie in der Sitzung).
 - **Fertig, wenn:** Reale FFs und Themenfelder sind im Tool und werden von der Pipeline gelesen.
+
+**Notizen:**
+
+Migration `0015_app_settings.sql`: Singleton-Tabelle `app_settings` für das Dissertationsthema (Muster `id boolean primary key default true check (id)` - Primary Key erzwingt maximal eine Zeile). `research_questions`/`topics` bestanden schon aus Paket 1.
+
+Neue Ansicht `frontend/src/views/Einstellungen.tsx` (+ `lib/settings.ts`): drei Karten (Thema-Freitext, Forschungsfragen mit Kürzel/Frage/Auf-Ab-Sortierung, Themenfelder mit Name/Kurzbeschreibung), jeweils inline editierbar. Kein Wireframe für diese Ansicht vorhanden (Konzept nennt sie nur als Datenmodell, keine explizite Skizze) - deshalb schlank an den bestehenden Formular-Mustern aus `QuellenDetail.tsx` orientiert statt neu erfunden. Kein eigener Haupt-Nav-Eintrag (die sechs festen Ansichten aus dem Wireframe bleiben unverändert), stattdessen ein ⚙️-Icon im Header neben „Abmelden".
+
+Echte Daten eingetragen (Autor lieferte Forschungsfragen-Screenshot der Stringenzmatrix + Venn-Diagramm der Themenfelder): Dissertationsthema, 7 Forschungsfragen (HFF, TSFF1a, TSFF1b, TSFF2, ESFF1, ESFF2, GSFF) und 3 Themenfelder (Business-IT Alignment (BITA), Digitale Transformation, Deutsche Sachversicherung) direkt per Service-Role-Skript gesetzt (keine Testdaten, echter Bestand).
+
+Zusätzlich besprochen: Autor möchte Themenfelder-Überschneidungen mit Quellenzahl visualisieren (klickbar → Liste der Quellen). Dafür brachte der Autor aktualisierte Dokumente mit (`konzept-literatur-tool.md` v0.5, `wireframes-littool.md`, Referenz `Evaluationsmatrix_Interaktiv.html`) - als **Paket 11/12 (Evaluationsmatrix)** in diesen Arbeitsplan aufgenommen, `arbeitsplan-phase-3_1.md` (Duplikat) wieder gelöscht.
+
+Browser-Check: TypeScript-Build (`tsc -b`) und `vite build` laufen fehlerfrei, Dev-Server liefert `/einstellungen` mit HTTP 200. Der eingeloggte Klick-Durchlauf selbst wurde nicht automatisiert geprüft, weil das App-Login echte Zugangsdaten braucht, die ich nicht eingebe - bitte einmal kurz selbst gegenprüfen.
 
 ## Paket 3 – Analyse-Pipeline: Themen & Relevanz ☐
 
@@ -95,6 +107,21 @@ Verifikation: Testdatensatz über alle sechs Tabellen angelegt (Quelle → Forsc
 - QS-Durchgang: mindestens die Quellen mit hoher Relevanz vollständig bestätigen.
 - Stichproben-Ehrlichkeitstest: 10 zufällige Passagen im PDF verifizieren (Text, Seite, Zitation).
 - **Fertig, wenn:** Der Bestand ist analysiert, die wichtigsten Zuordnungen sind bestätigt → Phase 3 abgeschlossen. 🎉
+
+## Paket 11 – Evaluationsmatrix: Kriterien & KI-Vorbewertung ☐
+
+- Migration: `criterion_sets`, `criteria`, `source_criteria` (wert 0/1/2, begründung, confirmed) gemäß Konzept.
+- Einstellungs-Bereich: Kriterien-Set anlegen (Name + Kriterien mit Kurznamen, sortierbar); das reale Set der Forschungslücken-Matrix (8 Kriterien) eintragen.
+- Worker-Job: KI-Vorbewertung je Quelle × Kriterium (voll/teilweise/nicht, mit Ein-Satz-Begründung), als `unbestätigt`; läuft über die Analyse-Hilfsschicht, AiLog inklusive.
+- Bestehende Bewertungen aus der vorhandenen `Evaluationsmatrix_Interaktiv.html` (liegt als Referenz in `docs/`) als Startdaten importieren – die dort per Hand bewerteten Quellen gelten als `bestätigt`.
+- **Fertig, wenn:** Das 8-Kriterien-Set steht, importierte Bewertungen stimmen mit der HTML-Vorlage überein, neue Quellen werden vorbewertet.
+
+## Paket 12 – Evaluationsmatrix: Ansicht & Export ☐
+
+- Matrix-Modus in der FF-Ansicht: Zeilen nach Schnittmengen gruppiert, Zellen ●/◐/○, Spalten VHB + Score, eigene Arbeit als hervorgehobene Referenzzeile; Filter (Schnittmenge, VHB, Neu), Suche; Zelle anklicken → Wert ändern, Begründung sehen (zählt als Bestätigung).
+- **Export HTML:** eigenständige interaktive Datei im Stil der Design-Referenz (Filter, Suche, Legende, Kernaussage-Callout, Score-Statistik) – ohne Abhängigkeit zum Tool weitergebbar.
+- Export CSV.
+- **Fertig, wenn:** Die aus dem Tool exportierte HTML-Matrix der handgebauten Vorlage ebenbürtig ist und sich mit einem Klick aktualisiert erzeugen lässt.
 
 ---
 
