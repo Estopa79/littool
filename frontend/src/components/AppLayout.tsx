@@ -8,7 +8,9 @@ export function AppLayout() {
 
   function handleSearchSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    navigate('/suche')
+    const input = e.currentTarget.elements.namedItem('q') as HTMLInputElement
+    const q = input?.value.trim()
+    navigate(q ? `/suche?q=${encodeURIComponent(q)}` : '/suche')
   }
 
   async function handleLogout() {
@@ -24,6 +26,7 @@ export function AppLayout() {
           <form onSubmit={handleSearchSubmit} className="w-full max-w-sm">
             <input
               type="search"
+              name="q"
               placeholder="Schnellsuche …"
               className="w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
             />

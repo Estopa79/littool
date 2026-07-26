@@ -1,6 +1,10 @@
-import type { Source, SourceStatus } from './sources'
+import type { Author } from './sources'
+import type { SourceStatus } from './sources'
 
-export function formatAuthorYear(source: Source): string {
+type AuthorYearFields = { authors: Author[] | null; year: number | null }
+type RankingFields = { type: string | null; ranking_system: string | null; ranking_value: string | null }
+
+export function formatAuthorYear(source: AuthorYearFields): string {
   const year = source.year ? String(source.year) : '–'
   if (!source.authors || source.authors.length === 0) return year
   const first = source.authors[0].family || source.authors[0].given || '?'
@@ -8,7 +12,7 @@ export function formatAuthorYear(source: Source): string {
   return `${first}${suffix} ${year}`
 }
 
-export function formatRanking(source: Source): string {
+export function formatRanking(source: RankingFields): string {
   if (source.type === 'grau') return 'nicht anwendbar'
   if (!source.ranking_system || !source.ranking_value) return 'kein Ranking'
   return `${source.ranking_system} ${source.ranking_value}`

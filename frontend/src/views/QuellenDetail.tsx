@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { fetchSource, getSignedPdfUrl, updateSource, type Author, type SourceDetail } from '../lib/sources'
 import { STATUS_ICON, STATUS_LABEL } from '../lib/sourceFormat'
 
@@ -61,6 +61,8 @@ const inputClass =
 
 export function QuellenDetail() {
   const { id } = useParams<{ id: string }>()
+  const [searchParams] = useSearchParams()
+  const initialPage = Number(searchParams.get('page')) || 1
   const [source, setSource] = useState<SourceDetail | null>(null)
   const [form, setForm] = useState<FormState | null>(null)
   const [loading, setLoading] = useState(true)
@@ -68,8 +70,8 @@ export function QuellenDetail() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
-  const [pageInput, setPageInput] = useState('1')
-  const [pageJump, setPageJump] = useState(1)
+  const [pageInput, setPageInput] = useState(String(initialPage))
+  const [pageJump, setPageJump] = useState(initialPage)
 
   useEffect(() => {
     if (!id) return
