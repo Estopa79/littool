@@ -23,14 +23,27 @@ type SearchRequestBody = {
   match_limit?: number;
 };
 
+// Frontend (littool.vercel.app) ruft diese Function per Browser-Fetch aus
+// einer anderen Origin auf - ohne CORS-Header lehnt der Browser schon den
+// Preflight (OPTIONS) ab, bevor die eigentliche Anfrage überhaupt rausgeht.
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
 function jsonResponse(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
   });
 }
 
 Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: CORS_HEADERS });
+  }
+
   if (req.method !== "POST") {
     return jsonResponse({ error: "Nur POST erlaubt" }, 405);
   }

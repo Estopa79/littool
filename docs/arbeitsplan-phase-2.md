@@ -127,12 +127,24 @@ Test mit 5 Fragen, jeweils alle drei Modi verglichen:
 
 Subjektives Fazit: Hybrid ist nie schlechter als der jeweils bessere Einzelmodus - bei präzisen Fachbegriffen deckt er sich mit der Volltextsuche, bei natürlichsprachigen Fragen (2 von 5 Testfragen, und vermutlich der Regelfall für echte Recherchefragen dieser Arbeit) rettet er die Suche komplett, wo die Volltextsuche allein leer ausgeht. Damit klar die beste Standardeinstellung.
 
-## Paket 8 – Such-Ansicht (Frontend) ☐
+## Paket 8 – Such-Ansicht (Frontend) ☑
 
 - UI gemäß Wireframe: Suchfeld, Modus-Umschalter, Filter, Trefferkarten (Snippet mit Markierung, Kurzzitation, Seite, Ranking, PDF-Sprung zur Fundstelle).
 - Globale Schnellsuche oben rechts springt hierher.
 - Mobil vollwertig (Karten, Filter als Bottom-Sheet).
 - **Fertig, wenn:** Suche fühlt sich am Desktop und am Handy schnell und brauchbar an.
+
+**Notizen:** Architektur-Entscheidung zuerst geklärt (mit Nutzer abgestimmt): die in Paket 6 zurückgestellte Frage, wie die Query-Embedding-Berechnung sicher ans Frontend angebunden wird, ohne den Voyage-Key in den Browser zu lassen. Gelöst über eine neue Supabase Edge Function `search` (`supabase/functions/search/index.ts`) - hält den Voyage-Key serverseitig, bettet die Suchanfrage bei Bedarf ein (`input_type=query`) und reicht die Anfrage mit dem Auth-Header des aufrufenden Nutzers an `search_hybrid` weiter (kein Service-Role-Bypass, die bestehenden `to authenticated`-Grants greifen normal). Dafür einmalig Supabase-CLI-Infrastruktur fürs Projekt eingerichtet (`npx supabase login` interaktiv durch den Nutzer, `link`, `secrets set VOYAGE_API_KEY`, `functions deploy`).
+
+Sicherheitsfix vor dem Frontend-Rendering (Migration 0013): `ts_headline` in `search_fulltext`/`search_hybrid` fügte bisher literale `<mark>`/`</mark>`-Tags in den Snippet-Text ein. Da Snippets im Frontend über `dangerouslySetInnerHTML` gerendert werden müssen, um die Hervorhebung darzustellen, wäre das eine XSS-Lücke gewesen, falls ein PDF-Text zufällig "<"/">" enthält. Jetzt markiert `ts_headline` mit zwei Private-Use-Area-Zeichen (U+E000/U+E001); das Frontend escaped den kompletten Snippet-Text zuerst regulär für HTML und ersetzt erst danach genau diese Sentinel-Zeichen durch echte `<mark>`-Tags (`frontend/src/lib/search.ts:renderSnippetHtml`).
+
+Neue Ansicht `Suche.tsx`: Suchfeld, Modus-Radiobuttons (Hybrid/Nur Volltext/Semantisch), Filter (Typ, Ranking - Thema/FF laut Wireframe bewusst nicht gebaut, Schema existiert erst ab Phase 3, ebenso das Häkchen zum Verwenden, das erst Phase 4 kommt), Trefferkarten mit Kurzzitation, Ranking, hervorgehobenem Snippet, Seite und PDF-Sprung. Filter auf Desktop inline, auf Mobil als Bottom-Sheet (`showMobileFilters`-State). Globale Schnellsuche (`AppLayout.tsx`) übergibt den eingegebenen Text jetzt als `?q=`-Parameter, `Suche.tsx` startet damit automatisch eine Suche. `QuellenDetail.tsx` liest einen optionalen `?page=`-Parameter, damit der PDF-Sprung aus den Trefferkarten den Viewer direkt auf die richtige Seite springen lässt.
+
+Zwei echte Bugs beim ersten Live-Test gefunden und behoben:
+1. Erster Aufruf aus dem Browser scheiterte mit "Failed to send a request to the Edge Function" - die Function beantwortete den CORS-Preflight (OPTIONS) nicht und setzte keine CORS-Header; curl-Tests vorher hatten das nicht aufgedeckt, weil Server-zu-Server-Aufrufe keinen Preflight brauchen. Behoben durch explizite CORS-Header + OPTIONS-Handling in der Function, neu deployt.
+2. `curl` auf diesem Windows-Rechner schlug mit einem Schannel-Zertifikatsprüfungsfehler fehl (`CRYPT_E_NO_REVOCATION_CHECK`) - dieselbe Klasse Problem wie das früher mit `pip-system-certs` für Python gelöste SSL-Problem, hier mit `--ssl-no-revoke` umgangen (nur für die manuellen Diagnose-curl-Aufrufe relevant, nicht für die App selbst).
+
+Verifiziert per Claude in Chrome gegen die echte Produktivumgebung (littool.vercel.app, im bereits eingeloggten Chrome des Nutzers) nach Push + automatischem Vercel-Deploy, da für die sandboxed Vorschau keine Zugangsdaten vorlagen: Hybrid-Suche mit der Vertrauens-Frage aus Paket 6 liefert dieselben Treffer wie im CLI-Test; Volltext-Modus mit "dynamic capabilities" zeigt die Hervorhebung korrekt farbig; PDF-Sprung aus einer Trefferkarte öffnet die Detailseite mit vorausgefüllter Seitenzahl und der Viewer springt korrekt dorthin; globale Schnellsuche übergibt den Text und startet automatisch; mobiles Bottom-Sheet für Filter öffnet/schließt wie vorgesehen.
 
 ## Paket 9 – Backfill & Qualitätscheck ☐
 
