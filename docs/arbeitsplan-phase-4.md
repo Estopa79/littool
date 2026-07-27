@@ -6,7 +6,7 @@ Voraussetzung: Phase 3 abgeschlossen (Zitat-Pool funktioniert, AiLog wird befül
 
 ---
 
-## ⚠️ Offene Punkte (laufend aktualisiert, Stand 2026-07-27 nach Paket 5)
+## ⚠️ Offene Punkte (laufend aktualisiert, Stand 2026-07-27 nach Paket 6)
 
 Nichts davon blockiert die weiteren Phase-4-Pakete – Sammelstelle, damit nichts zwischen den Sitzungen verloren geht.
 
@@ -21,12 +21,15 @@ Nichts davon blockiert die weiteren Phase-4-Pakete – Sammelstelle, damit nicht
 **Scope-Entscheidungen, mit dir abgestimmt (kein Handlungsbedarf, nur zur Erinnerung):**
 - Suche-Ansicht bekommt kein Verwendet-Häkchen (Paket 2) – arbeitet auf `chunks`, nicht auf `passages`, keine 1:1-Beziehung zu einem Zitat.
 - Buchkapitel werden wie normale Bücher zitiert (Paket 4) – Schema hat kein Herausgeber-/Buchtitel-Feld.
+- KI-Verzeichnis-Export (Paket 6) nutzt Standardtexte je Aktionstyp für „Kritische Überprüfung" statt individueller Notizen, und Quelle/FF als Proxy für „Betroffene Stelle" statt echtem Kapitel (Sections existieren erst ab Phase 5).
 
 **Noch ungetestet (keine echten Daten vorhanden):**
 - `dissertation`-Formatierung in `lib/apaFormat.ts` (Paket 4) – 0 Quellen dieses Typs im Bestand, nur gegen den Code geprüft.
 
-**Bekannte Einschränkung, bewusst nicht mitgelöst:**
+**Bekannte Einschränkungen, bewusst nicht mitgelöst:**
 - Die In-Text-Zitation (`format_citation`-DB-Funktion, Phase 3) kennt die a/b-Suffixe aus dem Literaturverzeichnis (Paket 4) nicht – zwei Werke gleichen Autors/Jahres wären im Fließtext ununterscheidbar. Würde die bestandsweite DB-Funktion ändern, absichtlich nicht nebenbei erledigt.
+- Das KI-Verzeichnis (Paket 6) beschreibt die „Kritische Überprüfung" nur generisch je Aktionstyp, nicht individuell je Eintrag – ein Freitext-Notizfeld direkt im QS-Workflow (`/pruefen`, Phase 3 Paket 6) wäre präziser, ist aber ein eigener Umbau.
+- Mobiler Seiten-Overflow (375px) durch die `BottomTabBar` (8 Einträge passen nicht nebeneinander) – vorbestehend, auf jeder Ansicht reproduzierbar, nicht durch Phase 4 verursacht.
 
 Details und Einordnung jeweils in der Notiz des zugehörigen Pakets weiter unten; zusätzlich als Ideen in `docs/ideen-spaeter.md` vermerkt, wo sie über eine reine Erinnerung hinaus eigenständige Arbeit wären.
 
@@ -142,11 +145,23 @@ Live gegen die echte DB getestet: Bei einer echten bestätigten Passage mit Orig
 
 Idee „Übersetzungs-Kennzeichnung am Kopier-Button" aus `docs/ideen-spaeter.md` entfernt (jetzt umgesetzt).
 
-## Paket 6 – KI-Verzeichnis-Export ☐
+## Paket 6 – KI-Verzeichnis-Export ☑ (Format an echter Hochschulvorgabe angepasst, s. u.)
 
 - Protokolle-Ansicht, Tab „KI-Verzeichnis": AiLog gefiltert nach Monat/Zeitraum; gleichartige Aktionen pro Tag aggregiert („Übersetzung von 6 Passagen", „Zitat-Erzeugung für 3 Quellen").
 - Export als kopierbare Tabelle (Datum, Art der Nutzung, Bezug) – Format an der Hochschulvorgabe fürs KI-Verzeichnis orientieren (Autor liefert die Vorgabe in der Sitzung, falls vorhanden).
 - **Fertig, wenn:** Ein Monat lässt sich als saubere Tabelle nach Word kopieren.
+
+**Notizen:**
+
+Vorgabe lag diesmal tatsächlich vor: `docs/KI-Guidelines-KMU-Akademie.pdf` (KMU Akademie/Middlesex University, Stand 25.03.2026, vom Autor bereitgestellt). Abschnitt 2.7/2.8 verlangt ein „KI-Nutzungsverzeichnis" mit genau vier Spalten - **KI-Instrument | Verwendung | Kritische Überprüfung | Betroffene Stelle** - und ausdrücklich **jede einzelne Nutzung**, nicht aggregiert. Das ersetzt die urspünglich im Plan/Wireframe skizzierte 3-Spalten-Tages-Aggregation (Datum/Art/Bezug) - Vorgabe > Arbeitsplan/Wireframe, wie in CLAUDE.md für genau diesen Fall vorgesehen. Eine Datum-Spalte wurde zusätzlich ergänzt (in der Vorgabe selbst nicht enthalten, aber sinnvoll für die Monatsfilterung aus dem Arbeitsplan).
+
+Datenlücken gegenüber der Vorgabe, mit dem Nutzer besprochen:
+- **„Kritische Überprüfung"** verlangt eine individuelle Beschreibung, wie das KI-Ergebnis geprüft wurde - das AiLog speichert das bisher nicht, nur DASS über den QS-Workflow bestätigt wurde. Lösung (abgestimmt): `lib/aiVerzeichnis.ts` klassifiziert jeden Eintrag anhand `action_type` + `description`-Muster und setzt einen wahrheitsgetreuen Standardtext, der den tatsächlich verdrahteten Prüfmechanismus beschreibt (z. B. bei Zitaten: „Automatischer Textabgleich gegen den PDF-Chunk bei der Erzeugung … zusätzlich manuell im PDF-Viewer geprüft und über die Prüfen-Ansicht bestätigt"). Nicht erkannte Fälle würden sichtbar als „[Kritische Überprüfung nicht automatisch klassifizierbar]" markiert statt geraten - kam bei keinem der 433 echten Einträge vor. Ein individuelles Freitext-Notizfeld direkt im QS-Workflow (Phase 3, Paket 6) wäre präziser, ist aber ein eigener Umbau - als Idee vorgemerkt.
+- **„Betroffene Stelle"** verlangt das Kapitel der Arbeit - Sections/Gliederung existieren erst ab Phase 5. Proxy (abgestimmt): Quelle bzw. Forschungsfrage, z. B. „Quelle: Charoensuk et al. 2014 (FF TSFF2)" oder bei korpusweiten Aktionen „Gesamter Quellenbestand (Kriterien-Set)" - muss beim Übertragen in die Arbeit von Hand auf das echte Kapitel umgeschrieben werden.
+
+`lib/aiVerzeichnis.ts`: ein Fetch aller `ai_log_entries` (Bestandsgröße macht das unproblematisch, gleiches Muster wie andernorts), Klassifikation rein clientseitig nach sechs bekannten `description`-Mustern je `action_type` (Zitat-Extraktion, Methodenprofil, Paraphrase, Funktions-Vorschlag, Themen/Relevanz-Analyse, Kriterien-Bewertung, Kriterien-Vorschlag, Deskriptionsmatrix) + Fallback-Marker. „KI-Instrument" ist konstant `Claude (claude-sonnet-4-6)`, da das Tool ausschließlich dieses Modell verwendet (CLAUDE.md-Vorgabe). Kopieren nutzt `navigator.clipboard.write` mit einem `ClipboardItem`, der sowohl `text/html` (eine echte `<table>`, escaped) als auch `text/plain` (TSV als Fallback) enthält - beim Einfügen in Word entsteht dadurch eine echte Tabelle, nicht nur tabgetrennter Text.
+
+Live gegen die echte DB verifiziert (rein lesend, keine Testdaten nötig): 433 reale Einträge (Juli 2026, bisher einziger vorhandener Monat), Klassifikation per JS-Auswertung der gerenderten Tabelle geprüft - 91 Methodenprofil, 149 Zitat-Kandidaten (inkl. korrekt extrahiertem FF-Kürzel), 91 Funktions-Vorschläge, 7 Kriterien-Bewertungen, 1 Kriterien-Vorschlag (korrekt ohne Quellenbezug als „Gesamter Quellenbestand" ausgewiesen), 1 Deskriptionsmatrix-Vorschlag, **0 nicht klassifizierbare Fälle**. HTML-Escaping direkt getestet (`&`, `<`, `"` korrekt escaped). Kopieren-Mechanismus per Interception von `navigator.clipboard.write` verifiziert (Tabelle + TSV korrekt erzeugt); echte Browser-Ausführung scheitert weiterhin an der Clipboard-Berechtigung des Test-Tools (bereits mehrfach dokumentiert). Mobile Ansicht (375px): Tabelle bleibt korrekt in ihrem eigenen `overflow-x-auto`-Container - der auf dieser Breite auftretende Seiten-Overflow stammt von der bestehenden `BottomTabBar` (8 Eintraege), reproduziert auch auf der unveraenderten Bibliothek-Seite, also kein Regressions-Fund dieses Pakets (als offener Punkt vermerkt).
 
 ## Paket 7 – Aktivitätsübersicht ☐
 
