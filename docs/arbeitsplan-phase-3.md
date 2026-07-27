@@ -245,6 +245,19 @@ Analyse-Teil abgeschlossen: `profile-methods` einmalig über den gesamten Bestan
 
 QS-Durchgang und Ehrlichkeitstest bewusst NICHT von mir übernommen: beim Stichprobencheck fiel auf, dass erst 6 Passagen ueberhaupt bestaetigt sind (ausschliesslich eigene Testdaten aus den Live-Verifikationen der Pakete 4/6/7/9) - ein „10-Zitate-Ehrlichkeitstest" waere an diesem Punkt nur ein Test der eigenen Testdaten gewesen. Wichtiger: Relevanz-/Themen-Bestaetigung ist eine fachliche, wissenschaftliche Einschaetzung - genau dafuer wurde die QS-Ansicht (Paket 6) gebaut, das darf nicht die KI fuer den Autor "durchwinken". Mit dem Nutzer abgestimmt: er uebernimmt den QS-Durchgang selbst über `/pruefen` (30 Quellen haben mindestens eine Relevanz-Bewertung „zentral" = 3, davon 40 einzelne unbestätigte Bewertungen als Ausgangspunkt). Der Stichproben-Ehrlichkeitstest folgt, sobald ausreichend echte Bestätigungen vorliegen - Paket 10 bleibt bis dahin offen markiert.
 
+## ⚠️ Eingeschobenes Paket: Deskriptionsmatrix (Vorstufe zur Evaluationsmatrix) ☑
+
+Nutzer-Feedback: Vor der (vollautomatisiert bewertenden) Evaluationsmatrix soll es eine reine Synthese-Übersicht geben - näher an einer klassischen Literatur-Synthese-Tabelle, von Hand befüllbar oder per KI-Button vorgeschlagen, mit einer expliziten Checkbox-Auswahl, welche Quellen tatsächlich in die Matrix aufgenommen werden.
+
+- Migration `0028_descriptive_matrix.sql`: `descriptive_matrix_entries` (source_id PK, `included`, fünf Textfelder, `confirmed`).
+- Spalten (nach Rücksprache mit dem Nutzer anhand einer mitgebrachten Beispieltabelle): Checkbox, Autor/Jahr, Titel, Einordnung, Theoretische Fundierung, Art der Stichprobe, Analysemethode, Wesentliche Erkenntnisse.
+- Neue Edge Function `generate-descriptive-entry` (gleiches Pull-Modell-Prinzip wie generate-citations/generate-topic-relevance): ein Claude-Aufruf pro Quelle füllt alle fünf Felder auf einmal; setzt `theoretische_fundierung`/`stichprobe`/`analysemethode` bewusst auf `null`, wenn die Quelle keine eigene empirische/theoretische Studie ist (getestet an Teece 1997 - korrekt als rein konzeptionell erkannt, Stichprobe/Methode blieben leer).
+- Neuer eigener Menüpunkt „Deskriptionsmatrix" in der Sidebar/BottomTabBar (direkt unter Forschungsfragen), eigene Route `/deskriptionsmatrix`.
+- Jede Zelle einzeln editierbar (Textarea, Speichern per Blur - manuelle Korrektur setzt `confirmed=true`), Checkbox „Nur ausgewählte anzeigen" zur Vorschau der finalen Auswahl.
+- **Fertig, wenn:** Tabelle mit allen Spalten steht, Checkbox-Auswahl filtert korrekt, KI-Button füllt die Felder plausibel, manuelle Bearbeitung speichert zuverlässig.
+
+**Notizen:** Live verifiziert (nach Anheben des zwischenzeitlich erreichten Anthropic-API-Limits durch den Nutzer): KI-Einschätzung, Checkbox-Toggle und manuelle Zellbearbeitung persistieren korrekt in der DB. Eine erste Testrunde mit synthetischen JS-Events zum Simulieren von Tastatureingaben zeigte scheinbar fehlgeschlagene Saves - das lag an der Testmethode selbst (Events ohne echten Fokus/Blur-Zyklus), nicht am Code; mit echter Fokus→Tippen→Wegklicken-Interaktion (`computer`-Tool) hat der Save zuverlässig funktioniert.
+
 ## Paket 11 – Evaluationsmatrix: Kriterien & KI-Vorbewertung ☐
 
 - Migration: `criterion_sets`, `criteria`, `source_criteria` (wert 0/1/2, begründung, confirmed) gemäß Konzept.

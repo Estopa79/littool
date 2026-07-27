@@ -7,6 +7,7 @@ import { Schreibwerkstatt } from './views/Schreibwerkstatt'
 import { Bibliothek } from './views/Bibliothek'
 import { QuellenDetail } from './views/QuellenDetail'
 import { Forschungsfragen } from './views/Forschungsfragen'
+import { DeskriptionsMatrix } from './views/DeskriptionsMatrix'
 import { Pruefung } from './views/Pruefung'
 import { PruefungQuelle } from './views/PruefungQuelle'
 import { Suche } from './views/Suche'
@@ -33,6 +34,7 @@ function App() {
             <Route path="pruefen" element={<Pruefung />} />
             <Route path="pruefen/:sourceId" element={<PruefungQuelle />} />
             <Route path="forschungsfragen" element={<Forschungsfragen />} />
+            <Route path="deskriptionsmatrix" element={<DeskriptionsMatrix />} />
             <Route path="suche" element={<Suche />} />
             <Route path="verwendet" element={<Verwendet />} />
             <Route path="protokolle" element={<Protokolle />} />
