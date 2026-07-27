@@ -6,6 +6,32 @@ Voraussetzung: Phase 3 abgeschlossen (Zitat-Pool funktioniert, AiLog wird befül
 
 ---
 
+## ⚠️ Offene Punkte (laufend aktualisiert, Stand 2026-07-27 nach Paket 5)
+
+Nichts davon blockiert die weiteren Phase-4-Pakete – Sammelstelle, damit nichts zwischen den Sitzungen verloren geht.
+
+**Beim Autor (manuelle Arbeit ausstehend):**
+- Phase-3-Paket-B (BibTeX-Import): 28 unmatched Einträge liegen als Datei vor, warten auf manuelle Prüfung.
+- Phase-3-Paket-10 (QS-Durchgang über `/pruefen`): läuft erkennbar bereits (mehrere Quellen/Passagen zwischenzeitlich bestätigt), aber noch nicht abgeschlossen.
+- Datenqualität, beim APA-Test in Paket 4 entdeckt (nicht automatisch korrigiert, s. Prinzip „nie stillschweigend ändern"):
+  - Quelle `f8f3b1dc` (Jonathan, IT Alignment …): Jahr fälschlich „22" statt „2022".
+  - Quelle `c24b4592` (Charoensuk 2014): Heft-Feld „Pre-Printed" statt echter Nummer.
+  - Quelle `85883a54` (Digitalisierung-in-der-Versicherungswirtschaft): `given`/`family` vertauscht („Christine"/„Völzow" statt umgekehrt).
+
+**Scope-Entscheidungen, mit dir abgestimmt (kein Handlungsbedarf, nur zur Erinnerung):**
+- Suche-Ansicht bekommt kein Verwendet-Häkchen (Paket 2) – arbeitet auf `chunks`, nicht auf `passages`, keine 1:1-Beziehung zu einem Zitat.
+- Buchkapitel werden wie normale Bücher zitiert (Paket 4) – Schema hat kein Herausgeber-/Buchtitel-Feld.
+
+**Noch ungetestet (keine echten Daten vorhanden):**
+- `dissertation`-Formatierung in `lib/apaFormat.ts` (Paket 4) – 0 Quellen dieses Typs im Bestand, nur gegen den Code geprüft.
+
+**Bekannte Einschränkung, bewusst nicht mitgelöst:**
+- Die In-Text-Zitation (`format_citation`-DB-Funktion, Phase 3) kennt die a/b-Suffixe aus dem Literaturverzeichnis (Paket 4) nicht – zwei Werke gleichen Autors/Jahres wären im Fließtext ununterscheidbar. Würde die bestandsweite DB-Funktion ändern, absichtlich nicht nebenbei erledigt.
+
+Details und Einordnung jeweils in der Notiz des zugehörigen Pakets weiter unten; zusätzlich als Ideen in `docs/ideen-spaeter.md` vermerkt, wo sie über eine reine Erinnerung hinaus eigenständige Arbeit wären.
+
+---
+
 ## Paket 0 – Rückblick Phase 3 ☑
 
 - Offene Punkte prüfen: unbestätigte Zuordnungen (Anzahl), Zitat-Pool-Größe, AiLog-Vollständigkeit (loggen wirklich alle KI-Aktionen?).
