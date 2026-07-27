@@ -34,11 +34,19 @@ Voraussetzung: Phase 3 abgeschlossen (Zitat-Pool funktioniert, AiLog wird befül
 
 *AiLog-Vollständigkeit:* Alle Code-Pfade, die Claude aufrufen, protokollieren nachweislich (Grep über Worker + alle 6 Edge Functions): `analysis.py` (Themen/Relevanz, Funktions-Vorschlag, Methodenprofil, Kriterien-Bewertung – 4 Insert-Stellen), `passages.py` (Zitat-Extraktion), sowie die Edge Functions `generate-citations`, `paraphrase-passage`, `generate-topic-relevance`, `generate-descriptive-entry`, `suggest-criteria`, `generate-criteria-evaluation`. Nicht-KI-Aktionen (Crossref-/OpenAlex-Anreicherung, BibTeX-Import) loggen bewusst nicht – kein Verstoß gegen Prinzip 3. Verteilung der 453 vorhandenen Einträge: 202 `analyse`, 156 `passagen_extraktion`, 95 `methodenprofil`, 0 `paraphrase` (Funktion ist korrekt verdrahtet, wurde aber seit dem einmaligen Kalibrier-Test in Paket 9 nicht mehr produktiv genutzt). Ein Eintrag ganz ohne Quellen-/Passagen-Bezug (`suggest-criteria`, korpusweit) ist erwartungsgemäß laut Migration 0030. Keine Lücke gefunden, keine Code-Änderung nötig.
 
-## Paket 1 – Schema: Dokumente & Verwendung ☐
+## Paket 1 – Schema: Dokumente & Verwendung ☑
 
 - Migration: `documents` in Minimalform (id, typ: ISP/Exposé/Dissertation, titel, status) – bewusst OHNE Gliederung/Sections, die kommen in Phase 5. Die drei realen Dokumente als Seed anlegen.
 - Migration: `used_citations` (passage_id, document_id, angehakt_am) – Häkchen gilt pro Dokument.
 - **Fertig, wenn:** Migrationen laufen, ein Zitat lässt sich per SQL für ISP anhaken, für Diss nicht.
+
+**Notizen:**
+
+Migration `0031_documents_used_citations.sql`. `documents.type` als Check-Constraint (`isp`/`expose`/`dissertation`, englisch/snake_case per CLAUDE.md), `status` ebenfalls constraint (`active`/`submitted`/`archived`) analog zum bestehenden Muster bei `sources.status`. Die drei realen Dokumente wurden geseedet (Titel entsprechen den Wireframe-Labels des künftigen Dropdowns, keine Testdaten). `used_citations` ohne eigenes Boolean-Flag - Existenz der Zeile (`passage_id`, `document_id`) als Primary Key *ist* das Häkchen, `used_at` statt `angehakt_am` (Spaltennamen englisch).
+
+Bei `db push` aufgefallen: Die Migrations-History-Tabelle auf Remote kannte nur `0001` als angewendet, obwohl Schema/Daten aller 30 folgenden Migrationen nachweislich vorhanden waren (vermutlich frühere Anwendung außerhalb von `supabase db push`, z. B. direkt per SQL/Dashboard). Ein blinder `db push` hätte versucht, bereits existierende Objekte erneut anzulegen (Fehler beim erneuten `create policy` aus 0002 bestätigte das). Behoben mit `supabase migration repair --status applied 0002…0030` (reine Bookkeeping-Korrektur, keine SQL-Ausführung), erst danach `db push` für die neue Migration 0031 - History jetzt lückenlos synchron.
+
+Test (Paket-Kriterium) direkt per REST/SQL gegen die echte DB: ein reales Zitat für ISP angehakt, Abfrage bestätigt Häkchen für ISP und korrekt keins für Dissertation, Testzeile danach wieder entfernt (keine bleibenden Daten aus dem Test).
 
 ## Paket 2 – Häkchen-UI & Dokument-Kontext ☐
 
