@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { fetchSources, type Source } from '../lib/sources'
 import { formatAuthorYear } from '../lib/sourceFormat'
+import { fetchAllSourceTopics, fetchAllTopics, type TopicOption } from '../lib/qsReview'
 import {
   fetchAllDescriptiveEntries,
   generateDescriptiveEntry,
@@ -11,6 +12,40 @@ import {
 } from '../lib/descriptiveMatrix'
 
 type Row = Source & DescriptiveEntry
+
+type SortKey =
+  | 'author_year'
+  | 'title'
+  | 'einordnung'
+  | 'theoretische_fundierung'
+  | 'stichprobe'
+  | 'analysemethode'
+  | 'erkenntnisse'
+type SortDir = 'asc' | 'desc'
+
+const TEXT_FIELDS: Array<{
+  key: Extract<SortKey, 'einordnung' | 'theoretische_fundierung' | 'stichprobe' | 'analysemethode' | 'erkenntnisse'>
+  label: string
+  width: string
+}> = [
+  { key: 'einordnung', label: 'Einordnung', width: 'w-40' },
+  { key: 'theoretische_fundierung', label: 'Theoretische Fundierung', width: 'w-40' },
+  { key: 'stichprobe', label: 'Art der Stichprobe', width: 'w-40' },
+  { key: 'analysemethode', label: 'Analysemethode', width: 'w-40' },
+  { key: 'erkenntnisse', label: 'Wesentliche Erkenntnisse', width: 'w-56' },
+]
+
+function toCsv(rows: Row[]): string {
+  const header = ['Ausgewählt', 'Autor/Jahr', 'Titel', ...TEXT_FIELDS.map((f) => f.label)]
+  const lines = rows.map((r) => [
+    r.included ? 'Ja' : 'Nein',
+    formatAuthorYear(r),
+    r.title,
+    ...TEXT_FIELDS.map((f) => r[f.key] ?? ''),
+  ])
+  const escape = (v: string) => (v.includes(',') || v.includes('"') || v.includes('\n') ? `"${v.replace(/"/g, '""')}"` : v)
+  return [header, ...lines].map((line) => line.map(escape).join(',')).join('\n')
+}
 
 const EMPTY_ENTRY: Omit<DescriptiveEntry, 'source_id'> = {
   included: false,
@@ -59,6 +94,11 @@ export function DeskriptionsMatrix() {
   const [onlyIncluded, setOnlyIncluded] = useState(false)
   const [generatingId, setGeneratingId] = useState<string | null>(null)
   const [generateError, setGenerateError] = useState<string | null>(null)
+  const [allTopics, setAllTopics] = useState<TopicOption[]>([])
+  const [filterTopic, setFilterTopic] = useState('')
+  const [sourceIdsByTopic, setSourceIdsByTopic] = useState<Map<string, Set<string>>>(new Map())
+  const [sortKey, setSortKey] = useState<SortKey>('author_year')
+  const [sortDir, setSortDir] = useState<SortDir>('asc')
 
   useEffect(() => {
     Promise.all([fetchSources(), fetchAllDescriptiveEntries()])
@@ -68,7 +108,30 @@ export function DeskriptionsMatrix() {
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false))
+    fetchAllTopics().then(setAllTopics)
+    fetchAllSourceTopics().then((rows) => {
+      const map = new Map<string, Set<string>>()
+      for (const row of rows) {
+        if (!map.has(row.topic_id)) map.set(row.topic_id, new Set())
+        map.get(row.topic_id)!.add(row.source_id)
+      }
+      setSourceIdsByTopic(map)
+    })
   }, [])
+
+  function toggleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortKey(key)
+      setSortDir('asc')
+    }
+  }
+
+  function sortIndicator(key: SortKey) {
+    if (sortKey !== key) return ''
+    return sortDir === 'asc' ? ' ▲' : ' ▼'
+  }
 
   const rows: Row[] = useMemo(
     () =>
@@ -80,11 +143,32 @@ export function DeskriptionsMatrix() {
   )
 
   const visible = useMemo(() => {
-    const result = onlyIncluded ? rows.filter((r) => r.included) : rows
-    return [...result].sort((a, b) => formatAuthorYear(a).localeCompare(formatAuthorYear(b)))
-  }, [rows, onlyIncluded])
+    let result = onlyIncluded ? rows.filter((r) => r.included) : rows
+    if (filterTopic) {
+      const ids = sourceIdsByTopic.get(filterTopic) ?? new Set()
+      result = result.filter((r) => ids.has(r.id))
+    }
+    return [...result].sort((a, b) => {
+      let cmp = 0
+      if (sortKey === 'author_year') cmp = formatAuthorYear(a).localeCompare(formatAuthorYear(b))
+      else if (sortKey === 'title') cmp = a.title.localeCompare(b.title)
+      else cmp = (a[sortKey] ?? '').localeCompare(b[sortKey] ?? '')
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+  }, [rows, onlyIncluded, filterTopic, sourceIdsByTopic, sortKey, sortDir])
 
   const includedCount = rows.filter((r) => r.included).length
+
+  function exportCsv() {
+    const csv = toCsv(visible)
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'deskriptionsmatrix.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   function updateLocalEntry(sourceId: string, patch: Partial<DescriptiveEntry>) {
     setEntries((prev) => {
@@ -139,7 +223,7 @@ export function DeskriptionsMatrix() {
         vorschlagen lassen. Häkchen links legt fest, welche Quellen tatsächlich in die Matrix übernommen werden.
       </p>
 
-      <div className="mb-4 flex items-center gap-3">
+      <div className="mb-4 flex flex-wrap items-center gap-3">
         <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
           <input
             type="checkbox"
@@ -148,21 +232,51 @@ export function DeskriptionsMatrix() {
           />
           Nur ausgewählte anzeigen ({includedCount})
         </label>
+        <select
+          value={filterTopic}
+          onChange={(e) => setFilterTopic(e.target.value)}
+          className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+        >
+          <option value="">Alle Themenfelder</option>
+          {allTopics.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.name}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          onClick={exportCsv}
+          className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+        >
+          CSV exportieren
+        </button>
         {generateError && <p className="text-sm text-red-600 dark:text-red-400">Fehler: {generateError}</p>}
       </div>
+      <p className="mb-2 text-xs text-slate-400">Tabellenkopf anklicken zum Sortieren.</p>
 
       <div className="overflow-x-auto">
         <table className="w-full min-w-[1200px] table-fixed border-collapse text-sm">
           <thead>
             <tr className="border-b border-slate-200 text-left text-slate-500 dark:border-slate-800 dark:text-slate-400">
               <th className="w-10 py-2 pr-2 font-medium"></th>
-              <th className="w-32 py-2 pr-3 font-medium">Autor/Jahr</th>
-              <th className="w-48 py-2 pr-3 font-medium">Titel</th>
-              <th className="w-40 py-2 pr-3 font-medium">Einordnung</th>
-              <th className="w-40 py-2 pr-3 font-medium">Theoretische Fundierung</th>
-              <th className="w-40 py-2 pr-3 font-medium">Art der Stichprobe</th>
-              <th className="w-40 py-2 pr-3 font-medium">Analysemethode</th>
-              <th className="w-56 py-2 pr-3 font-medium">Wesentliche Erkenntnisse</th>
+              <th className="w-32 py-2 pr-3 font-medium">
+                <button type="button" className="select-none hover:text-slate-700 dark:hover:text-slate-200" onClick={() => toggleSort('author_year')}>
+                  Autor/Jahr{sortIndicator('author_year')}
+                </button>
+              </th>
+              <th className="w-48 py-2 pr-3 font-medium">
+                <button type="button" className="select-none hover:text-slate-700 dark:hover:text-slate-200" onClick={() => toggleSort('title')}>
+                  Titel{sortIndicator('title')}
+                </button>
+              </th>
+              {TEXT_FIELDS.map((f) => (
+                <th key={f.key} className={`${f.width} py-2 pr-3 font-medium`}>
+                  <button type="button" className="select-none hover:text-slate-700 dark:hover:text-slate-200" onClick={() => toggleSort(f.key)}>
+                    {f.label}{sortIndicator(f.key)}
+                  </button>
+                </th>
+              ))}
               <th className="w-28 py-2 pr-3 font-medium"></th>
             </tr>
           </thead>
