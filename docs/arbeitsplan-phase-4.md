@@ -63,10 +63,20 @@ Test (Paket-Kriterium) direkt per REST/SQL gegen die echte DB: ein reales Zitat 
 
 Verifikation: TypeScript-Build (`tsc -b`) und `vite build` fehlerfrei (ein vorbestehender, unabhängiger Fehler in `VennDiagram.tsx` bleibt unberührt, vor/nach dem Vergleich per `git stash` bestätigt). Live im Browser gegen die echte DB getestet (eine reale Passage testweise auf `confirmed=true` gesetzt, danach wieder zurückgesetzt - kein bleibender Dateneingriff): Checkbox in der FF-Ansicht angehakt → Zeile in `used_citations` mit `document_id=ISP` per Direktabfrage bestätigt; Dokument auf Dissertation umgeschaltet → Checkbox korrekt leer (per-Dokument-Zustand funktioniert); zurück zu ISP → wieder angehakt; Abhaken → Zeile korrekt gelöscht. Gleicher Test zusätzlich in `QuellenDetail.tsx` wiederholt (dieselbe Komponente, anderer Einbauort) - persistiert ebenfalls korrekt. Mobile Ansicht (375px) geprüft: Dropdown im Header verursacht keinen horizontalen Overflow.
 
-## Paket 3 – Verwendet-Ansicht ☐
+## Paket 3 – Verwendet-Ansicht ☑
 
 - Ansicht gemäß Wireframe: Zähler („n verwendete Zitate aus m Quellen"), Gruppierung umschaltbar (nach Quelle / nach Forschungsfrage), Karten mit Kurzzitation und Kopier-Buttons, Abhaken direkt hier möglich.
 - **Fertig, wenn:** Die Ansicht den echten Arbeitsstand des aktiven Dokuments zeigt.
+
+**Notizen:**
+
+Ersetzt den Platzhalter-View. `lib/usedCitations.ts` laedt `used_citations` fuer das aktive Dokument in einem verschachtelten Select (→ `passages` → `research_questions`/`sources`), gleiches Join-Muster wie `ffView.ts`. Die Wireframe-Gruppierung „nach Abschnitt" existiert noch nicht (Section kommt erst Phase 5) - stattdessen wie im Arbeitsplan „nach Forschungsfrage" (Arbeitsplan > Wireframe laut CLAUDE.md). Karten zeigen bewusst nur einen einzelnen „Zitation kopieren"-Button (Original/Übersetzung/Paraphrase getrennt mit Kennzeichnung ist explizit Paket 5) - kein Vorgriff.
+
+Zaehler und Gruppen filtern reaktiv ueber `isUsed()` aus dem in Paket 2 gebauten `ActiveDocumentContext` - die per Join geladene Liste ist die Obermenge, das Context-Set aus `used_citations` bestimmt live, was tatsaechlich sichtbar bleibt. Dadurch aktualisieren sich Zaehler/Gruppen sofort beim Abhaken in dieser Ansicht, ohne Neuladen.
+
+Live gegen die echte DB getestet (3 reale Passagen aus 2 Quellen/2 Forschungsfragen testweise bestaetigt und fuer ISP angehakt, hinterher wieder vollstaendig zurueckgesetzt - kein bleibender Dateneingriff): Zaehler „3 verwendete Zitate aus 2 Quellen" korrekt, Gruppierung nach Quelle (Charoensuk et al. 2014: 2, Queiroz et al. 2020: 1) und nach Forschungsfrage (HFF: 2, TSFF2: 1) beide korrekt, Karten-Details (Original/Übersetzung/Zitation/PDF-Link) stimmen. Abhaken direkt in der Verwendet-Ansicht entfernt die Karte sofort und aktualisiert den Zaehler auf „2 verwendete Zitate aus 2 Quellen" - per Direktabfrage bestaetigt, dass die Zeile in `used_citations` tatsaechlich geloescht wurde.
+
+Nebenbefund beim Testen: 3 Passagen sind zwischenzeitlich echt (nicht durch mich) auf `confirmed=true` gesetzt - der QS-Durchgang durch den Nutzer (`/pruefen`) laeuft offenbar bereits, unangetastet gelassen.
 
 ## Paket 4 – Literaturverzeichnis-Generator ☐
 
