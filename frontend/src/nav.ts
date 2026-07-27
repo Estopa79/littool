@@ -9,6 +9,7 @@ export const navItems: NavItem[] = [
   { path: '/bibliothek', label: 'Bibliothek', icon: '📚' },
   { path: '/forschungsfragen', label: 'Forschungsfragen', icon: '❓' },
   { path: '/deskriptionsmatrix', label: 'Deskriptionsmatrix', icon: '📐' },
+  { path: '/evaluationsmatrix', label: 'Evaluationsmatrix', icon: '📊' },
   { path: '/suche', label: 'Suche', icon: '🔍' },
   { path: '/verwendet', label: 'Verwendet', icon: '✅' },
   { path: '/protokolle', label: 'Protokolle', icon: '📋' },

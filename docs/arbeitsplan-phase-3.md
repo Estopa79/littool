@@ -258,7 +258,7 @@ Nutzer-Feedback: Vor der (vollautomatisiert bewertenden) Evaluationsmatrix soll 
 
 **Notizen:** Live verifiziert (nach Anheben des zwischenzeitlich erreichten Anthropic-API-Limits durch den Nutzer): KI-Einschätzung, Checkbox-Toggle und manuelle Zellbearbeitung persistieren korrekt in der DB. Eine erste Testrunde mit synthetischen JS-Events zum Simulieren von Tastatureingaben zeigte scheinbar fehlgeschlagene Saves - das lag an der Testmethode selbst (Events ohne echten Fokus/Blur-Zyklus), nicht am Code; mit echter Fokus→Tippen→Wegklicken-Interaktion (`computer`-Tool) hat der Save zuverlässig funktioniert.
 
-## Paket 11 – Evaluationsmatrix: Kriterien & KI-Vorbewertung ☐
+## Paket 11 – Evaluationsmatrix: Kriterien & KI-Vorbewertung ☑ (umgebaut, s. u.)
 
 - Migration: `criterion_sets`, `criteria`, `source_criteria` (wert 0/1/2, begründung, confirmed) gemäß Konzept.
 - Einstellungs-Bereich: Kriterien-Set anlegen (Name + Kriterien mit Kurznamen, sortierbar); das reale Set der Forschungslücken-Matrix (8 Kriterien) eintragen.
@@ -266,6 +266,8 @@ Nutzer-Feedback: Vor der (vollautomatisiert bewertenden) Evaluationsmatrix soll 
 - Worker-Job: KI-Vorbewertung je Quelle × Kriterium (voll/teilweise/nicht, mit Ein-Satz-Begründung), als `unbestätigt`; läuft über die Analyse-Hilfsschicht, AiLog inklusive.
 - Bestehende Bewertungen aus der vorhandenen `Evaluationsmatrix_Interaktiv.html` (liegt als Referenz in `docs/`) als Startdaten importieren – die dort per Hand bewerteten Quellen gelten als `bestätigt`.
 - **Fertig, wenn:** Das 8-Kriterien-Set steht, importierte Bewertungen stimmen mit der HTML-Vorlage überein, neue Quellen werden vorbewertet.
+
+**Umgebaut nach weiterem Nutzer-Feedback, siehe eigener Abschnitt „⚠️ Eingeschobenes Paket: Evaluationsmatrix (Neubau)" weiter unten** – Kern-Idee (Kriterien, 0/1/2-Bewertung, KI-Vorbewertung, Import der HTML-Vorlage) blieb erhalten, aber Skala auf vier Stufen erweitert, Kriterien-Vorschlag/-Verwaltung direkt in der Matrix-Ansicht statt separatem Einstellungsbereich, Zeilen jetzt an die Deskriptionsmatrix-Auswahl gekoppelt.
 
 ## Paket 12 – Evaluationsmatrix: Ansicht & Export ☐
 
@@ -299,6 +301,23 @@ Nach Abschluss der Analyse-Batches (Paket 10/11) hat der Autor die App Schritt f
 **Dritte Runde (letzter Punkt):** Die „🤖 eingeordnet"-Anzeige plus Button „KI-Einordnung" (falls noch nicht eingeordnet) gibt es jetzt auch direkt in der Bibliotheksübersicht (Tabellenspalte + mobile Karte), nicht nur auf der Detailseite - gleiche Logik/Edge-Function, per Klick ohne Umweg über die Detailseite auslösbar.
 
 Alle Punkte aus dem Feedback-Durchgang sind damit abgearbeitet.
+
+---
+
+## ⚠️ Eingeschobenes Paket: Evaluationsmatrix (Neubau) ☑
+
+Nutzer-Feedback: Die Evaluationsmatrix soll direkt auf der Deskriptionsmatrix-Auswahl aufbauen (nur angehakte Quellen als Zeilen), Kriterien sollen händisch (Beschreibung + Herleitung, per „+") oder per KI-Vorschlag (auf Basis der ausgewählten Quellen, mit Begründung) verwaltbar sein, direkt oberhalb der Matrix - und die Zellbewertung soll eine vierstufige Skala (voll/halb/viertel/leer) statt der bisherigen dreistufigen (voll/teilweise/nicht) nutzen, ebenfalls manuell oder per KI-Knopf pro Zeile.
+
+- Migration `0029_evaluationsmatrix_rework.sql`: `source_criteria.value` auf vier Stufen erweitert (0=leer,1=viertel,2=halb,3=voll), bestehende Werte automatisch umgerechnet (alt 2→neu 3, alt 1→neu 2, alt 0 bleibt); `criteria.confirmed` ergänzt (bestehende Kriterien gelten als bestätigt).
+- Migration `0030_ai_log_entries_allow_corpuswide.sql`: Check-Constraint entfernt, der `source_id`/`passage_id` als Pflichtfeld erzwang - nötig, weil der neue „Kriterien vorschlagen"-Button korpusweit (nicht an einer einzelnen Quelle) läuft und trotzdem geloggt werden muss (Belegbarkeitsprinzip).
+- Neue Edge Function `suggest-criteria`: liest Thema, Forschungsfragen, Themenfelder und die in der Deskriptionsmatrix ausgewählten Quellen (inkl. Einordnung/Fundierung/Erkenntnisse als Synthese-Kontext), schlägt 5-8 Kriterien mit Beschreibung + Herleitung vor, hängt sie unbestätigt an das bestehende Kriterien-Set an.
+- Neue Edge Function `generate-criteria-evaluation`: bewertet eine Quelle gegen alle aktuell vorhandenen Kriterien auf einmal (vierstufige Skala), ersetzt nur unbestätigte Zellen.
+- Neue Ansicht `EvaluationsMatrix.tsx`, eigener Menüpunkt direkt unter Deskriptionsmatrix (`/evaluationsmatrix`): Kriterien-Bereich oben (händisch anlegen/löschen/bearbeiten, KI-Vorschlag-Button), Matrix darunter (Zeilen = Deskriptionsmatrix-Auswahl, Spalten = Kriterien, Zellen als Dropdown 0-3, „KI-Einschätzung"-Button je Zeile).
+- **Fertig, wenn:** Kriterien lassen sich anlegen/löschen/per KI vorschlagen, Zellen lassen sich manuell setzen und per KI einschätzen, nur die in der Deskriptionsmatrix ausgewählten Quellen erscheinen als Zeilen.
+
+**Notizen:** Live verifiziert (nach Anheben des Anthropic-API-Limits durch den Nutzer): `suggest-criteria` erzeugte 8 stimmige, auf die echten Forschungsfragen/Themenfelder bezogene Kriterien; `generate-criteria-evaluation` bewertete Teece 1997 gegen alle 16 Kriterien plausibel (u. a. Dynamic Capabilities = voll, BITA-Konstrukt = nicht). Manuelles Setzen einer Zelle über das Dropdown sowie das manuelle Anlegen und Löschen eines Kriteriums über die „+ Kriterium"-Maske wurden jeweils in der DB verifiziert.
+
+**Vorfall bei der eigenen Lösch-Testung (selbst verursacht, nicht App-Bug):** Beim ersten Testversuch, ein Test-Kriterium über den „✗ Entfernen"-Button zu löschen, war der DOM-Selektor im Test-Skript zu ungenau (`closest('div')` statt `closest('li')`) und traf dadurch den falschen Button - gelöscht wurde nicht das Testkriterium, sondern das echte, seit Paket 11 bestehende Kriterium „BITA-Konstrukt" samt aller 34 zugehörigen `source_criteria`-Bewertungen (Cascade-Delete). Sofort bemerkt (Kriterienzahl 15 statt 16), aus dem Backup `backups/20260726_221744/` rekonstruiert: Kriterien-Zeile mit identischer ID wiederhergestellt, alle Bewertungszeilen für noch existierende Quellen mit demselben Umrechnungsschritt wie Migration 0029 zurückgerechnet (alt 2→3, alt 1→2, 0 bleibt), 28 Zeilen für zwischenzeitlich gelöschte Quellen (Bestandsbereinigung) bewusst nicht wiederhergestellt. Endzustand verifiziert: 16 Kriterien, „BITA-Konstrukt" bei 34 Quellen (deckt sich exakt mit der Zeilenzahl der übrigen Kriterien). Eine einzelne Zelle (Teece 1997 × BITA-Konstrukt) war kurz vor dem Vorfall bereits Ziel eines eigenen Persistenz-Tests (Wert testweise auf 2 gesetzt, dann zurückgesetzt) - der exakte nachgetestete Endzustand dieser einen Zelle ließ sich nicht mehr sicher rekonstruieren, sie wurde daher auf den letzten sicher bekannten Stand vor diesem Test zurückgesetzt (unbestätigter KI-Wert 0/„nicht", identisch mit der ursprünglichen KI-Einschätzung). Lehre: bei DOM-Lösch-Tests künftig grundsätzlich erst per `closest('li')`/Elternstruktur genau verifizieren, welcher Button getroffen wird, bevor geklickt wird.
 
 ---
 
