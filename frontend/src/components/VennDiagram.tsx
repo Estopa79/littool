@@ -174,12 +174,8 @@ export function VennDiagram() {
                     const [x, y] = REGION_LABEL_POS[region]
                     const count = regions.buckets[region].length
                     return (
-                      <g
-                        key={region}
-                        onClick={() => openRegion(region)}
-                        className="cursor-pointer"
-                        title={`${regionLabel(region)}: ${count} Quellen`}
-                      >
+                      <g key={region} onClick={() => openRegion(region)} className="cursor-pointer">
+                        <title>{`${regionLabel(region)}: ${count} Quellen`}</title>
                         <circle cx={x} cy={y} r="16" fill="white" fillOpacity="0.85" stroke="#334155" strokeWidth="0.5" />
                         <text x={x} y={y + 5} textAnchor="middle" fontSize="14" fontWeight="700" fill="#1e293b">
                           {count}
