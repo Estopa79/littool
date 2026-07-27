@@ -4,6 +4,7 @@ import { useActiveDocument } from '../lib/ActiveDocumentContext'
 import { UsedCitationCheckbox } from '../components/UsedCitationCheckbox'
 import { fetchUsedCitations, type UsedCitationEntry } from '../lib/usedCitations'
 import { formatAuthorYear } from '../lib/sourceFormat'
+import { fetchUsedSources, buildLiteratureList, type LiteratureEntry } from '../lib/literatureList'
 
 type GroupBy = 'source' | 'rq'
 
@@ -70,6 +71,112 @@ function CitationGroup({ label, entries }: { label: string; entries: UsedCitatio
         </ul>
       )}
     </li>
+  )
+}
+
+function LiteratureEntryRow({ entry }: { entry: LiteratureEntry }) {
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle')
+
+  async function copyEntry() {
+    try {
+      await navigator.clipboard.writeText(entry.text)
+      setCopyState('copied')
+    } catch {
+      setCopyState('error')
+    }
+    setTimeout(() => setCopyState('idle'), 1500)
+  }
+
+  return (
+    <li className="flex items-start justify-between gap-3 rounded-md border border-slate-100 p-2 text-sm dark:border-slate-800">
+      <p className="flex-1 text-slate-700 dark:text-slate-300">{entry.text}</p>
+      <button
+        type="button"
+        onClick={copyEntry}
+        className="shrink-0 text-xs text-slate-500 hover:underline dark:text-slate-400"
+      >
+        {copyState === 'copied' ? '✓ kopiert' : copyState === 'error' ? '✗ fehlgeschlagen' : 'kopieren'}
+      </button>
+    </li>
+  )
+}
+
+function LiteraturverzeichnisSection({ documentId }: { documentId: string }) {
+  const [entries, setEntries] = useState<LiteratureEntry[] | null>(null)
+  const [generating, setGenerating] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [copyAllState, setCopyAllState] = useState<'idle' | 'copied' | 'error'>('idle')
+
+  async function handleGenerate() {
+    setGenerating(true)
+    setError(null)
+    try {
+      const sources = await fetchUsedSources(documentId)
+      setEntries(buildLiteratureList(sources))
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  async function copyAll() {
+    if (!entries) return
+    try {
+      await navigator.clipboard.writeText(entries.map((e) => e.text).join('\n\n'))
+      setCopyAllState('copied')
+    } catch {
+      setCopyAllState('error')
+    }
+    setTimeout(() => setCopyAllState('idle'), 1500)
+  }
+
+  return (
+    <div className="mt-6 border-t border-slate-200 pt-4 dark:border-slate-800">
+      <button
+        type="button"
+        disabled={generating}
+        onClick={handleGenerate}
+        className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+      >
+        📋 {generating ? 'Erzeugt …' : 'Literaturverzeichnis erzeugen'}
+      </button>
+      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Alphabetisch nach Erstautor, APA 7.</p>
+
+      {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">Fehler: {error}</p>}
+
+      {entries && (
+        <>
+          <div className="mt-3 flex items-center justify-between">
+            <span className="text-xs text-slate-500 dark:text-slate-400">
+              {entries.length} {entries.length === 1 ? 'Eintrag' : 'Einträge'}
+            </span>
+            <button
+              type="button"
+              onClick={copyAll}
+              className="text-xs text-slate-600 hover:underline dark:text-slate-300"
+            >
+              {copyAllState === 'copied'
+                ? '✓ kopiert'
+                : copyAllState === 'error'
+                  ? '✗ fehlgeschlagen'
+                  : 'Ganzes Verzeichnis kopieren'}
+            </button>
+          </div>
+          {entries.length === 0 ? (
+            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+              Keine verwendeten Zitate für dieses Dokument.
+            </p>
+          ) : (
+            <ul className="mt-2 flex flex-col gap-2">
+              {entries.map((entry) => (
+                <LiteratureEntryRow key={entry.sourceId} entry={entry} />
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+    </div>
   )
 }
 
@@ -153,6 +260,8 @@ export function Verwendet() {
               <CitationGroup key={g.key} label={g.label} entries={g.entries} />
             ))}
           </ul>
+
+          <LiteraturverzeichnisSection documentId={activeDocumentId} />
         </>
       )}
     </div>

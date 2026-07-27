@@ -78,13 +78,27 @@ Live gegen die echte DB getestet (3 reale Passagen aus 2 Quellen/2 Forschungsfra
 
 Nebenbefund beim Testen: 3 Passagen sind zwischenzeitlich echt (nicht durch mich) auf `confirmed=true` gesetzt - der QS-Durchgang durch den Nutzer (`/pruefen`) laeuft offenbar bereits, unangetastet gelassen.
 
-## Paket 4 – Literaturverzeichnis-Generator ☐
+## Paket 4 – Literaturverzeichnis-Generator ☑ (Buchkapitel als Buch behandelt, s. u.)
 
 - Knopf „Literaturverzeichnis erzeugen": alle Quellen mit mindestens einem angehakten Zitat im aktiven Dokument, alphabetisch nach Erstautor, APA 7.
 - Typgerechte Formatierung: Journal-Artikel, Buch, Buchkapitel, Konferenzbeitrag, graue Literatur/Institution (BaFin, 2023 …), Online-Quelle mit Abrufdatum.
 - Ausgabe als kopierbarer Textblock (fürs Einfügen in Word) + einzelne Einträge separat kopierbar.
 - Sonderfälle prüfen: mehrere Werke gleicher Autor + Jahr (2023a, 2023b), fehlende Angaben sichtbar markieren statt stumm weglassen.
 - **Fertig, wenn:** Das erzeugte Verzeichnis für ~10 gemischte Quellen (inkl. grauer Literatur) einem manuellen APA-Check standhält.
+
+**Notizen:**
+
+**Scope-Abweichung vom Plan (mit Nutzer abgestimmt):** Kein eigener Quellentyp „Buchkapitel" - das Schema kennt nur journal/konferenz/buch/grau/dissertation und hat kein Herausgeber-/Buchtitel-Feld, ein korrektes Kapitel-Zitat ("In: Hrsg. (Hrsg.), Buchtitel, S. x-y") liesse sich damit ohnehin nicht sauber bauen. Alle `type='buch'`-Quellen (inkl. des einen echten Kapitel-Falls im Bestand, Tornatzky/Fleischer "TOE Framework") werden einheitlich als Buch formatiert. Idee fuer spaeter (Herausgeber-/Buchtitel-Feld ergaenzen) noch nicht in `docs/ideen-spaeter.md` nachgetragen - folgt bei Gelegenheit.
+
+`lib/apaFormat.ts`: reine, KI-lose Formatierungslogik (kein Claude-Aufruf, daher auch kein AiLog-Eintrag noetig - deterministische Regelanwendung auf vorhandene Metadaten). Autorenformat nach APA 7 (Komma vor „&" auch bei genau zwei Autoren, ab 21 Autoren Ellipse), Institutionen als Autor (leeres `given`) ohne Initialen. Typgerechte Locator-Bildung fuer journal (Venue, Band(Heft), Seiten), konferenz (\"In Tagungsband (S. x-y)\"), buch (Verlag), grau (Institution, optional „Abgerufen am [Erfassungsdatum des Bestands] von [URL]" bei vorhandener URL), dissertation (institutionelles Klammerzusatz-Format, im Bestand aktuell 0 Quellen - ungetestet gegen echte Daten). Fehlende Pflichtangaben (Autor, Venue/Verlag/Tagungsband) werden als sichtbare Klammer-Marker ausgegeben (`[Autor fehlt]` usw.) statt stumm wegzulassen; fehlendes Jahr nutzt die APA-Konvention „o. J." (bereits konsistent mit der bestehenden `format_citation`-DB-Funktion aus Phase 3).
+
+**Sonderfall Autor+Jahr-Dopplung:** `assignYearSuffixes` gruppiert nur Quellen mit bekanntem Erstautor UND bekanntem Jahr (sonst waere eine Gruppierung nur geraten) und haengt bei echten Mehrfachtreffern a/b/… an, titel-alphabetisch sortiert. **Bekannte Einschraenkung (nicht in diesem Paket behoben):** Die In-Text-Zitation (`passages.citation`, erzeugt durch die `format_citation`-DB-Funktion aus Phase 3/Migration 0019) traegt diese Suffixe nicht - zwei verschiedene Werke gleichen Autors/Jahres waeren im Fliesstext beide z. B. „(GDV, 2024, S. x)" und nicht unterscheidbar. Eine Behebung wuerde die gemeinsame DB-Funktion aendern (wirkt auf alle Zitate im ganzen Bestand) und ist bewusst nicht Teil dieses eng auf das Literaturverzeichnis begrenzten Pakets - als Idee vorgemerkt.
+
+Live gegen die echte DB getestet: 10 reale, gemischte Quellen (3 mit vorhandenen Passagen, 7 mit eigens angelegten Wegwerf-Test-Passagen, komplett wieder entfernt) fuer ISP angehakt - darunter Journal (Charoensuk 2014, mit Band/Heft/Seiten), Buch (Reinheimer 2017, Baker 2012 als Buchkapitel-Sonderfall), zwei Konferenzbeitraege (einer mit, einer ohne Venue - `[Tagungsband fehlt]` korrekt sichtbar), vier graue Literatur (davon einer mit echter URL - Abrufdatum korrekt aus `created_at` gebildet; einer mit institutionellem Autor „Mc Kinsey & Company"; einer mit fehlenden Autoren - `[Autor fehlt]` korrekt sichtbar), und der echte a/b-Dopplungsfall GDV 2024 (zwei tatsaechlich verschiedene GDV-Werke desselben Jahres) - korrekt als „GDV (2024a)"/„GDV (2024b)" aufgeloest. Alle 10 Eintraege manuell gegen APA 7 geprueft, alphabetische Sortierung nach Erstautor korrekt (fehlender Autor korrekt ans Ende sortiert). Auffaelligkeiten dabei waren ausschliesslich vorbestehende Datenqualitaets-Probleme im Bestand (Jahr „22" statt „2022" bei einer Konferenz-Quelle, Heft-Feld „Pre-Printed" bei Charoensuk, vertauschte given/family-Felder bei einer Quelle „Christine"/„Völzow") - unangetastet gelassen, nicht stillschweigend repariert.
+
+Kopieren einzeln/gesamt nutzt denselben `navigator.clipboard.writeText`-Mechanismus wie die bestehenden Zitat-Kopierbuttons; automatisierte Verifikation scheiterte wie bereits in Phase 3 (Paket 7) dokumentiert an der Clipboard-Schreibberechtigung des Browser-Test-Tools selbst (`NotAllowedError`, per direktem JS-Test bestaetigt) - die Fehleranzeige („✗ fehlgeschlagen") greift dabei korrekt.
+
+TypeScript-Build und `vite build` fehlerfrei (einziger Fehler weiterhin der vorbestehende, unabhaengige `VennDiagram.tsx`-Fall).
 
 ## Paket 5 – Kopier-Buttons mit Kennzeichnung ☐
 
