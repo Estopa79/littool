@@ -2,9 +2,11 @@ import { Outlet, useNavigate, Link } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { BottomTabBar } from './BottomTabBar'
 import { supabase } from '../lib/supabase'
+import { useActiveDocument } from '../lib/ActiveDocumentContext'
 
 export function AppLayout() {
   const navigate = useNavigate()
+  const { documents, activeDocumentId, setActiveDocumentId } = useActiveDocument()
 
   function handleSearchSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -32,6 +34,18 @@ export function AppLayout() {
             />
           </form>
           <div className="ml-4 flex shrink-0 items-center gap-3">
+            <select
+              value={activeDocumentId ?? ''}
+              onChange={(e) => setActiveDocumentId(e.target.value)}
+              title="Aktives Dokument - bestimmt, worauf sich Verwendet-Häkchen beziehen"
+              className="w-20 rounded-md border border-slate-300 bg-white px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 sm:w-32"
+            >
+              {documents.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.title}
+                </option>
+              ))}
+            </select>
             <Link
               to="/einstellungen"
               title="Einstellungen"

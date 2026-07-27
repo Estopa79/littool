@@ -48,12 +48,20 @@ Bei `db push` aufgefallen: Die Migrations-History-Tabelle auf Remote kannte nur 
 
 Test (Paket-Kriterium) direkt per REST/SQL gegen die echte DB: ein reales Zitat für ISP angehakt, Abfrage bestätigt Häkchen für ISP und korrekt keins für Dissertation, Testzeile danach wieder entfernt (keine bleibenden Daten aus dem Test).
 
-## Paket 2 – Häkchen-UI & Dokument-Kontext ☐
+## Paket 2 – Häkchen-UI & Dokument-Kontext ☑ (Suche ausgenommen, s. u.)
 
 - Globale Dokument-Auswahl im Kopfbereich (Dropdown: ISP / Exposé / Dissertation) – bestimmt, worauf sich Häkchen beziehen.
 - Häkchen an allen Zitat-Karten (FF-Ansicht, Suche, Quellen-Detail); Zustand je aktivem Dokument sichtbar.
 - Beim späteren Übernehmen von Abschnitten (Phase 5) sollen Häkchen mitwandern können – Datenmodell lässt das bereits zu, UI dafür kommt später.
 - **Fertig, wenn:** Anhaken/Abhaken überall flüssig funktioniert, auch mobil, und beim Dokumentwechsel korrekt umschaltet.
+
+**Notizen:**
+
+`lib/ActiveDocumentContext.tsx` (React-Context, gleiches Muster wie `AuthProvider.tsx`): lädt die drei Dokumente einmal, hält die aktive Auswahl in `localStorage` (`littool.activeDocumentId`, überlebt Reload/Tab-Wechsel) und den kompletten Satz verwendeter `passage_id`s des aktiven Dokuments als `Set` (ein Fetch pro Dokumentwechsel, gleiche Bestandsgrößen-Annahme wie `qsReview.ts`). `toggleUsed` schreibt optimistisch und macht bei einem DB-Fehler die UI-Änderung wieder rückgängig, statt einen falschen Zustand stehen zu lassen. Dropdown im Kopfbereich (`AppLayout.tsx`) fest in der Reihenfolge ISP → Exposé → Dissertation (nicht alphabetisch). `components/UsedCitationCheckbox.tsx` kapselt Checkbox + Fehleranzeige (`✗`), eingebunden in `Forschungsfragen.tsx` (Zitat-Karten) und `QuellenDetail.tsx` (bestätigte Zitate der Quelle).
+
+**Scope-Abweichung vom Plan (mit Nutzer abgestimmt):** Die Suche-Ansicht wurde bewusst ausgelassen. Sie durchsucht `chunks` (rohe Volltext-/Vektor-Treffer aus dem Ingest), nicht `passages` (bestätigte Zitate mit Übersetzung/Zitation) - `used_citations` hängt aber am `passage_id`. Ein Suchtreffer ist kein Zitat und hat keine 1:1-Beziehung zu einer Passage (weder über Seite noch sonst irgendwie zuverlässig herstellbar). Der Nutzer schaut sich das später an, ggf. mit einer eigenen Lösung - kein Blocker für die restlichen Phase-4-Pakete.
+
+Verifikation: TypeScript-Build (`tsc -b`) und `vite build` fehlerfrei (ein vorbestehender, unabhängiger Fehler in `VennDiagram.tsx` bleibt unberührt, vor/nach dem Vergleich per `git stash` bestätigt). Live im Browser gegen die echte DB getestet (eine reale Passage testweise auf `confirmed=true` gesetzt, danach wieder zurückgesetzt - kein bleibender Dateneingriff): Checkbox in der FF-Ansicht angehakt → Zeile in `used_citations` mit `document_id=ISP` per Direktabfrage bestätigt; Dokument auf Dissertation umgeschaltet → Checkbox korrekt leer (per-Dokument-Zustand funktioniert); zurück zu ISP → wieder angehakt; Abhaken → Zeile korrekt gelöscht. Gleicher Test zusätzlich in `QuellenDetail.tsx` wiederholt (dieselbe Komponente, anderer Einbauort) - persistiert ebenfalls korrekt. Mobile Ansicht (375px) geprüft: Dropdown im Header verursacht keinen horizontalen Overflow.
 
 ## Paket 3 – Verwendet-Ansicht ☐
 

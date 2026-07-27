@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './lib/AuthProvider'
+import { ActiveDocumentProvider } from './lib/ActiveDocumentContext'
 import { RequireAuth } from './components/RequireAuth'
 import { AppLayout } from './components/AppLayout'
 import { Login } from './views/Login'
@@ -25,7 +26,9 @@ function App() {
           <Route
             element={
               <RequireAuth>
-                <AppLayout />
+                <ActiveDocumentProvider>
+                  <AppLayout />
+                </ActiveDocumentProvider>
               </RequireAuth>
             }
           >

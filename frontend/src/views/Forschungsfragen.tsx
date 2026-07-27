@@ -12,6 +12,7 @@ import {
 } from '../lib/ffView'
 import { RelevanceMatrix } from '../components/RelevanceMatrix'
 import { generateParaphrase, savePassageParaphrase } from '../lib/paraphrase'
+import { UsedCitationCheckbox } from '../components/UsedCitationCheckbox'
 
 type SortOption = 'relevance' | 'source' | 'year'
 
@@ -104,11 +105,12 @@ function PassageCard({ passage }: { passage: FfPassage }) {
       {passage.translation && <p className="mt-1 text-slate-600 dark:text-slate-400">DE: {passage.translation}</p>}
       {savedParaphrase && <p className="mt-1 text-slate-600 dark:text-slate-400">¶ {savedParaphrase}</p>}
 
-      <div className="mt-2 flex items-center gap-3 text-xs">
+      <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
         <span className="text-slate-500 dark:text-slate-500">{passage.citation}</span>
         <button type="button" onClick={copyCitation} className="text-slate-500 hover:underline dark:text-slate-400">
           {copyState === 'copied' ? '✓ kopiert' : copyState === 'error' ? '✗ fehlgeschlagen' : 'Zitation kopieren'}
         </button>
+        <UsedCitationCheckbox passageId={passage.id} />
         <Link
           to={`/bibliothek/${passage.source_id}?page=${passage.page}`}
           className="text-slate-500 hover:underline dark:text-slate-400"
