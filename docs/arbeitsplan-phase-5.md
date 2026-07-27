@@ -41,12 +41,26 @@ Neun neue Tabellen: `jobs` (generische Infrastruktur für asynchrone Aktionen �
 
 Test direkt gegen die echte Produktions-DB per REST API: (1) Dummy-Job-Lebenszyklus komplett durchgespielt – anlegen (`pending`) → pollen → auf `running`/Fortschritt 50 setzen → pollen → auf `done` mit `result` abschließen → final pollen, jeder Schritt korrekt persistiert, Testzeile danach gelöscht. (2) Constraints gegengetestet: ungültiger `jobs.type` (`23514`, `jobs_type_check`) und `drafts` mit `created_by='persona'` ohne `persona_id` (`23514`, `drafts_check`) korrekt abgelehnt; gültiger Autoren-Entwurf (`created_by='author'`, `persona_id=null`) an einer echten (danach wieder gelöschten) Test-Section erfolgreich angelegt; Kaskade section → drafts beim Löschen der Test-Section bestätigt (kein verwaister Datensatz). Keine bleibenden Testdaten.
 
-## Paket 2 – Gliederungs-Verwaltung ☐
+## Paket 2 – Gliederungs-Verwaltung ☑
 
 - Dokument-/Gliederungsbaum in der Schreibwerkstatt: Abschnitte anlegen, verschachteln, nummerieren, sortieren; je Abschnitt FFs und Themenfelder als Chips verknüpfen.
 - Schnellerfassung: Gliederung als eingerückten Text einfügen → Baum wird erzeugt (spart Klickarbeit).
 - Die reale ISP-Gliederung erfassen (Autor liefert sie in der Sitzung).
 - **Fertig, wenn:** Die echte ISP-Gliederung vollständig im Tool steht.
+
+**Notizen:**
+
+`lib/sections.ts` (Datenzugriff + reine Hilfsfunktionen) und `views/Schreibwerkstatt.tsx` (ersetzt den Platzhalter). Baum clientseitig aus der flachen `sections`-Liste aufgebaut (`buildTree`, gleiche Bestandsgrößen-Annahme wie anderswo im Tool). Sortieren bewusst per ↑/↓-Buttons (Tausch von `sort_order` mit dem Nachbarn) statt Drag&Drop - keine zusätzliche Abhängigkeit für etwas, das zwei Buttons genauso gut leisten (CLAUDE.md „schlank bleiben"). Reparenting über ein Dropdown „Übergeordneter Abschnitt" im Detailbereich (nicht per Drag&Drop im Baum), mit `collectDescendantIds` gegen Zyklen abgesichert (ein Abschnitt kann nicht unter sich selbst oder einen eigenen Nachfahren gehängt werden - diese Optionen fehlen im Dropdown). Löschen kaskadiert per DB-FK (`ON DELETE CASCADE`, Migration 0032); der Bestätigungsdialog nennt vorab die Anzahl mitgelöschter Unterabschnitte.
+
+FF-/Themen-Chips: Klick toggelt direkt gegen `section_research_questions`/`section_topics` (kein Speichern-Button nötig, gleiches Sofort-Muster wie `UsedCitationCheckbox`).
+
+**Schnellerfassung:** `parseOutline` erkennt Einrückungstiefe über die Menge der im Text vorkommenden eindeutigen Einrückungsbreiten (nicht über feste Zwei-/Vierer-Schritte - toleriert unterschiedliche Einrückungsstile), eine optional führende Nummer/Label (`1`, `1.2.3`, `A.1` …) wird als `number` abgetrennt, sonst bleibt `number` null (dafür in Migration 0032 bewusst nullable). `createSectionsFromOutline` legt Zeile für Zeile sequenziell an (Kind braucht die echte DB-`id` des zuletzt eingefügten Elternteils, kein Batch-Insert möglich) und hängt am bestehenden Bestand an, statt ihn zu ersetzen - kein stillschweigendes Löschen vorhandener Abschnitte.
+
+Live gegen die echte DB getestet (Testdaten danach vollständig entfernt): (1) CRUD-Zyklus - Abschnitt anlegen, Unterabschnitt anlegen, umbenennen, FF-/Themen-Chip togglen und zurück-togglen (Join-Zeile jeweils per Direktabfrage bestätigt), zwei Wurzel-Abschnitte per ↑ vertauscht (`sort_order`-Tausch bestätigt), ein Abschnitt reparented (neue `parent_id` + ans Ende der neuen Geschwisterliste einsortiert, bestätigt), Löschen mit 2 Unterabschnitten - Dialog nannte korrekt „2 Unterabschnitt(e)", Kaskade per Direktabfrage bestätigt (alle 3 Zeilen weg). (2) Schnellerfassung mit einem synthetischen 7-Zeilen-Beispiel (3 Ebenen, ein Eintrag ohne Nummer) - Baum-Struktur exakt wie erwartet, Zeile ohne Nummer korrekt mit `number: null`. (3) **Echte ISP-Gliederung** (vom Autor als Screenshot des Inhaltsverzeichnisses geliefert, 52 Einträge, bis Ebene 4 verschachtelt) per Schnellerfassung importiert - Baum-Struktur per Direktabfrage gegen die transkribierte Vorlage geprüft, exakte Übereinstimmung (Nummern, Titel, Verschachtelung, Reihenfolge). TypeScript-Build (`tsc -b`) und `vite build` fehlerfrei. Mobiler Seiten-Overflow (375px) geprüft - identisch mit dem bereits dokumentierten, vorbestehenden `BottomTabBar`-Fall (auf der unveränderten Bibliothek-Seite reproduziert), keine neue Regression durch diese Ansicht.
+
+**Auffälligkeit in der Vorlage (dem Autor gemeldet, unverändert übernommen):** Punkt 5 und Punkt 10 des Inhaltsverzeichnisses heißen beide „Literaturverzeichnis" (S. 38 bzw. 39) - wirkt wie eine Dopplung/ein Tippfehler im Original-Dokument. Bewusst nicht stillschweigend korrigiert (CLAUDE.md „nie stillschweigend ändern"); Rückmeldung des Autors zur korrekten Bezeichnung von Punkt 10 steht noch aus.
+
+**Nicht Teil dieses Pakets (bewusst, siehe Wireframe/Plan):** Entwurf/Zitat-Pool/Diskussion-Spalten (Paket 4/5/6), „●"-Marker im Baum für „hat Entwurf" (setzt `drafts` mit echten Daten voraus), Drag&Drop-Umsortierung.
 
 ## Paket 3 – Personas ☐
 
