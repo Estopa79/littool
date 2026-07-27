@@ -66,7 +66,10 @@ export async function generateCitations(sourceId: string): Promise<GenerateCitat
 }
 
 export async function confirmPassage(id: string): Promise<void> {
-  const { error } = await supabase.from('passages').update({ confirmed: true }).eq('id', id)
+  const { error } = await supabase
+    .from('passages')
+    .update({ confirmed: true, updated_at: new Date().toISOString() })
+    .eq('id', id)
   if (error) throw error
 }
 
@@ -81,7 +84,10 @@ export async function updateAndConfirmPassage(
   id: string,
   patch: { original: string; translation: string | null },
 ): Promise<void> {
-  const { error } = await supabase.from('passages').update({ ...patch, confirmed: true }).eq('id', id)
+  const { error } = await supabase
+    .from('passages')
+    .update({ ...patch, confirmed: true, updated_at: new Date().toISOString() })
+    .eq('id', id)
   if (error) throw error
 }
 

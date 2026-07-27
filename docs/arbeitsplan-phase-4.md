@@ -6,7 +6,7 @@ Voraussetzung: Phase 3 abgeschlossen (Zitat-Pool funktioniert, AiLog wird befül
 
 ---
 
-## ⚠️ Offene Punkte (laufend aktualisiert, Stand 2026-07-27 nach Paket 6)
+## ⚠️ Offene Punkte (laufend aktualisiert, Stand 2026-07-27 nach Paket 7)
 
 Nichts davon blockiert die weiteren Phase-4-Pakete – Sammelstelle, damit nichts zwischen den Sitzungen verloren geht.
 
@@ -22,6 +22,7 @@ Nichts davon blockiert die weiteren Phase-4-Pakete – Sammelstelle, damit nicht
 - Suche-Ansicht bekommt kein Verwendet-Häkchen (Paket 2) – arbeitet auf `chunks`, nicht auf `passages`, keine 1:1-Beziehung zu einem Zitat.
 - Buchkapitel werden wie normale Bücher zitiert (Paket 4) – Schema hat kein Herausgeber-/Buchtitel-Feld.
 - KI-Verzeichnis-Export (Paket 6) nutzt Standardtexte je Aktionstyp für „Kritische Überprüfung" statt individueller Notizen, und Quelle/FF als Proxy für „Betroffene Stelle" statt echtem Kapitel (Sections existieren erst ab Phase 5).
+- Aktivitätsübersicht (Paket 7) nutzt nur die Tabellen, die bereits ein `updated_at` hatten (`source_rq_relevance`, `passages`) - reine Bestätigungstage bei Themen/Funktion/Methodenprofil ohne sonstige Aktivität bleiben unsichtbar, da diese Tabellen keine eigene Zeitstempel-Spalte haben.
 
 **Noch ungetestet (keine echten Daten vorhanden):**
 - `dissertation`-Formatierung in `lib/apaFormat.ts` (Paket 4) – 0 Quellen dieses Typs im Bestand, nur gegen den Code geprüft.
@@ -163,12 +164,20 @@ Datenlücken gegenüber der Vorgabe, mit dem Nutzer besprochen:
 
 Live gegen die echte DB verifiziert (rein lesend, keine Testdaten nötig): 433 reale Einträge (Juli 2026, bisher einziger vorhandener Monat), Klassifikation per JS-Auswertung der gerenderten Tabelle geprüft - 91 Methodenprofil, 149 Zitat-Kandidaten (inkl. korrekt extrahiertem FF-Kürzel), 91 Funktions-Vorschläge, 7 Kriterien-Bewertungen, 1 Kriterien-Vorschlag (korrekt ohne Quellenbezug als „Gesamter Quellenbestand" ausgewiesen), 1 Deskriptionsmatrix-Vorschlag, **0 nicht klassifizierbare Fälle**. HTML-Escaping direkt getestet (`&`, `<`, `"` korrekt escaped). Kopieren-Mechanismus per Interception von `navigator.clipboard.write` verifiziert (Tabelle + TSV korrekt erzeugt); echte Browser-Ausführung scheitert weiterhin an der Clipboard-Berechtigung des Test-Tools (bereits mehrfach dokumentiert). Mobile Ansicht (375px): Tabelle bleibt korrekt in ihrem eigenen `overflow-x-auto`-Container - der auf dieser Breite auftretende Seiten-Overflow stammt von der bestehenden `BottomTabBar` (8 Eintraege), reproduziert auch auf der unveraenderten Bibliothek-Seite, also kein Regressions-Fund dieses Pakets (als offener Punkt vermerkt).
 
-## Paket 7 – Aktivitätsübersicht ☐
+## Paket 7 – Aktivitätsübersicht ☑
 
 - Tab „Aktivität": aus vorhandenen Zeitstempeln (Uploads, Bestätigungen, Zitat-Erzeugung, Häkchen …) je Monat und Kalenderwoche die aktiven Tage ableiten; Anzeige wie im Wireframe (KW-Zeilen, Monatssumme aktiver Tage).
 - Bewusst ohne Stunden – Gedächtnisstütze fürs händische Dissertationsprotokoll; Hinweistext dazu in der Ansicht.
 - Kopierbare Monatsübersicht.
 - **Fertig, wenn:** Der Juli zeigt plausibel die Tage, an denen tatsächlich am Tool gearbeitet wurde.
+
+**Notizen:**
+
+Datenlücke vor dem Bauen entdeckt und mit dem Nutzer besprochen: QS-Bestätigungen (Themen, Relevanz, Zitate, Funktion, Methodenprofil) setzen bisher **nirgends** einen eigenen Zeitstempel, nur `confirmed boolean`. Zwei Tabellen (`source_rq_relevance`, `passages`) hatten aber schon ein ungenutztes `updated_at` - `saveRelevance` (`lib/qsReview.ts`), `confirmPassage`/`updateAndConfirmPassage` (`lib/citations.ts`) und `savePassageParaphrase` (`lib/paraphrase.ts`) setzen es jetzt beim Schreiben. Abgestimmt: keine Migration für die restlichen QS-Tabellen (`source_topics`, `method_profiles`, `source_functions` - kein `updated_at` vorhanden) - reine Themen-/Funktions-/Methodenprofil-Bestätigungstage ohne sonstige Aktivität blieben dadurch theoretisch unsichtbar, für eine "plausible" Gedächtnisstütze akzeptiert statt eines groesseren Umbaus an bereits abgeschlossenen Phase-3-Ansichten.
+
+`lib/aktivitaet.ts`: „aktive Tage" als Vereinigung von fünf Zeitstempel-Quellen (`sources.created_at`, `ai_log_entries.created_at`, `used_citations.used_at`, `source_rq_relevance.updated_at`, `passages.updated_at`), auf lokale Kalendertage (nicht UTC) heruntergebrochen, damit die Wochentag-Zuordnung stimmt. Gruppierung nach ISO-8601-Kalenderwoche (KW mit erstem Donnerstag = KW1), Wochentage Mo-So. Reines Lesen - kein Claude-Aufruf, daher kein AiLog-Eintrag nötig.
+
+Live gegen die echte DB verifiziert (rein lesend, keine Testdaten nötig): Der komplette Bestand wurde tatsächlich nur an drei Kalendertagen angelegt/bearbeitet (Quellen ab 25.07., restliche Aktivität 26.-27.07.) - Ansicht zeigt korrekt „KW30: Sa, So (2 Tage)" und „KW31: Mo (1 Tag)", Gesamt „3 aktive Tage" für Juli 2026. Den neuen `updated_at`-Schreibpfad zusätzlich direkt gegen die DB geprüft (idempotentes Re-Save eines bereits bestätigten `source_rq_relevance`-Eintrags mit unverändertem Wert, nur zur Pruefung des Zeitstempel-Schreibens - Original-Zeitstempel danach exakt wiederhergestellt, keine echten Daten verändert). „Monatsübersicht kopieren" per Clipboard-Interception geprüft (`Juli 2026\nKW30: Sa, So (2 Tage)\nKW31: Mo (1 Tag)\nGesamt: 3 aktive Tage`) - exakt wie erwartet.
 
 ## Paket 8 – End-to-End-Abnahme ☐
 

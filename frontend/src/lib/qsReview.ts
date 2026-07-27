@@ -116,7 +116,7 @@ export async function fetchSourceRelevance(sourceId: string): Promise<ReviewRele
 export async function saveRelevance(sourceId: string, rqId: string, relevance: number): Promise<void> {
   const { error } = await supabase
     .from('source_rq_relevance')
-    .update({ relevance, confirmed: true })
+    .update({ relevance, confirmed: true, updated_at: new Date().toISOString() })
     .eq('source_id', sourceId)
     .eq('research_question_id', rqId)
   if (error) throw error

@@ -14,6 +14,9 @@ export async function generateParaphrase(params: {
 }
 
 export async function savePassageParaphrase(passageId: string, paraphrase: string): Promise<void> {
-  const { error } = await supabase.from('passages').update({ paraphrase }).eq('id', passageId)
+  const { error } = await supabase
+    .from('passages')
+    .update({ paraphrase, updated_at: new Date().toISOString() })
+    .eq('id', passageId)
   if (error) throw error
 }
