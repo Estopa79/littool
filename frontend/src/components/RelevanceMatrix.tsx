@@ -5,6 +5,7 @@ import { STUDY_TYPE_LABEL, type StudyType } from '../lib/methodProfiles'
 import { fetchMatrixData, fetchCellReasoning, type MatrixRow, type MatrixRq } from '../lib/matrix'
 import { fetchConfirmedPassagesForCell, type Passage } from '../lib/citations'
 import { fetchAllTopics, type TopicOption } from '../lib/qsReview'
+import { VennDiagram } from './VennDiagram'
 
 const RELEVANCE_DOTS: Record<number, string> = { 1: '•', 2: '••', 3: '•••' }
 
@@ -149,6 +150,9 @@ export function RelevanceMatrix() {
         sehen, welche Quellen für eine Forschungsfrage am wichtigsten sind – und wo im Bestand noch Lücken liegen.
         Zelle anklicken für die Begründung und ggf. schon bestätigte Zitate.
       </p>
+
+      <VennDiagram />
+
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <select
           value={filterTopic}

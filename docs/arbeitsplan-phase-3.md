@@ -269,13 +269,15 @@ Nutzer-Feedback: Vor der (vollautomatisiert bewertenden) Evaluationsmatrix soll 
 
 **Umgebaut nach weiterem Nutzer-Feedback, siehe eigener Abschnitt „⚠️ Eingeschobenes Paket: Evaluationsmatrix (Neubau)" weiter unten** – Kern-Idee (Kriterien, 0/1/2-Bewertung, KI-Vorbewertung, Import der HTML-Vorlage) blieb erhalten, aber Skala auf vier Stufen erweitert, Kriterien-Vorschlag/-Verwaltung direkt in der Matrix-Ansicht statt separatem Einstellungsbereich, Zeilen jetzt an die Deskriptionsmatrix-Auswahl gekoppelt.
 
-## Paket 12 – Evaluationsmatrix: Ansicht & Export ☐
+## Paket 12 – Evaluationsmatrix: Ansicht & Export ☑
 
-- Matrix-Modus in der FF-Ansicht: Zeilen nach Schnittmengen gruppiert, Zellen ●/◐/○, Spalten VHB + Score, eigene Arbeit als hervorgehobene Referenzzeile; Filter (Schnittmenge, VHB, Neu), Suche; Zelle anklicken → Wert ändern, Begründung sehen (zählt als Bestätigung).
-- **Export HTML:** eigenständige interaktive Datei im Stil der Design-Referenz (Filter, Suche, Legende, Kernaussage-Callout, Score-Statistik) – ohne Abhängigkeit zum Tool weitergebbar.
-- Export CSV.
-- **Venn-Grafik der Schnittmengen (noch offen, nicht vergessen):** Themenfelder als Venn-Diagramm mit Quellen-Zähler je Schnittmenge, Klick öffnet die Quellen; Export als Bild für die Arbeit. War in einer früheren Notiz fälschlich als "bereits umgesetzt" vermerkt - ist es nicht, steht noch aus.
+- Matrix-Modus in der FF-Ansicht: erledigt als eigene `RelevanceMatrix`-Ansicht (Zeilen = Quellen, Zellen = Relevanz-Punkte je FF, Filter Themenfeld/Ranking/Studientyp, Suche über Titel, Zelle anklicken → Begründung + Zitate). Die im Konzept beschriebene Schnittmengen-Gruppierung/VHB-Spalte bezog sich auf die alte 8-Kriterien-Evaluationsmatrix - durch den Neubau (s. o.) inzwischen andersartig gelöst (freie Kriterien, Themenfeld-Filter statt fixer Schnittmengen-Codes).
+- **Export HTML:** ✅ `lib/evaluationHtmlExport.ts` + Button in `EvaluationsMatrix.tsx` - eigenständige interaktive Datei im Stil der Design-Referenz `docs/Evaluationsmatrix_Interaktiv.html` (Themenfeld-Filter, Suche, Legende, Kernaussage-Callout, Score-Statistik), aber ans aktuelle Datenmodell angepasst (variable Kriterienzahl statt fixer 8, vierstufige Skala). Keine externen Schrift-/Skript-Abhängigkeiten (System-Schriftart statt Google-Fonts-Import), damit die Datei offline weitergebbar bleibt. HTML escaped Titel/Autor beim Rendern serverseitig im eingebetteten Skript (keine ungefilterte innerHTML-Einfügung).
+- Export CSV: ✅ bereits in der vorherigen Runde für Deskriptions- und Evaluationsmatrix umgesetzt.
+- **Venn-Grafik der Schnittmengen:** ✅ `components/VennDiagram.tsx`, eingebettet in `RelevanceMatrix.tsx` (auf-/zuklappbar, Default zu). Klassisches symmetrisches 3-Kreis-Venn (nur für genau 3 Themenfelder - bei anderer Anzahl erscheint ein Hinweistext statt eines nachgebauten n-Kreise-Venns), Zahl je Schnittmenge anklickbar → Modal mit den Quellen dieser Schnittmenge (Link zur Detailseite), Export als PNG (SVG → Canvas → PNG-Blob).
 - **Fertig, wenn:** Die aus dem Tool exportierte HTML-Matrix der handgebauten Vorlage ebenbürtig ist und sich mit einem Klick aktualisiert erzeugen lässt; die Venn-Grafik zeigt die drei Themenfelder mit korrekten Schnittmengen-Zählern.
+
+**Notizen:** Live verifiziert - HTML-Export in einer separaten Browser-Instanz geöffnet (eigener lokaler Server, damit das Script tatsächlich ausgeführt wird statt nur als statischer Snapshot): Tabelle, Themenfeld-Filter und Suche funktionieren identisch zur Design-Referenz, ganz ohne Tool-Abhängigkeit. Venn-Diagramm DB-verifiziert (32/6/8/2/23/23/1 Quellen je Schnittmenge, Summe 95 von 97 Quellen - die übrigen 2 haben noch keine Themenfeld-Zuordnung), Klick auf die „1" (Dreifach-Schnittmenge) öffnete korrekt genau die eine zutreffende Quelle. Bild-Export liefert einen PNG-Blob (verifiziert über Abfangen von `URL.createObjectURL`). Anfängliches Layout-Problem (die beiden oberen Themenfeld-Beschriftungen überlappten bei langen Namen) durch zeilenversetzte Positionierung behoben.
 
 ---
 

@@ -17,6 +17,7 @@ import {
   type Criterion,
   type SourceCriterionValue,
 } from '../lib/evaluationMatrix'
+import { buildEvaluationHtmlExport } from '../lib/evaluationHtmlExport'
 
 const VALUE_LABEL: Record<number, string> = { 0: '○ leer', 1: '◔ viertel', 2: '◑ halb', 3: '● voll' }
 
@@ -173,6 +174,35 @@ export function EvaluationsMatrix() {
     const a = document.createElement('a')
     a.href = url
     a.download = 'evaluationsmatrix.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const topicNamesBySource = useMemo(() => {
+    const map = new Map<string, string[]>()
+    for (const t of allTopics) {
+      const ids = sourceIdsByTopic.get(t.id) ?? new Set()
+      for (const sourceId of ids) {
+        if (!map.has(sourceId)) map.set(sourceId, [])
+        map.get(sourceId)!.push(t.name)
+      }
+    }
+    return map
+  }, [allTopics, sourceIdsByTopic])
+
+  function exportHtml() {
+    const html = buildEvaluationHtmlExport({
+      criteria,
+      sources: includedSources,
+      values,
+      topicNamesBySource,
+      allTopicNames: allTopics.map((t) => t.name),
+    })
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'evaluationsmatrix-export.html'
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -365,6 +395,13 @@ export function EvaluationsMatrix() {
               className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
             >
               CSV exportieren
+            </button>
+            <button
+              type="button"
+              onClick={exportHtml}
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              HTML exportieren
             </button>
           </div>
           <p className="mb-2 text-xs text-slate-400">Tabellenkopf anklicken zum Sortieren.</p>
