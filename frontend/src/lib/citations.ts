@@ -8,6 +8,7 @@ export type Passage = {
   page: number
   original: string
   translation: string | null
+  paraphrase: string | null
   relevance: number
   citation: string
   confirmed: boolean
@@ -34,7 +35,7 @@ export type GenerateCitationsResult = {
 export async function fetchConfirmedPassagesForCell(sourceId: string, rqId: string): Promise<Passage[]> {
   const { data, error } = await supabase
     .from('passages')
-    .select('id, source_id, research_question_id, page, original, translation, relevance, citation, confirmed')
+    .select('id, source_id, research_question_id, page, original, translation, paraphrase, relevance, citation, confirmed')
     .eq('source_id', sourceId)
     .eq('research_question_id', rqId)
     .eq('confirmed', true)
@@ -45,7 +46,7 @@ export async function fetchConfirmedPassagesForCell(sourceId: string, rqId: stri
 export async function fetchPassagesForSource(sourceId: string): Promise<Passage[]> {
   const { data, error } = await supabase
     .from('passages')
-    .select('id, source_id, research_question_id, page, original, translation, relevance, citation, confirmed')
+    .select('id, source_id, research_question_id, page, original, translation, paraphrase, relevance, citation, confirmed')
     .eq('source_id', sourceId)
     .order('created_at', { ascending: false })
   if (error) throw error
@@ -118,7 +119,7 @@ export async function addManualCitation(params: {
       citation,
       confirmed: true,
     })
-    .select('id, source_id, research_question_id, page, original, translation, relevance, citation, confirmed')
+    .select('id, source_id, research_question_id, page, original, translation, paraphrase, relevance, citation, confirmed')
     .single()
   if (error || !data) throw error ?? new Error('Zitat konnte nicht gespeichert werden')
   return data as Passage

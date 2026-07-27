@@ -6,6 +6,7 @@ export type UsedCitationEntry = {
   page: number
   original: string
   translation: string | null
+  paraphrase: string | null
   citation: string
   research_question_id: string
   rq_code: string
@@ -21,6 +22,7 @@ type RawRow = {
     page: number
     original: string
     translation: string | null
+    paraphrase: string | null
     citation: string
     research_questions: { id: string; code: string } | null
     sources: { id: string; authors: Author[] | null; year: number | null } | null
@@ -33,7 +35,7 @@ export async function fetchUsedCitations(documentId: string): Promise<UsedCitati
     .select(
       `passage_id,
        passages (
-         id, page, original, translation, citation,
+         id, page, original, translation, paraphrase, citation,
          research_questions ( id, code ),
          sources ( id, authors, year )
        )`,
@@ -50,6 +52,7 @@ export async function fetchUsedCitations(documentId: string): Promise<UsedCitati
         page: p.page,
         original: p.original,
         translation: p.translation,
+        paraphrase: p.paraphrase,
         citation: p.citation,
         research_question_id: p.research_questions?.id ?? '',
         rq_code: p.research_questions?.code ?? '?',

@@ -39,6 +39,7 @@ import {
 import { generateParaphrase } from '../lib/paraphrase'
 import { fetchCrossrefMetadata } from '../lib/crossref'
 import { UsedCitationCheckbox } from '../components/UsedCitationCheckbox'
+import { CitationCopyButtons } from '../components/CitationCopyButtons'
 
 type FormState = {
   type: string
@@ -918,6 +919,12 @@ export function QuellenDetail() {
                   {p.translation && <p className="mt-1 text-slate-600 dark:text-slate-400">{p.translation}</p>}
                   <div className="mt-1 flex flex-wrap items-center gap-3 text-xs">
                     <span className="text-slate-500 dark:text-slate-500">{p.citation}</span>
+                    <CitationCopyButtons
+                      original={p.original}
+                      translation={p.translation}
+                      paraphrase={p.paraphrase}
+                      citation={p.citation}
+                    />
                     <UsedCitationCheckbox passageId={p.id} />
                   </div>
                 </li>

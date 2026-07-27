@@ -2,7 +2,6 @@
 
 Parkplatz für Feature-Ideen während des Feature-Stopps. Claude Code: Nichts hiervon umsetzen, solange es nicht in einen Arbeitsplan übernommen wurde.
 
-- **Übersetzungs-Kennzeichnung am Kopier-Button:** Beim Kopieren einer übersetzten Passage automatisch Zusatz „(Übersetzung durch den Verfasser)" bzw. Warnhinweis, damit keine ungekennzeichnete Übersetzung als wörtliches Zitat in der Arbeit landet.
 - **KI-optional-Modus / BYO-API-Key:** Alle KI-Funktionen (Zuordnung, Extraktion, Übersetzung, Paraphrase, Methodenprofile, Kriterien-Vorschlag, Schreibwerkstatt) einzeln abschaltbar; ohne hinterlegten Key blendet die UI die Buttons aus und alles läuft manuell – offene Zuordnungen (Themen, Funktion, Kriterien) erscheinen dann als manuelle To-do-Liste in der Anwendung; semantische Suche fällt auf Volltextsuche zurück. Nutzer können eigenen Anthropic-Key hinterlegen. (Relevant für eine spätere Weitergabe an Mitdoktoranden / Vermarktung.)
 - **Mandantenfähigkeit:** Mehrbenutzerbetrieb mit getrennten Beständen, falls das Tool an einen kleinen Kreis weitergegeben wird. (Erst nach erfolgreicher Eigen-Nutzung und Klärung Nebentätigkeit.)
 - **Buchkapitel als eigener Quellentyp:** `sources` kennt kein Herausgeber-/Buchtitel-Feld, ein Buchkapitel wird deshalb aktuell wie ein ganzes Buch zitiert (fehlt: „In: Hrsg. (Hrsg.), Buchtitel, S. x-y"). Betrifft mind. eine echte Quelle im Bestand (Tornatzky/Fleischer, TOE Framework). Erst sinnvoll, wenn mehr Kapitel-Fälle auftauchen.

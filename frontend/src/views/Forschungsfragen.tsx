@@ -13,6 +13,7 @@ import {
 import { RelevanceMatrix } from '../components/RelevanceMatrix'
 import { generateParaphrase, savePassageParaphrase } from '../lib/paraphrase'
 import { UsedCitationCheckbox } from '../components/UsedCitationCheckbox'
+import { CitationCopyButtons } from '../components/CitationCopyButtons'
 
 type SortOption = 'relevance' | 'source' | 'year'
 
@@ -29,21 +30,10 @@ function RelevanceStars({ value }: { value: number }) {
 
 function PassageCard({ passage }: { passage: FfPassage }) {
   const [expanded, setExpanded] = useState(false)
-  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle')
   const [savedParaphrase, setSavedParaphrase] = useState(passage.paraphrase)
   const [proposal, setProposal] = useState<string | null>(null)
   const [paraphrasing, setParaphrasing] = useState(false)
   const [paraphraseError, setParaphraseError] = useState<string | null>(null)
-
-  async function copyCitation() {
-    try {
-      await navigator.clipboard.writeText(passage.citation)
-      setCopyState('copied')
-    } catch {
-      setCopyState('error')
-    }
-    setTimeout(() => setCopyState('idle'), 1500)
-  }
 
   async function requestParaphrase() {
     setParaphrasing(true)
@@ -107,9 +97,12 @@ function PassageCard({ passage }: { passage: FfPassage }) {
 
       <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
         <span className="text-slate-500 dark:text-slate-500">{passage.citation}</span>
-        <button type="button" onClick={copyCitation} className="text-slate-500 hover:underline dark:text-slate-400">
-          {copyState === 'copied' ? '✓ kopiert' : copyState === 'error' ? '✗ fehlgeschlagen' : 'Zitation kopieren'}
-        </button>
+        <CitationCopyButtons
+          original={passage.original}
+          translation={passage.translation}
+          paraphrase={savedParaphrase}
+          citation={passage.citation}
+        />
         <UsedCitationCheckbox passageId={passage.id} />
         <Link
           to={`/bibliothek/${passage.source_id}?page=${passage.page}`}

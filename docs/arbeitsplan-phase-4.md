@@ -100,11 +100,21 @@ Kopieren einzeln/gesamt nutzt denselben `navigator.clipboard.writeText`-Mechanis
 
 TypeScript-Build und `vite build` fehlerfrei (einziger Fehler weiterhin der vorbestehende, unabhaengige `VennDiagram.tsx`-Fall).
 
-## Paket 5 – Kopier-Buttons mit Kennzeichnung ☐
+## Paket 5 – Kopier-Buttons mit Kennzeichnung ☑
 
 - Jede Zitat-Karte bekommt getrennte Kopier-Varianten: **Original** (mit Zitation), **Übersetzung** (mit Zitation + Zusatz „[Übersetzung durch den Verfasser]"), **Paraphrase** (mit Zitation).
 - Der Übersetzungs-Zusatz ist nicht abwählbar – verhindert, dass ungekennzeichnete Übersetzungen als wörtliche Zitate in der Arbeit landen.
 - **Fertig, wenn:** Alle drei Varianten korrekt formatiert in Word ankommen (Copy-Paste-Test).
+
+**Notizen:**
+
+Neue geteilte Komponente `components/CitationCopyButtons.tsx` (ersetzt den bisherigen einzelnen „Zitation kopieren"-Platzhalter-Button, s. Notiz Paket 3) - je ein eigener Button für Original/Übersetzung/Paraphrase, nur sichtbar wenn der jeweilige Text vorhanden ist (Original immer, Übersetzung/Paraphrase nur wenn gefüllt). Der Übersetzungs-Zusatz ist im Code fest eingebaut (`TRANSLATION_NOTE`-Konstante), keine UI-Option zum Abwählen. Eingebunden in allen drei "Zitat-Karte fürs Kopieren ins Dokument"-Ansichten: `Forschungsfragen.tsx`, `QuellenDetail.tsx`, `Verwendet.tsx`. Bewusst NICHT in `RelevanceMatrix.tsx` (Begründungs-Modal) und `PruefungQuelle.tsx` (QS-Workflow) ergaenzt - dort ist die Zitation nur Kontext-Info, keine "ins Dokument kopieren"-Aktion.
+
+`lib/citations.ts` (`Passage`-Typ + beide Fetch-Funktionen) und `lib/usedCitations.ts` um `paraphrase` ergaenzt, da bisher nicht mitgeladen wurde.
+
+Live gegen die echte DB getestet: Bei einer echten bestätigten Passage mit Original+Übersetzung (Paraphrase fehlt) erscheinen korrekt nur zwei Buttons; per Clipboard-Interception (`navigator.clipboard.writeText` abgefangen) verifiziert, dass exakt `„Original" (Zitation)` bzw. `„Übersetzung" (Zitation) [Übersetzung durch den Verfasser]` kopiert wird. Danach testweise eine Paraphrase ergänzt (hinterher zurückgesetzt) - dritter Button erscheint, kopiert korrekt `Paraphrase (Zitation)` ohne Anführungszeichen (nicht wörtliches Zitat). Rendering in `QuellenDetail.tsx` und `Verwendet.tsx` (dort testweise eine echte Passage kurz angehakt, danach wieder entfernt) ebenfalls verifiziert. Echte Browser-Ausführung der Kopieraktion selbst scheitert weiterhin an der Clipboard-Schreibberechtigung des Test-Tools (bereits in Phase 3/Paket 7 und Phase 4/Paket 4 dokumentiert) - Fehleranzeige greift korrekt, Wortlaut wurde stattdessen per Interception verifiziert statt per Wordpaste-Test.
+
+Idee „Übersetzungs-Kennzeichnung am Kopier-Button" aus `docs/ideen-spaeter.md` entfernt (jetzt umgesetzt).
 
 ## Paket 6 – KI-Verzeichnis-Export ☐
 

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useActiveDocument } from '../lib/ActiveDocumentContext'
 import { UsedCitationCheckbox } from '../components/UsedCitationCheckbox'
+import { CitationCopyButtons } from '../components/CitationCopyButtons'
 import { fetchUsedCitations, type UsedCitationEntry } from '../lib/usedCitations'
 import { formatAuthorYear } from '../lib/sourceFormat'
 import { fetchUsedSources, buildLiteratureList, type LiteratureEntry } from '../lib/literatureList'
@@ -9,18 +10,6 @@ import { fetchUsedSources, buildLiteratureList, type LiteratureEntry } from '../
 type GroupBy = 'source' | 'rq'
 
 function CitationCard({ entry }: { entry: UsedCitationEntry }) {
-  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle')
-
-  async function copyCitation() {
-    try {
-      await navigator.clipboard.writeText(entry.citation)
-      setCopyState('copied')
-    } catch {
-      setCopyState('error')
-    }
-    setTimeout(() => setCopyState('idle'), 1500)
-  }
-
   return (
     <li className="rounded-md border border-slate-100 p-2 text-sm dark:border-slate-800">
       <div className="mb-1 flex items-center justify-between gap-2">
@@ -38,9 +27,12 @@ function CitationCard({ entry }: { entry: UsedCitationEntry }) {
       {entry.translation && <p className="mt-1 text-slate-600 dark:text-slate-400">{entry.translation}</p>}
       <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
         <span className="text-slate-500 dark:text-slate-500">{entry.citation}</span>
-        <button type="button" onClick={copyCitation} className="text-slate-500 hover:underline dark:text-slate-400">
-          {copyState === 'copied' ? '✓ kopiert' : copyState === 'error' ? '✗ fehlgeschlagen' : 'Zitation kopieren'}
-        </button>
+        <CitationCopyButtons
+          original={entry.original}
+          translation={entry.translation}
+          paraphrase={entry.paraphrase}
+          citation={entry.citation}
+        />
         <UsedCitationCheckbox passageId={entry.passage_id} />
       </div>
     </li>
