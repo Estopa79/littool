@@ -25,11 +25,21 @@ Voraussetzung: Phase 4 abgeschlossen. **Grundsatz (CLAUDE.md, Prinzip „Vorschl
 
 Kein Code in diesem Paket geändert (reine Bestandsaufnahme + Konzeptentscheidung, dokumentiert statt vorab implementiert).
 
-## Paket 1 – Schema: Gliederung, Entwürfe, Diskussion ☐
+## Paket 1 – Schema: Gliederung, Entwürfe, Diskussion ☑
 
 - Migrationen: `sections` (document_id, parent_id, nummer, titel, rq_ids, topic_ids, sortierung), `drafts` (section_id, version, text, verwendete zitat-ids, erstellt_von: persona/autor, status), `discussion_entries` (section_id, draft_id, autor: persona/user, text, zeitstempel), `personas` (name, rolle, haltung/kritikstil, systemprompt, aktiv), `chat_sessions` (persona_id optional, filter, verlauf).
 - Job-Infrastruktur für lange Läufe: Tabelle `jobs` (typ, status, fortschritt, ergebnis) – Entwürfe und Debatten laufen asynchron weiter, wenn der Client (Handy) die Seite verlässt.
 - **Fertig, wenn:** Migrationen laufen, ein Dummy-Job lässt sich starten, pollen und abschließen.
+
+**Notizen:**
+
+Migration `0032_schreibwerkstatt_schema.sql`, per `supabase db push` angewendet (History synchron, `migration list` bestätigt 0032 lokal = remote).
+
+**Scope-Entscheidung (technische Umsetzung, keine inhaltliche Abweichung):** „rq_ids"/„topic_ids"/„verwendete zitat-ids" aus dem Plan sind n:m-Beziehungen und wurden wie überall sonst im Schema (`source_topics`, `source_rq_relevance`, Migration 0014) als eigene Verknüpfungstabellen gebaut, nicht als Array-Spalten: `section_research_questions`, `section_topics`, `draft_passages`.
+
+Neun neue Tabellen: `jobs` (generische Infrastruktur für asynchrone Aktionen – die erste im Tool, bisherige lange Aktionen wie `generate-citations` liefen synchron innerhalb der Edge-Function-Anfrage; `type` per Check auf `dummy`/`draft_generation`/`debate` eingeschränkt, `dummy` bleibt als dauerhafter Diagnose-Typ), `sections` (Baum via `parent_id`, `number` bewusst nullable für die Schnellerfassung aus Paket 2, `sort_order` für Geschwister-Reihenfolge), `section_research_questions`, `section_topics`, `personas` (Schema nur – Seed der drei Standard-Personas folgt in Paket 3), `drafts` (`created_by`/`persona_id`-Diskriminator für „erstellt_von: persona/autor", `persona_id` mit `ON DELETE RESTRICT` – Personas werden laut Paket 3 deaktiviert statt gelöscht, ein Löschversuch mit vorhandenen Entwürfen soll fehlschlagen statt Historie zu verwaisen; `job_id` mit `ON DELETE SET NULL`), `draft_passages`, `discussion_entries` (gleiches Diskriminator-Muster wie `drafts`, Pflicht-Bezug auf `draft_id`), `chat_sessions` (Paket 9, weit später – Schema hier mit angelegt, da Paket 1 laut Plan die komplette Basisinfrastruktur der Phase liefert; `filters`/`messages` als jsonb wie `sources.authors` seit Migration 0003). RLS + Grants nach dem Muster aus Migration 0001 für alle neun Tabellen.
+
+Test direkt gegen die echte Produktions-DB per REST API: (1) Dummy-Job-Lebenszyklus komplett durchgespielt – anlegen (`pending`) → pollen → auf `running`/Fortschritt 50 setzen → pollen → auf `done` mit `result` abschließen → final pollen, jeder Schritt korrekt persistiert, Testzeile danach gelöscht. (2) Constraints gegengetestet: ungültiger `jobs.type` (`23514`, `jobs_type_check`) und `drafts` mit `created_by='persona'` ohne `persona_id` (`23514`, `drafts_check`) korrekt abgelehnt; gültiger Autoren-Entwurf (`created_by='author'`, `persona_id=null`) an einer echten (danach wieder gelöschten) Test-Section erfolgreich angelegt; Kaskade section → drafts beim Löschen der Test-Section bestätigt (kein verwaister Datensatz). Keine bleibenden Testdaten.
 
 ## Paket 2 – Gliederungs-Verwaltung ☐
 
