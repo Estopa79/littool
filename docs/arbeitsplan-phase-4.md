@@ -179,10 +179,18 @@ Datenlücke vor dem Bauen entdeckt und mit dem Nutzer besprochen: QS-Bestätigun
 
 Live gegen die echte DB verifiziert (rein lesend, keine Testdaten nötig): Der komplette Bestand wurde tatsächlich nur an drei Kalendertagen angelegt/bearbeitet (Quellen ab 25.07., restliche Aktivität 26.-27.07.) - Ansicht zeigt korrekt „KW30: Sa, So (2 Tage)" und „KW31: Mo (1 Tag)", Gesamt „3 aktive Tage" für Juli 2026. Den neuen `updated_at`-Schreibpfad zusätzlich direkt gegen die DB geprüft (idempotentes Re-Save eines bereits bestätigten `source_rq_relevance`-Eintrags mit unverändertem Wert, nur zur Pruefung des Zeitstempel-Schreibens - Original-Zeitstempel danach exakt wiederhergestellt, keine echten Daten verändert). „Monatsübersicht kopieren" per Clipboard-Interception geprüft (`Juli 2026\nKW30: Sa, So (2 Tage)\nKW31: Mo (1 Tag)\nGesamt: 3 aktive Tage`) - exakt wie erwartet.
 
-## Paket 8 – End-to-End-Abnahme ☐
+## Paket 8 – End-to-End-Abnahme ☐ (wartet auf mehr QS-Arbeit, s. u.)
 
-- Kompletter Durchlauf am echten Bestand: Zitate für einen Abschnitt anhaken → Verwendet-Ansicht prüfen → Literaturverzeichnis erzeugen → in ein Word-Dokument einfügen → KI-Verzeichnis für den Monat exportieren → Backup laufen lassen.
+- Kompletter Durchlauf am echten Bestand: Zitate für ein Dokument anhaken → Verwendet-Ansicht prüfen → Literaturverzeichnis erzeugen → in ein Word-Dokument einfügen → KI-Verzeichnis für den Monat exportieren → Backup laufen lassen.
 - **Fertig, wenn:** Der Durchlauf ohne Handarbeit an den Ausgaben funktioniert → Phase 4 abgeschlossen. 🎉
+
+**Notizen:**
+
+Formulierung korrigiert: „für einen Abschnitt anhaken" war eine Altlast aus der Zeit vor Paket 1 - Abschnitte/Gliederung existieren erst ab Phase 5, Häkchen gelten pro **Dokument** (ISP/Exposé/Dissertation).
+
+Vor dem eigentlichen Durchlauf geprüft (mit dem Nutzer abgestimmt, auf Wunsch nicht sofort ausgeführt): der reale Bestand hat aktuell nur 3 von 169 bestätigten Zitaten und 0 Häkchen - ein „kompletter Durchlauf am echten Bestand" wäre technisch möglich, aber kaum repräsentativ. `scripts/backup.sh` ist jederzeit lauffähig (kein Docker nötig, das war nur für den einmaligen Restore-Test in Phase 3 relevant). Der Schritt „in ein Word-Dokument einfügen" lässt sich von mir ohnehin nur über den Zwischenablage-Inhalt verifizieren, nicht durch echtes Einfügen in eine Word-Instanz.
+
+**Entschieden:** Paket 8 bleibt offen, bis der Autor mehr Zitate über `/pruefen` bestätigt hat - dann ist der Durchlauf aussagekräftiger.
 
 ---
 
