@@ -1,6 +1,6 @@
 # Konzept: Persönliches Literatur- und Recherche-Tool („LitTool")
 
-**Version 0.5 · Juli 2026 · Grundlage für die Umsetzung mit Claude Code**
+**Version 0.6 · Juli 2026 · Grundlage für die Umsetzung mit Claude Code**
 
 ---
 
@@ -68,11 +68,11 @@ Stack analog Valmora-Chroniken:
 - **Zitate auf Abruf (Pull statt Push):** Keine automatische Massen-Extraktion. In der Bibliothek (auch im Themengebiets-Filter) und auf der Quellen-Detailseite gibt es „Zitate erzeugen": Claude schlägt für die Quelle wörtliche Zitat-Kandidaten passend zu Themengebiet/Forschungsfrage vor – Original, deutsche Übersetzung, Zitation (Autor, Jahr, S. x), Deep-Link zur Fundstelle. Der Autor prüft jeden Kandidaten direkt im Dokument und bestätigt oder verwirft. **Nur bestätigte Zitate landen im Zitat-Pool**, aus dem sich FF-Ansicht und Schreibwerkstatt bedienen. Technische Absicherung: Kandidaten müssen per String-Abgleich im echten Dokumenttext nachweisbar sein, sonst werden sie verworfen.
 - **Manueller Weg gleichwertig:** Text im PDF-Viewer markieren (oder einfügen) + Seite → wird mit korrekter Zitation zum Zitat im Pool. Gilt als bestätigt.
 - **Paraphrasieren nach demselben Muster:** je Zitat auf Knopfdruck (¶) oder manuell selbst formuliert – Ergebnis ist ein sinngemäßes Zitat mit Zitation, als prüfbarer Vorschlag; Übernahme nur nach Prüfung; jede KI-Paraphrase landet im KI-Verzeichnis.
-- **Methodenprofil je Quelle:** Claude extrahiert automatisch das Studiendesign – Studientyp (qualitativ / quantitativ / mixed / konzeptionell / Literaturreview), Methode (z. B. Fallstudie, Survey, PLS-SEM, Interviews), Datengrundlage/Sample, Auswertungsverfahren. Angezeigt in Bibliothek und Quellen-Detail, filterbar, bestätigbar im QS-Workflow; Grundlage für Methodentabellen (Deskriptionsmatrix).
-- Matrix-Ansicht: Quellen × Forschungsfragen (Vorstufe zu Deskriptions-/Stringenzmatrix).
-- **Evaluationsmatrix (Kriterien-Matrix):** Frei definierbare Kriterien-Sets (z. B. acht Forschungskriterien für die Forschungslücke). Jede Quelle wird je Kriterium bewertet: voll (●) / teilweise (◐) / nicht abgedeckt (○) – KI-vorbewertet mit Begründung, im QS-Workflow bestätigbar/korrigierbar. Darstellung: Zeilen gruppiert nach Schnittmengen (Themenfelder), Spalten = Kriterien, dazu VHB-Rating und Score-Spalte (Summe); Filter nach Schnittmenge, Ranking, Neu-Markierung; **eigene Arbeit als hervorgehobene Referenzzeile** (Forschungslücken-Argument: keine Quelle deckt alles ab, die Dissertation schon). Export als eigenständige interaktive HTML-Datei (mit Filtern/Suche, weitergebbar) und als CSV.
-- **Kriterien-Vorschlag:** Auf Wunsch schlägt Claude ein Kriterien-Set vor – hergeleitet aus Thema, Forschungsfragen, Themenfeldern und dem tatsächlichen Quellenbestand. Jedes vorgeschlagene Kriterium kommt mit Begründung und Herleitung („leitet sich ab aus FF2 und der Lücke X, die im Bestand sichtbar wird, weil …"). Der Autor übernimmt, ändert oder verwirft einzeln; die Herleitung wird am Kriterium gespeichert (nützlich für die Methodik-Begründung in der Arbeit) und im KI-Verzeichnis protokolliert.
-- **Venn-Grafik der Schnittmengen (noch nicht umgesetzt, Idee):** Themenfelder als Venn-Diagramm mit Quellen-Zählern je Schnittmenge, Klick öffnet die Quellen; Export als Bild für die Arbeit.
+- **Methodenprofil je Quelle:** Claude extrahiert automatisch das Studiendesign – Studientyp (qualitativ / quantitativ / mixed / konzeptionell / Literaturreview), Methode (z. B. Fallstudie, Survey, PLS-SEM, Interviews), Datengrundlage/Sample, Auswertungsverfahren. Angezeigt in Bibliothek und Quellen-Detail, filterbar, bestätigbar im QS-Workflow; Grundlage für die Deskriptionsmatrix.
+- **Relevanz-Matrix:** Quellen × Forschungsfragen, Zellen = KI-eingeschätzte Relevanz (0–3); Filter nach Themenfeld/Ranking/Studientyp, Sortierung, Export als CSV. Direkt darüber eingebettet: das **Venn-Diagramm der Themenfelder-Überschneidungen** (klassisches 3-Kreis-Venn, nur bei genau drei Themenfeldern sinnvoll darstellbar) – zeigt die Quellenzahl je Schnittmenge, Klick auf eine Zahl öffnet die zugehörigen Quellen, Export als PNG-Bild für die Arbeit.
+- **Deskriptionsmatrix (Vorstufe zur Evaluationsmatrix):** Klassische Literatur-Synthese-Tabelle als eigener Menüpunkt. Checkbox je Quelle legt fest, welche Quellen tatsächlich in die Auswahl aufgenommen werden (Grundlage für die Evaluationsmatrix); Spalten Autor/Jahr, Titel, Einordnung, Theoretische Fundierung, Art der Stichprobe, Analysemethode, Wesentliche Erkenntnisse – von Hand befüllbar oder per Knopfdruck von Claude vorgeschlagen (füllt Stichprobe/Analysemethode bewusst nicht bei rein konzeptionellen Quellen); Filter nach Themenfeld, Sortierung über die Tabellenköpfe, Export als CSV.
+- **Evaluationsmatrix (Kriterien-Matrix):** Zeilen = die in der Deskriptionsmatrix ausgewählten Quellen. Frei definierbare Kriterien (Beschreibung + Herleitung) werden direkt in der Ansicht verwaltet – von Hand über „+ Kriterium" anlegen/bearbeiten/löschen, oder per Knopfdruck von Claude vorschlagen lassen (mit Begründung je Kriterium). Jede Quelle wird je Kriterium auf einer vierstufigen Skala bewertet: nicht (○) / zu einem Viertel (◔) / zur Hälfte (◑) / voll abgedeckt (●) – manuell setzbar oder per Knopf pro Zeile von Claude eingeschätzt (mit Begründung), im gleichen Bestätigt/unbestätigt-Prinzip wie überall sonst. Filter nach Themenfeld, Sortierung über die Tabellenköpfe (auch je Kriteriums-Spalte), Kriterien-Bereich auf-/zuklappbar. Export als eigenständige interaktive HTML-Datei (Filter, Suche, Legende, Kernaussage-Callout, Score-Statistik – ohne Abhängigkeit zum Tool weitergebbar) und als CSV.
+- **Kriterien-Vorschlag:** Auf Wunsch schlägt Claude ein Kriterien-Set vor – hergeleitet aus Thema, Forschungsfragen, Themenfeldern und den in der Deskriptionsmatrix ausgewählten Quellen (inkl. deren Einordnung/Fundierung/Erkenntnisse als Synthese-Kontext). Jedes vorgeschlagene Kriterium kommt mit Begründung und Herleitung („leitet sich ab aus FF2 und der Lücke X, die im Bestand sichtbar wird, weil …"). Der Autor übernimmt, ändert oder verwirft einzeln; die Herleitung wird am Kriterium gespeichert (nützlich für die Methodik-Begründung in der Arbeit) und im KI-Verzeichnis protokolliert (auch korpusweite Aktionen ohne Bezug zu einer einzelnen Quelle).
 - QS-Workflow: KI-Zuordnungen bestätigen/korrigieren.
 
 ### Modul 4 – Verwendungs-Tracking & Verzeichnisse
@@ -95,14 +95,14 @@ Stack analog Valmora-Chroniken:
 ### Modul 6 – Spätere Erweiterungen
 
 - Quellentyp „Eigene Notizen": einmaliger Confluence-Export-Import (keine Live-Anbindung). Miro wird nicht angebunden; Bilder/Modelle bei Bedarf manuell übernehmen.
-- BibTeX-Export, automatische Tabellen (z. B. Quellen nach Ranking, **Methodenübersicht/Deskriptionsmatrix aus den Methodenprofilen**) und Grafiken.
+- BibTeX-Export, weitere automatische Tabellen (z. B. Quellen nach Ranking) und Grafiken.
 - Externe Datenbank-Suche (z. B. OpenAlex) direkt aus dem Tool.
 
 ## 5. Datenmodell (Kern-Entitäten)
 
 | Entität | Wichtigste Felder |
 |---|---|
-| **Source** | id, doi (optional), typ (journal/konferenz/buch/grau), titel, autoren, jahr, venue, ranking_system, ranking_wert, seiten, **seiten_offset (Journal-Startseite − PDF-Seite 1; für korrekte Zitationsseiten)**, abstract, storage_pfad, status, studientyp, methode, sample, auswertung, methoden_bestätigt |
+| **Source** | id, doi (optional), typ (journal/konferenz/buch/grau/**dissertation**), titel, autoren, jahr, venue, ranking_system, ranking_wert, seiten, **seiten_offset (Journal-Startseite − PDF-Seite 1; für korrekte Zitationsseiten)**, abstract, storage_pfad, status, studientyp, methode, sample, auswertung, methoden_bestätigt |
 | **Chunk** | id, source_id, seite, text, embedding |
 | **ResearchQuestion** | id, kürzel (FF1…), text |
 | **Topic** | id, name, beschreibung |
@@ -115,21 +115,26 @@ Stack analog Valmora-Chroniken:
 | **Draft** | id, section_id, version, text, passage_ids, erstellt_von (Agent/Autor), status |
 | **DiscussionEntry** | id, section_id, draft_id, autor (Persona/User), text, zeitstempel |
 | **UsedCitation** | passage_id, document_id (Häkchen pro Dokument) |
+| **DescriptiveMatrixEntry** | source_id, ausgewählt (Checkbox für Evaluationsmatrix), einordnung, theoretische_fundierung, stichprobe, analysemethode, erkenntnisse, bestätigt |
 | **CriterionSet** | id, name (z. B. „Forschungslücke ISP"), beschreibung |
-| **Criterion** | id, set_id, name, kurzname, sortierung, herleitung (Begründung, woraus abgeleitet) |
-| **SourceCriterion** | source_id, criterion_id, wert (0=nicht/1=teilweise/2=voll), begründung, bestätigt |
+| **Criterion** | id, set_id, name, kurzname, sortierung, herleitung (Begründung, woraus abgeleitet), bestätigt |
+| **SourceCriterion** | source_id, criterion_id, wert (0=nicht/1=zu einem Viertel/2=zur Hälfte/3=voll abgedeckt), begründung, bestätigt |
 | **Persona** | id, name, rolle, systemprompt |
-| **AiLogEntry** | id, datum, art (Übersetzung/Entwurf/Zitatvorschlag/Analyse), section_id/source_id, kurzbeschreibung |
+| **AiLogEntry** | id, datum, art (Übersetzung/Entwurf/Zitatvorschlag/Analyse), section_id/source_id (**optional – auch korpusweite Aktionen wie „Kriterien vorschlagen" ohne Bezug zu einer einzelnen Quelle werden protokolliert**), kurzbeschreibung |
 | **ActivityLog** | datum, aktionstyp, referenz (abgeleitet aus Zeitstempeln) |
 
 ## 6. Ansichten (Oberfläche, Grobstruktur)
 
-1. **Bibliothek** – Quellentabelle (Titel, Autoren, Jahr, Venue, Ranking, Themen, Status), Filter, Upload, Erfassungsdialog graue Literatur; Detailseite mit Metadaten, PDF-Viewer, Passagen.
-2. **Forschungsfragen** – FF-Auswahl links, einzahlende Passagen als Karten rechts (Original, Übersetzung, Zitation, Häkchen, PDF-Sprung); Matrix Quellen × FF.
-3. **Suche** – kombinierte Volltext- + semantische Suche, Passagen-Karten mit Beleg.
-4. **Schreibwerkstatt** – Dokument- und Gliederungsbaum, Drei-Spalten-Ansicht (Entwurf / Passagen / Diskussion), Agenten-Steuerung.
-5. **Verwendet** – angehakte Zitate pro Dokument, Literaturverzeichnis-Generator.
-6. **Protokolle** – KI-Verzeichnis-Export, Aktivitätsübersicht (Monat/KW).
+1. **Schreibwerkstatt** (Startansicht) – Dokument- und Gliederungsbaum, Drei-Spalten-Ansicht (Entwurf / Passagen / Diskussion), Agenten-Steuerung.
+2. **Bibliothek** – Quellentabelle (sortierbare Tabellenköpfe, Filter Typ/Ranking/Status/Funktion/Themenfeld), Löschen mit Bestätigungsdialog, Upload, Erfassungsdialog graue Literatur, KI-Einordnung direkt in der Zeile; Detailseite mit auf-/zuklappbaren Metadaten (inkl. DOI-Nachreicherung via Crossref), volle Breite PDF-Viewer, auf-/zuklappbarem Themen-/Relevanz-Bereich, Methodenprofil, Zitaten.
+3. **Forschungsfragen** – FF-Auswahl links, einzahlende Passagen als Karten rechts (Original, Übersetzung, Zitation, Häkchen, PDF-Sprung); umschaltbar zur Relevanz-Matrix (Quellen × FF) inkl. eingebettetem Venn-Diagramm der Themenfelder-Überschneidungen.
+4. **Deskriptionsmatrix** – Synthese-Tabelle mit Quellenauswahl (Checkbox), von Hand befüllbar oder per KI-Knopf vorgeschlagen; Grundlage für die Evaluationsmatrix.
+5. **Evaluationsmatrix** – frei verwaltbare Kriterien (händisch oder per KI-Vorschlag) × die in der Deskriptionsmatrix ausgewählten Quellen, vierstufige Bewertungsskala, Export als HTML/CSV.
+6. **Suche** – kombinierte Volltext- + semantische Suche, Passagen-Karten mit Beleg.
+7. **Verwendet** – angehakte Zitate pro Dokument, Literaturverzeichnis-Generator.
+8. **Protokolle** – KI-Verzeichnis-Export, Aktivitätsübersicht (Monat/KW).
+
+Zusätzlich über ein Zahnrad-Icon erreichbar (nicht Teil der Haupt-Navigation): **Einstellungen** (u. a. Dissertationsthema).
 
 *Startansicht beim Öffnen: Schreibwerkstatt (kapitelorientiertes Arbeiten ist der Hauptworkflow).*
 

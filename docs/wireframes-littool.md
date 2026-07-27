@@ -1,19 +1,21 @@
 # LitTool – Text-Wireframes der Ansichten (v0.1, zur Durchsprache)
 
-Navigation: feste Seitenleiste links (einklappbar) mit den sechs Ansichten. Oben rechts: globale Schnellsuche (von überall erreichbar, springt in Ansicht „Suche").
+Navigation: feste Seitenleiste links (einklappbar) mit den acht Ansichten. Oben rechts: globale Schnellsuche (von überall erreichbar, springt in Ansicht „Suche") sowie ein Zahnrad-Icon für „Einstellungen" (nicht Teil der Haupt-Navigationsliste).
 
 ```
 ┌────┬────────────────────────────────┐
-│ ☰  │  [Schnellsuche …........... 🔍]│
+│ ☰  │  [Schnellsuche …...........🔍][⚙️]│
 │ ✍️  │                                │
 │ 📚 │        Inhaltsbereich          │
 │ ❓ │                                │
+│ 📐 │                                │
+│ 📊 │                                │
 │ 🔍 │                                │
 │ ✅ │                                │
 │ 📋 │                                │
 └────┴────────────────────────────────┘
-✍️ Schreibwerkstatt · 📚 Bibliothek · ❓ Forschungsfragen
-🔍 Suche · ✅ Verwendet · 📋 Protokolle
+✍️ Schreibwerkstatt · 📚 Bibliothek · ❓ Forschungsfragen · 📐 Deskriptionsmatrix
+📊 Evaluationsmatrix · 🔍 Suche · ✅ Verwendet · 📋 Protokolle
 ```
 
 ---
@@ -64,26 +66,31 @@ Navigation: feste Seitenleiste links (einklappbar) mit den sechs Ansichten. Oben
 **Zweck:** Bestand verwalten, Metadaten pflegen.
 
 ```
-┌─────────────────────────────────────┐
-│ [⬆ Upload] [+ Graue Literatur]      │
-│ Filter: [Typ ▼][Ranking ▼][Thema ▼] │
-│         [Status ▼]  Sortierung ▼    │
-├─────────────────────────────────────┤
-│ Autor/Jahr    Titel      Rank  St.  │
-│ Teece 2007    Explicati… VHB A  ✔   │
-│ Wagner 2014   IT busin…  SJR Q1 ✔   │
-│ BaFin 2023    Merkblatt… –      ⚠   │
-│ …                                   │
-└─────────────────────────────────────┘
+┌───────────────────────────────────────┐
+│ [⬆ Upload] [+ Graue Literatur]        │
+│ Suche […] Filter: [Typ▼][Rank▼][Them▼]│
+│         [Status▼][Funktion▼]          │
+│ Tabellenkopf anklicken zum Sortieren  │
+├───────────────────────────────────────┤
+│ Autor/Jahr▲  Titel      Rank  St. 🤖 🗑│
+│ Teece 2007   Explicati… VHB A  ✔  ●  │
+│ Wagner 2014  IT busin…  SJR Q1 ✔  KI │
+│ BaFin 2023   Merkblatt… –      ⚠  KI │
+│ …                                     │
+└───────────────────────────────────────┘
 ```
 
 - Status: ✔ vollständig · ⚠ Metadaten unvollständig · ⏳ in Verarbeitung.
-- Zeile anklicken → **Quellen-Detailseite**: Metadaten (editierbar), Abstract, Ranking mit Herkunft, **Methodenprofil (Studientyp, Methode, Sample, Auswertung – KI-extrahiert, bestätigbar)**, Themen-Chips, Funktion-Chips, Relevanz je FF, Zitate der Quelle, eingebetteter PDF-Viewer.
+- **Tabellenköpfe sind klickbare Sortierbuttons** (Autor/Jahr, Titel, Venue, Ranking, Status) statt nur einer Sortierung-Dropdown; zusätzlicher Themenfeld-Filter neben dem bestehenden Funktion-Filter.
+- **KI-Einordnung direkt in der Zeile:** Badge „🤖 eingeordnet", sonst Button „KI-Einordnung" – ohne Umweg über die Detailseite auslösbar (Tabellenspalte im Desktop, Chip in der mobilen Karte).
+- **Löschen-Button (🗑) je Zeile und auf der Detailseite**, mit Bestätigungsdialog; entfernt PDF aus dem Storage sowie die Quelle inkl. aller abhängigen Zeilen endgültig.
+- Quellentyp umfasst auch „Doktorarbeit/wissenschaftliche Arbeit" (eigene Dissertation als Referenzquelle erfassbar).
+- Zeile anklicken → **Quellen-Detailseite**, Layout von oben nach unten: Zurück-Link + Löschen-Button, Titel mit Status-/KI-Badges, Funktion-Chips, Themenfeld-Chips (direkt hier zuweisbar/entfernbar, nicht mehr nur über den QS-Workflow), auf-/zuklappbarer Bereich „Themen & Relevanz je Forschungsfrage" (Default zu, Kurzinfo im Kopf; „KI-Einordnung starten"-Button, Relevanz je FF von Hand änderbar), auf-/zuklappbares **Metadaten-Formular** (Default zu, zeigt Autor/Jahr/Typ als Kurzinfo; Speichern mit neuer/geänderter DOI reichert automatisch leere Felder über Crossref nach), darunter **PDF-Viewer über die volle Breite**, darunter Methodenprofil und Zitate der Quelle.
 - **„Zitate erzeugen"-Button** an Zeile und Detailseite (nutzt aktiven Themen-/FF-Filter als Kontext): erzeugt Kandidaten-Karten mit Deep-Link → direkt prüfen → bestätigen (→ Zitat-Pool) oder verwerfen. Manuell: Text im Viewer markieren → „Als Zitat übernehmen".
 - Filterleiste zusätzlich mit **[Studientyp ▼]** (qualitativ/quantitativ/mixed/konzeptionell/Review).
 - Stapel-Upload zeigt Fortschritt je Datei (DOI gefunden? Metadaten? Ranking?); unklare Fälle sammeln sich in einer „Prüfen"-Liste.
 
-**Entschieden:** Einfacher Viewer – anzeigen + Fundstellen-Sprung, kein Markieren/Kommentieren im PDF.
+**Entschieden:** Einfacher Viewer – anzeigen + Fundstellen-Sprung, kein Markieren/Kommentieren im PDF. Löschen ist endgültig (kein Soft-Delete/Archiv), immer mit Bestätigungsdialog abgesichert.
 
 ---
 
@@ -106,17 +113,65 @@ Navigation: feste Seitenleiste links (einklappbar) mit den sechs Ansichten. Oben
 └────────┴────────────────────────────┘
 ```
 
-- Links FF-Liste mit Passagen-Zähler; unten Umschalter zur **Matrix** mit zwei Modi:
-  1. **Relevanz-Matrix:** Quellen × FF, Zellen = Relevanz, Klick öffnet Passagen.
-  2. **Evaluationsmatrix:** Quellen × frei definierte Kriterien (Set wählbar), Zellen ● / ◐ / ○, Zeilen gruppiert nach Schnittmengen, Spalten VHB + Score, eigene Arbeit als hervorgehobene Referenzzeile; Zelle anklicken → Wert ändern + Begründung sehen; Buttons „KI-Vorbewertung", „Export HTML", „Export CSV". Der HTML-Export ist eine eigenständige interaktive Datei (Filter, Suche, Legende – Stil wie die vorhandene Evaluationsmatrix_Interaktiv.html, die als Design-Referenz in docs/ liegt).
+- Links FF-Liste mit Passagen-Zähler; unten Umschalter zur **Relevanz-Matrix** (Quellen × FF, Zellen = Relevanz 0–3, Filter Themenfeld/Ranking/Studientyp, Sortierung, Zelle anklicken öffnet Begründung + bestätigte Zitate, Export CSV). Direkt über der Tabelle eingebettet: das **auf-/zuklappbare Venn-Diagramm** der Themenfelder-Überschneidungen (klassisches 3-Kreis-Venn für genau drei Themenfelder) – Zahl je Schnittmenge anklickbar öffnet die zugehörigen Quellen, Export als PNG-Bild.
+- Die frei definierbare **Evaluationsmatrix** (Kriterien × Quellen) ist ein eigener Menüpunkt (nicht mehr Teil dieses Umschalters) – siehe Abschnitt 5.
 - Karte: Relevanz-Sterne, Original einklappbar/DE-Übersetzung, Zitation kopieren, Häkchen, PDF-Sprung, 💬 = Passage in Schreibwerkstatt-Diskussion ziehen, **¶ = Paraphrase erzeugen** (sinngemäßes Zitat mit Zitation, erscheint als prüfbarer Vorschlag unter dem Original, Übernahme per Klick; wird im KI-Verzeichnis protokolliert).
-- QS-Leiste oben: „12 unbestätigte KI-Zuordnungen prüfen" → Karte für Karte bestätigen/korrigieren.
+- QS-Leiste oben: „12 unbestätigte KI-Zuordnungen prüfen" → Karte für Karte bestätigen/korrigieren. Die Zahl summiert unbestätigte Einträge über fünf Dimensionen (Themen, Relevanz, Zitate, Methodenprofil, Funktion) – kein reiner Zitate-Zähler.
 
 **Entschieden:** Relevanz als Sterne (1–3) – ehrlicher für eine KI-Schätzung als Prozentwerte.
 
 ---
 
-## 4. Suche
+## 4. Deskriptionsmatrix
+
+**Zweck:** Klassische Literatur-Synthese-Tabelle als Vorstufe zur Evaluationsmatrix – legt fest, welche Quellen dort als Zeilen erscheinen.
+
+```
+┌───────────────────────────────────────────┐
+│ ☐ Nur ausgewählte anzeigen (6)  [Thema▼]  │
+│ [CSV exportieren]                          │
+│ Tabellenkopf anklicken zum Sortieren       │
+├───────────────────────────────────────────┤
+│ ☑ Autor/Jahr▲ Titel   Einordnung  … [KI]  │
+│ ☑ Teece 1997  Dynamic…Grundlagenm…  ✔    │
+│ ☐ Vial 2019   Underst…Review        [KI]  │
+│ …                                          │
+└───────────────────────────────────────────┘
+```
+
+- Spalten: Checkbox „ausgewählt", Autor/Jahr, Titel, Einordnung, Theoretische Fundierung, Art der Stichprobe, Analysemethode, Wesentliche Erkenntnisse – jede Zelle einzeln editierbar (Speichern per Fokusverlust), manuelle Bearbeitung setzt „bestätigt".
+- Button „KI-Einschätzung" je Zeile füllt alle fünf Textfelder auf einmal; lässt Stichprobe/Analysemethode bewusst leer, wenn die Quelle rein konzeptionell ist (kein eigenes empirisches Studiendesign).
+- Themenfeld-Filter, sortierbare Tabellenköpfe, Checkbox „Nur ausgewählte anzeigen" als Vorschau auf die Evaluationsmatrix-Auswahl, Export als CSV.
+
+---
+
+## 5. Evaluationsmatrix
+
+**Zweck:** Frei definierte Kriterien gegen die in der Deskriptionsmatrix ausgewählten Quellen bewerten – Forschungslücken-Argument.
+
+```
+┌───────────────────────────────────────────┐
+│ ▸ Evaluationskriterien anzeigen (16)       │
+│   [KI-Vorschlag] [+ Kriterium]             │
+├───────────────────────────────────────────┤
+│ [Thema▼] [CSV exportieren][HTML exportier.]│
+│ Tabellenkopf anklicken zum Sortieren       │
+│ Autor/Jahr▲ Titel    BITA-K.  DynCap … [KI]│
+│ Teece 1997  Dynamic… ○ leer   ● voll   ✔  │
+│ Vial 2019   Underst… ◑ halb   ○ leer  [KI]│
+└───────────────────────────────────────────┘
+```
+
+- **Kriterien-Bereich** (auf-/zuklappbar, Default zu, zeigt Kriterienzahl im Kopf): Kriterien einzeln anlegen/bearbeiten/löschen (Beschreibung + Herleitung), oder per „KI-Vorschlag" auf Basis von Thema/FFs/Themenfeldern und den ausgewählten Quellen (inkl. deren Einordnung/Fundierung/Erkenntnisse) vorschlagen lassen – jeder Vorschlag mit Begründung, einzeln übernehmbar.
+- **Zeilen** = nur die in der Deskriptionsmatrix angehakten Quellen (kein Gruppieren nach Schnittmengen, keine VHB-Spalte).
+- **Zellen:** vierstufige Skala nicht (○) / zu einem Viertel (◔) / zur Hälfte (◑) / voll abgedeckt (●) – Dropdown je Zelle für manuelles Setzen, Button „KI-Einschätzung" je Zeile bewertet die Quelle gegen alle Kriterien auf einmal (mit Begründung als Tooltip).
+- Themenfeld-Filter, sortierbare Tabellenköpfe (auch je Kriteriums-Spalte nach Zellwert).
+- **Export HTML:** eigenständige interaktive Datei im Stil der Design-Referenz `docs/Evaluationsmatrix_Interaktiv.html` (Themenfeld-Filter, Suche, Legende, Kernaussage-Callout, Score-Statistik) – ohne Abhängigkeit zum Tool weitergebbar, hebt die eigene Dissertation als Referenzquelle farblich hervor.
+- **Export CSV.**
+
+---
+
+## 6. Suche
 
 **Zweck:** Gezielt Belege finden.
 
@@ -136,7 +191,7 @@ Navigation: feste Seitenleiste links (einklappbar) mit den sechs Ansichten. Oben
 
 ---
 
-## 5. Verwendet
+## 7. Verwendet
 
 **Zweck:** Zitate-Buchhaltung pro Dokument, Literaturverzeichnis.
 
@@ -160,7 +215,7 @@ Navigation: feste Seitenleiste links (einklappbar) mit den sechs Ansichten. Oben
 
 ---
 
-## 6. Protokolle
+## 8. Protokolle
 
 **Zweck:** Nachweise ohne Zusatzaufwand.
 
