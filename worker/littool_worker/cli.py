@@ -6,6 +6,7 @@ from . import bibtex_import
 from .chunking import run_chunking
 from . import claude_client
 from .doi import run_doi_extraction
+from .docx_review import run_docx_review
 from . import passages as passages_module
 from .duplicates import run_duplicate_detection
 from .embeddings import run_embedding
@@ -263,6 +264,17 @@ def cmd_triage_assess(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_docx_review(args: argparse.Namespace) -> int:
+    client = get_client()
+    summary = run_docx_review(client, args.review_id)
+    print(
+        f"Pruefbericht abgeschlossen: {summary['zitate_gefunden']} Zitationen, "
+        f"{summary['verzeichnis_eintraege']} Verzeichnis-Eintraege - "
+        f"{summary['fehler']} Fehler, {summary['warnung']} Warnungen, {summary['hinweis']} Hinweise."
+    )
+    return 0
+
+
 def cmd_test_claude(_args: argparse.Namespace) -> int:
     api_key = require_env("ANTHROPIC_API_KEY")
     client = claude_client.get_client(api_key)
@@ -375,6 +387,12 @@ def main() -> None:
         help="Gezielt einen Kandidaten (erneut) einschaetzen (wiederholbar)",
     )
     triage_assess_parser.set_defaults(func=cmd_triage_assess)
+
+    docx_review_parser = subparsers.add_parser(
+        "docx-review", help="Zitations-Pruefbericht fuer eine hochgeladene .docx-Datei erzeugen"
+    )
+    docx_review_parser.add_argument("--review-id", required=True, help="id aus docx_reviews")
+    docx_review_parser.set_defaults(func=cmd_docx_review)
 
     analyze_parser = subparsers.add_parser(
         "analyze-topics", help="Themenfelder zuordnen + Relevanz je Forschungsfrage bewerten (Claude)"

@@ -55,7 +55,7 @@ Drei Korrekturen an bestehendem Verhalten – keine neuen Features, daher vorran
 
 **Backup-Routine:** letzter Dump `backups/20260726_221744` (26.07., zwei Tage alt zum Zeitpunkt der Prüfung), enthält `schema.sql`, `data.sql` und `pdfs/` vollständig. **Offen:** Restore-Test wurde noch nicht angefragt/bestätigt - beim Autor nachzufragen, ob das CLAUDE.md-Pflicht-Item „Restore einmal testweise durchspielen" bereits erledigt ist.
 
-## Paket 1 – Zitations-Prüfbericht für Word-Dokumente ☐
+## Paket 1 – Zitations-Prüfbericht für Word-Dokumente ☑
 
 *(aus der Ideen-Liste übernommen – wertvollster Baustein vor jeder Abgabe)*
 
@@ -63,6 +63,26 @@ Drei Korrekturen an bestehendem Verhalten – keine neuen Features, daher vorran
 - Abgleich gegen die Datenbank: Quelle vorhanden? Autor/Jahr/Seite plausibel (Seiten-Offset berücksichtigen)? Wörtliche Zitate im Dokumenttext der Quelle nachweisbar (String-Verifikation rückwärts)? Zitierte Quellen vollständig im Verzeichnis und umgekehrt (Waisen-Einträge beidseitig)?
 - Ergebnis: Prüfbericht mit Fundstellen (Seite im Word-Dokument), Schweregrad (Fehler/Warnung/Hinweis) und Korrektur-VORSCHLÄGEN zum einzelnen Übernehmen als Liste – KEIN automatisches Umschreiben der Word-Datei.
 - **Fertig, wenn:** Ein echter ISP-Entwurf geprüft wurde und der Bericht mindestens einen realen Befund korrekt identifiziert (oder sauber „keine Befunde" meldet).
+
+**Notizen:**
+
+**Architektur (wie Paket E, Phase 5):** Verarbeitung als Worker-CLI-Befehl (`littool-worker docx-review --review-id <id>`), kein `jobs`-Eintrag/Edge Function - rohe `.docx`-Bytes sind bislang ausschliesslich Domäne des Python-Workers (`python-docx`, neu zu den Worker-Abhängigkeiten hinzugefügt). Status lebt direkt an `docx_reviews.status` (`pending`/`running`/`done`/`failed`), gleiches einfache Muster wie `sources.triage_recommendation`.
+
+**Bewusst kein Claude-Aufruf:** Der gesamte Abgleich (Zitations-Extraktion, Autor/Jahr-Matching, Seiten-Plausibilität, Zitat-String-Verifikation, Verzeichnis-Waisen) ist deterministischer Code (Regex + DB-Lookups) - gleiches Prinzip wie die strukturelle Belegprüfung bei Agenten-Entwürfen (Phase 5, Paket 5, „kein Vertrauen in Claude"): der Sinn eines Prüfberichts ist Verlässlichkeit, eine geratene KI-Einschätzung wäre hier schädlicher als nützlich. Kein neuer `ai_log_entries.action_type` nötig.
+
+**Migration `0040_docx_review.sql`:** neue Tabellen `docx_reviews` (Status/Fehlermeldung/Zusammenfassung je Prüfung) und `docx_review_findings` (Schweregrad/Kategorie/Fundstelle/Kontext/Beschreibung/Vorschlag je Befund, `on delete cascade` von `docx_reviews`), neuer privater Storage-Bucket `docx_reviews` (gleiches Policy-Muster wie `pdfs`, Migration 0002).
+
+**Zitations-Muster deckt exakt das ab, was das Tool selbst erzeugt:** Regex spiegelt `format_citation` (SQL-Funktion, Migration 0019) - "(Autor[, Autor2 | et al.], Jahr[a-z], S. Seite[-Seite])". Erkennt zuverlässig alles, was per Kopier-Button aus der Schreibwerkstatt in die Word-Datei gelangt ist; abweichend von Hand formatierte Zitationen werden nicht erkannt (dokumentierte Grenze, wie schon bei den BibTeX-Unmatched-Einträgen in Phase 4).
+
+**Seiten-Tracking im Word-Dokument ist Best-Effort:** `.docx` kennt keine echten Seitenzahlen ohne Layout-Engine - genutzt werden manuelle Seitenumbrüche (`w:br type="page"`) und Word's `w:lastRenderedPageBreak` (Cache vom letzten Speichern, kann nach Bearbeitung leicht veralten). Fundstellen sind deshalb als „ca. S. X (Word)" gekennzeichnet, zusätzlich mit einem Kontext-Textausschnitt (Ctrl+F-tauglich) - kein Anspruch auf exakte Seitenzahl.
+
+**Referenz-Matching zweistufig:** In-Text-Zitationen matchen exakt gegen die von `format_citation` erzeugte Autor-Zeichenkette (1 Autor / „A & B" / „A et al."); Literaturverzeichnis-Einträge (freieres Format, alle Autoren ausgeschrieben) matchen nur über den ersten Autor-Nachnamen + Jahr, gleiche Vereinfachung wie `apaFormat.ts::firstAuthorKey`. Mehrdeutige Autor+Jahr-Treffer im Text (bekannte Tool-Grenze, s. `docs/ideen-spaeter.md` „Autor+Jahr-Suffixe im Fließtext") werden als Warnung gemeldet, nicht geraten.
+
+**Wörtliche Zitate:** Zitat unmittelbar vor der Zitation (gleiches Anführungsmuster wie `CitationCopyButtons.tsx`) wird gegen den vollständigen extrahierten Text der Quelle (`chunks.text`, nicht nur die erfassten Passagen) auf Substring-Ebene geprüft - „String-Verifikation", keine Fuzzy-Suche. Mit `[Übersetzung durch den Verfasser]`-Marker gekennzeichnete Zitate werden stattdessen gegen `passages.translation` geprüft (niedrigere Kategorie „Warnung" statt „Fehler", da Übersetzungen naturgemäß freier sind).
+
+**Frontend:** dritter Tab „Prüfbericht" in `Protokolle.tsx` (kein neuer Sidebar-Eintrag - gleiche Begründung wie beim Chat in der Schreibwerkstatt: die `BottomTabBar` hat bereits 8 Einträge). Upload-Formular + Liste vergangener Prüfungen mit Status, Polling alle 4s solange eine Prüfung noch nicht fertig ist, Befunde nach Schweregrad sortiert mit Fundstelle/Kontext/Vorschlag je Karte.
+
+**Getestet:** TypeScript-Build/`vite build` fehlerfrei. Python-Syntax- und Logik-Smoketest (Autor-Formatierung, Zitations-Regex). End-zu-Ende gegen die echte Produktions-DB (Testartefakte danach vollständig entfernt): ein synthetisches Test-Dokument mit fünf In-Text-Zitationen und vier Literaturverzeichnis-Einträgen, gebaut aus echten Quellen des Bestands (Kearns & Lederer 2003, Reynolds & Yetton 2015, Hanelt et al. 2021, Queiroz et al. 2020) plus einer erfundenen Quelle, gegen die echte DB geprüft - alle sechs bewusst eingebauten Fälle korrekt erkannt: unbelegbares wörtliches Zitat (Fehler), Seite außerhalb des Offset-Bereichs (Fehler), unbekannte Quelle (Fehler), im Text zitiert aber nicht im Verzeichnis (Fehler), Verzeichnis-Waise nie zitiert (Warnung), Verzeichnis-Eintrag nicht zuordenbar (Hinweis) - und die eine korrekt zitierte, korrekt platzierte, wörtlich nachweisbare Zitation blieb zu Recht unauffällig (kein falsch-positiver Befund). **Einschränkung:** Kein *echter* ISP-Entwurf des Autors verfügbar (kein Zugriff auf dessen Dateisystem/Word-Datei) - das Test-Dokument ist synthetisch, nutzt aber ausschließlich reale Bestandsdaten. Empfehlung: den echten ISP-Entwurf einmal selbst über den neuen „Prüfbericht"-Tab hochladen und den Worker-Befehl laufen lassen, um das Fertig-Kriterium mit einem echten Dokument zu bestätigen. Kein Browser-Klick-Test möglich (gleiche Login-Einschränkung wie bei Paket F).
 
 ## Paket 2 – Nachrecherche via OpenAlex ☐
 

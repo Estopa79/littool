@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ChangeEvent } from 'react'
 import { fetchAiLogEntries, monthKey, monthLabel, type AiLogTableRow } from '../lib/aiVerzeichnis'
 import {
   fetchActiveDates,
@@ -8,8 +8,18 @@ import {
   buildCopyText,
   WEEKDAY_LABELS,
 } from '../lib/aktivitaet'
+import { useActiveDocument } from '../lib/ActiveDocumentContext'
+import {
+  deleteDocxReview,
+  fetchDocxReviewFindings,
+  fetchDocxReviews,
+  uploadDocxForReview,
+  type DocxReview,
+  type DocxReviewFinding,
+  type FindingSeverity,
+} from '../lib/docxReview'
 
-type Tab = 'ki-verzeichnis' | 'aktivitaet'
+type Tab = 'ki-verzeichnis' | 'aktivitaet' | 'pruefbericht'
 
 function escapeHtml(s: string): string {
   return s
@@ -252,6 +262,224 @@ function AktivitaetTab() {
   )
 }
 
+const SEVERITY_LABEL: Record<FindingSeverity, string> = { fehler: '🔴 Fehler', warnung: '🟡 Warnung', hinweis: 'ℹ️ Hinweis' }
+const SEVERITY_CLASS: Record<FindingSeverity, string> = {
+  fehler: 'border-red-200 dark:border-red-900',
+  warnung: 'border-amber-200 dark:border-amber-900',
+  hinweis: 'border-slate-200 dark:border-slate-800',
+}
+const REVIEW_POLL_INTERVAL_MS = 4000
+
+function FindingCard({ finding }: { finding: DocxReviewFinding }) {
+  return (
+    <li className={`rounded-md border p-2 text-xs ${SEVERITY_CLASS[finding.severity]}`}>
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <span className="font-medium text-slate-800 dark:text-slate-100">{SEVERITY_LABEL[finding.severity]}</span>
+        {finding.doc_location && <span className="text-slate-400 dark:text-slate-500">{finding.doc_location}</span>}
+      </div>
+      <p className="text-slate-700 dark:text-slate-300">{finding.description}</p>
+      {finding.context_snippet && (
+        <p className="mt-1 italic text-slate-500 dark:text-slate-400">„…{finding.context_snippet}…"</p>
+      )}
+      {finding.suggestion && (
+        <p className="mt-1 text-slate-500 dark:text-slate-400">
+          <span className="font-medium">Vorschlag:</span> {finding.suggestion}
+        </p>
+      )}
+    </li>
+  )
+}
+
+function ReviewCard({ review, onDeleted }: { review: DocxReview; onDeleted: () => void }) {
+  const [expanded, setExpanded] = useState(false)
+  const [findings, setFindings] = useState<DocxReviewFinding[] | null>(null)
+  const [loadingFindings, setLoadingFindings] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  async function handleToggle() {
+    if (!expanded && findings === null) {
+      setLoadingFindings(true)
+      try {
+        setFindings(await fetchDocxReviewFindings(review.id))
+      } finally {
+        setLoadingFindings(false)
+      }
+    }
+    setExpanded((v) => !v)
+  }
+
+  async function handleDelete() {
+    if (!confirm(`„${review.filename}" wirklich aus dem Prüfbericht-Verlauf löschen?`)) return
+    setDeleting(true)
+    try {
+      await deleteDocxReview(review)
+      onDeleted()
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  return (
+    <li className="rounded-lg border border-slate-200 p-3 text-sm dark:border-slate-800">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="font-medium text-slate-800 dark:text-slate-100">{review.filename}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            {new Date(review.created_at).toLocaleString('de-DE')}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={handleDelete}
+          disabled={deleting}
+          className="shrink-0 text-slate-400 hover:text-red-600 disabled:opacity-50 dark:hover:text-red-400"
+          aria-label="Löschen"
+        >
+          ✕
+        </button>
+      </div>
+
+      {(review.status === 'pending' || review.status === 'running') && (
+        <p className="mt-2 text-xs text-slate-400">
+          {review.status === 'running' ? 'Wird gerade verarbeitet …' : 'Wartet auf Verarbeitung'} – nächster
+          Worker-Lauf (
+          <code>littool-worker docx-review --review-id {review.id}</code>) holt das nach.
+        </p>
+      )}
+
+      {review.status === 'failed' && (
+        <p className="mt-2 text-xs text-red-600 dark:text-red-400">Fehlgeschlagen: {review.error}</p>
+      )}
+
+      {review.status === 'done' && review.summary && (
+        <div className="mt-2">
+          <button
+            type="button"
+            onClick={handleToggle}
+            className="text-xs font-medium text-slate-600 hover:underline dark:text-slate-300"
+          >
+            {expanded ? '– Bericht ausblenden' : '+ Bericht anzeigen'} ({review.summary.fehler} Fehler,{' '}
+            {review.summary.warnung} Warnungen, {review.summary.hinweis} Hinweise · {review.summary.zitate_gefunden}{' '}
+            Zitationen geprüft)
+          </button>
+          {expanded && (
+            <div className="mt-2">
+              {loadingFindings && <p className="text-xs text-slate-400">Lädt …</p>}
+              {findings && findings.length === 0 && (
+                <p className="text-xs text-slate-400">Keine Befunde – Zitationen und Literaturverzeichnis sauber.</p>
+              )}
+              {findings && findings.length > 0 && (
+                <ul className="flex flex-col gap-2">
+                  {findings.map((f) => (
+                    <FindingCard key={f.id} finding={f} />
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </li>
+  )
+}
+
+function PruefberichtTab() {
+  const { documents, activeDocumentId } = useActiveDocument()
+  const [reviews, setReviews] = useState<DocxReview[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [targetDocumentId, setTargetDocumentId] = useState<string>('')
+
+  function load() {
+    return fetchDocxReviews()
+      .then(setReviews)
+      .catch((err: Error) => setError(err.message))
+  }
+
+  useEffect(() => {
+    load().finally(() => setLoading(false))
+  }, [])
+
+  useEffect(() => {
+    setTargetDocumentId((prev) => prev || activeDocumentId || '')
+  }, [activeDocumentId])
+
+  // Solange mindestens eine Pruefung noch nicht fertig ist, alle paar
+  // Sekunden neu laden - der eigentliche Worker-Lauf startet manuell (gleiches
+  // Muster wie die Schnell-Einschaetzung im Eingang-Tab), das Polling holt
+  // nur das Ergebnis nach, sobald es fertig ist.
+  useEffect(() => {
+    if (!reviews.some((r) => r.status === 'pending' || r.status === 'running')) return
+    const interval = setInterval(load, REVIEW_POLL_INTERVAL_MS)
+    return () => clearInterval(interval)
+  }, [reviews])
+
+  async function handleUpload(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    if (!file.name.toLowerCase().endsWith('.docx')) {
+      setUploadError('Nur .docx-Dateien werden unterstützt.')
+      return
+    }
+    setUploading(true)
+    setUploadError(null)
+    try {
+      await uploadDocxForReview(file, targetDocumentId || null)
+      await load()
+    } catch (err) {
+      setUploadError((err as Error).message)
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  if (loading) return <p className="p-4 text-sm text-slate-400 sm:p-6">Lädt …</p>
+  if (error) return <p className="p-4 text-sm text-red-600 dark:text-red-400 sm:p-6">Fehler: {error}</p>
+
+  return (
+    <div className="p-4 sm:p-6">
+      <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
+        .docx hochladen (ISP/Exposé/Diss-Entwurf) - prüft Zitationen im Text gegen den Bestand (Quelle vorhanden?
+        Seite plausibel? wörtliches Zitat nachweisbar?) und den Abgleich mit dem Literaturverzeichnis. Ergebnis sind
+        Korrektur-VORSCHLÄGE zum Übernehmen, kein automatisches Umschreiben der Datei.
+      </p>
+
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <select
+          value={targetDocumentId}
+          onChange={(e) => setTargetDocumentId(e.target.value)}
+          className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+        >
+          <option value="">(kein Dokument-Bezug)</option>
+          {documents.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.title}
+            </option>
+          ))}
+        </select>
+        <label className="cursor-pointer rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
+          {uploading ? 'Wird hochgeladen …' : '⬆ .docx hochladen'}
+          <input type="file" accept=".docx" onChange={handleUpload} disabled={uploading} className="hidden" />
+        </label>
+      </div>
+      {uploadError && <p className="mb-3 text-sm text-red-600 dark:text-red-400">Fehler: {uploadError}</p>}
+
+      {reviews.length === 0 ? (
+        <p className="text-sm text-slate-400">Noch keine Prüfungen.</p>
+      ) : (
+        <ul className="flex flex-col gap-3">
+          {reviews.map((r) => (
+            <ReviewCard key={r.id} review={r} onDeleted={load} />
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
 export function Protokolle() {
   const [tab, setTab] = useState<Tab>('ki-verzeichnis')
 
@@ -281,9 +509,22 @@ export function Protokolle() {
         >
           Aktivität
         </button>
+        <button
+          type="button"
+          onClick={() => setTab('pruefbericht')}
+          className={`rounded-t-md px-3 py-1.5 text-sm font-medium ${
+            tab === 'pruefbericht'
+              ? 'border-b-2 border-slate-900 text-slate-900 dark:border-slate-100 dark:text-slate-100'
+              : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+          }`}
+        >
+          Prüfbericht
+        </button>
       </div>
 
-      {tab === 'ki-verzeichnis' ? <KiVerzeichnisTab /> : <AktivitaetTab />}
+      {tab === 'ki-verzeichnis' && <KiVerzeichnisTab />}
+      {tab === 'aktivitaet' && <AktivitaetTab />}
+      {tab === 'pruefbericht' && <PruefberichtTab />}
     </div>
   )
 }
