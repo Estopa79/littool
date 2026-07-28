@@ -2,6 +2,13 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { runSearch, renderSnippetHtml, type SearchHit, type SearchMode } from '../lib/search'
 import { formatAuthorYear, formatRanking } from '../lib/sourceFormat'
+import {
+  crossReferenceOpenAlexResults,
+  importOpenAlexResult,
+  searchOpenAlex,
+  type OpenAlexCrossRef,
+  type OpenAlexResult,
+} from '../lib/openAlex'
 
 const MODE_OPTIONS: Array<{ value: SearchMode; label: string }> = [
   { value: 'hybrid', label: 'Hybrid' },
@@ -62,10 +69,166 @@ function FilterFields({
   )
 }
 
+function formatOpenAlexAuthors(authors: { given: string; family: string }[]): string {
+  if (authors.length === 0) return 'Unbekannt'
+  return authors.map((a) => (a.given ? `${a.given} ${a.family}` : a.family)).join(', ')
+}
+
+function ExternResultCard({
+  result,
+  crossRef,
+}: {
+  result: OpenAlexResult
+  crossRef: OpenAlexCrossRef | undefined
+}) {
+  const [showAbstract, setShowAbstract] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [imported, setImported] = useState<{ hasPdf: boolean; pdfError: string | null } | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleImport() {
+    setImporting(true)
+    setError(null)
+    try {
+      const res = await importOpenAlexResult(result)
+      setImported({ hasPdf: res.hasPdf, pdfError: res.pdfError })
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  return (
+    <li className="rounded-lg border border-slate-200 p-3 text-sm dark:border-slate-800">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="font-medium text-slate-800 dark:text-slate-100">{result.title}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            {formatOpenAlexAuthors(result.authors)}
+            {result.year ? ` · ${result.year}` : ''}
+            {result.venue ? ` · ${result.venue}` : ''}
+          </p>
+        </div>
+        <span className="shrink-0 text-xs text-slate-400" title="Zitationszahl (OpenAlex)">
+          {result.citation_count ?? 0}×
+        </span>
+      </div>
+
+      {crossRef?.alreadyInBestand && (
+        <p className="mt-2 rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+          ✓ bereits im Bestand
+        </p>
+      )}
+      {crossRef?.rejection && (
+        <p className="mt-2 rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+          bereits am {new Date(crossRef.rejection.rejected_at).toLocaleDateString('de-DE')} verworfen –{' '}
+          {crossRef.rejection.reason}
+        </p>
+      )}
+
+      {result.abstract && (
+        <button
+          type="button"
+          onClick={() => setShowAbstract((v) => !v)}
+          className="mt-2 text-xs text-slate-500 hover:underline dark:text-slate-400"
+        >
+          {showAbstract ? '– Abstract ausblenden' : '+ Abstract anzeigen'}
+        </button>
+      )}
+      {showAbstract && result.abstract && (
+        <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">{result.abstract}</p>
+      )}
+
+      <div className="mt-2 flex items-center gap-3 text-xs">
+        {!imported ? (
+          <button
+            type="button"
+            onClick={handleImport}
+            disabled={importing}
+            className="rounded-md border border-slate-300 px-2 py-1 font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+          >
+            {importing ? 'Wird übernommen …' : '⬆ In Eingang übernehmen'}
+          </button>
+        ) : (
+          <span className="text-emerald-700 dark:text-emerald-400">
+            ✓ In Eingang übernommen{imported.hasPdf ? ' (PDF geladen)' : ' (kein PDF)'}
+          </span>
+        )}
+        {result.oa_pdf_url && !imported && <span className="text-slate-400">Open-Access-PDF verfügbar</span>}
+      </div>
+      {imported?.pdfError && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{imported.pdfError}</p>}
+      {error && <p className="mt-1 text-xs text-red-600 dark:text-red-400">Fehler: {error}</p>}
+    </li>
+  )
+}
+
+function ExternTab() {
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<OpenAlexResult[] | null>(null)
+  const [crossRefs, setCrossRefs] = useState<Map<string, OpenAlexCrossRef>>(new Map())
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleSearch(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    if (!query.trim()) return
+    setLoading(true)
+    setError(null)
+    try {
+      const hits = await searchOpenAlex(query.trim())
+      setResults(hits)
+      setCrossRefs(await crossReferenceOpenAlexResults(hits))
+    } catch (err) {
+      setError((err as Error).message)
+      setResults(null)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div>
+      <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
+        Stichwort-/Themensuche direkt gegen OpenAlex (externe, kostenlose Datenbank) - unabhängig vom eigenen
+        Bestand. Interessante Treffer landen per Klick im Eingang/Prüf-Pool, Open-Access-PDFs werden dabei, wo
+        verfügbar, direkt mitgeladen.
+      </p>
+      <form onSubmit={handleSearch} className="mb-4 flex gap-2">
+        <input
+          type="search"
+          placeholder="Stichwort oder Thema …"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          className="flex-1 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+          autoFocus
+        />
+        <button
+          type="submit"
+          disabled={loading}
+          className="rounded-md bg-slate-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
+        >
+          {loading ? 'Sucht …' : 'Suchen'}
+        </button>
+      </form>
+
+      {error && <p className="mb-4 text-sm text-red-600 dark:text-red-400">Fehler: {error}</p>}
+      {results !== null && results.length === 0 && !loading && <p className="text-sm text-slate-400">Keine Treffer.</p>}
+
+      <ul className="flex flex-col gap-3">
+        {(results ?? []).map((r) => (
+          <ExternResultCard key={r.openalex_id} result={r} crossRef={crossRefs.get(r.openalex_id)} />
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 export function Suche() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
 
+  const [viewTab, setViewTab] = useState<'intern' | 'extern'>('intern')
   const [query, setQuery] = useState(searchParams.get('q') ?? '')
   const [mode, setMode] = useState<SearchMode>('hybrid')
   const [filterType, setFilterType] = useState('')
@@ -114,8 +277,37 @@ export function Suche() {
 
   return (
     <div className="mx-auto max-w-3xl p-4 sm:p-6">
-      <h1 className="mb-4 text-xl font-semibold text-slate-800 dark:text-slate-100">Suche</h1>
+      <h1 className="mb-1 text-xl font-semibold text-slate-800 dark:text-slate-100">Suche</h1>
 
+      <div className="mb-4 flex items-center gap-2 border-b border-slate-200 dark:border-slate-800">
+        <button
+          type="button"
+          onClick={() => setViewTab('intern')}
+          className={`rounded-t-md px-3 py-1.5 text-sm font-medium ${
+            viewTab === 'intern'
+              ? 'border-b-2 border-slate-900 text-slate-900 dark:border-slate-100 dark:text-slate-100'
+              : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+          }`}
+        >
+          Intern
+        </button>
+        <button
+          type="button"
+          onClick={() => setViewTab('extern')}
+          className={`rounded-t-md px-3 py-1.5 text-sm font-medium ${
+            viewTab === 'extern'
+              ? 'border-b-2 border-slate-900 text-slate-900 dark:border-slate-100 dark:text-slate-100'
+              : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+          }`}
+        >
+          Extern
+        </button>
+      </div>
+
+      {viewTab === 'extern' ? (
+        <ExternTab />
+      ) : (
+      <>
       <form onSubmit={handleSubmit} className="mb-3 flex gap-2">
         <input
           type="search"
@@ -233,6 +425,8 @@ export function Suche() {
           </li>
         ))}
       </ul>
+      </>
+      )}
     </div>
   )
 }

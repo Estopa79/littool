@@ -112,7 +112,10 @@ function bigrams(s: string): Set<string> {
   return result
 }
 
-function titleSimilarity(a: string, b: string): number {
+// Exportiert fuer Wiederverwendung ausserhalb von triage.ts (Paket 2, Phase 6:
+// Bestand-/Verworfen-Abgleich der OpenAlex-Nachrecherche nutzt dieselbe
+// Aehnlichkeits-Heuristik statt einer zweiten Implementierung).
+export function titleSimilarity(a: string, b: string): number {
   const bigramsA = bigrams(a)
   const bigramsB = bigrams(b)
   if (bigramsA.size === 0 || bigramsB.size === 0) return 0
@@ -121,7 +124,7 @@ function titleSimilarity(a: string, b: string): number {
   return (2 * overlap) / (bigramsA.size + bigramsB.size)
 }
 
-const TITLE_SIMILARITY_THRESHOLD = 0.85
+export const TITLE_SIMILARITY_THRESHOLD = 0.85
 
 // Wiedererkennung beim Upload (Eingang UND Direkt-Upload, s. uploadSource.ts):
 // Hash exakt zuerst, sonst Titel-Fuzzy gegen den vom Dateinamen abgeleiteten
