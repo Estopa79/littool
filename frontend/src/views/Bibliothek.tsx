@@ -264,7 +264,9 @@ export function Bibliothek() {
 
   return (
     <div className="p-4 sm:p-6">
-      <h1 className="mb-4 text-xl font-semibold text-slate-800 dark:text-slate-100">Bibliothek</h1>
+      <h1 className="mb-4 text-xl font-semibold text-slate-800 dark:text-slate-100">
+        Bibliothek <span className="text-base font-normal text-slate-400 dark:text-slate-500">({sources.length})</span>
+      </h1>
 
       <div className="mb-4 flex gap-1 border-b border-slate-200 dark:border-slate-800">
         <button

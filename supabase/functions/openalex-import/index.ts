@@ -35,6 +35,29 @@ type ImportPayload = {
   oa_pdf_url?: string | null;
 };
 
+// Sicherheits-Fix: die PDF-URL wird NICHT aus dem Client-Payload uebernommen
+// (ein authentifizierter Aufrufer koennte sonst eine beliebige URL angeben und
+// die Function als Server-Side-Request-Forgery-Proxy missbrauchen - fetch()
+// serverseitig wuerde jede erreichbare Adresse anfragen, nicht nur echte
+// OpenAlex-PDF-Links). Stattdessen wird der Datensatz per `openalex_id`
+// erneut direkt bei OpenAlex abgerufen und NUR die dort tatsaechlich
+// hinterlegte `best_oa_location.pdf_url` verwendet - der Client liefert die
+// uebrigen Metadaten (Titel/Autoren/...) weiterhin mit, um keinen zweiten
+// vollen Parse-Durchlauf zu erzwingen; diese Felder werden nur gespeichert,
+// nie ausgefuehrt oder angefragt, daher unkritisch.
+async function fetchTrustedOaPdfUrl(openalexId: string | undefined): Promise<string | null> {
+  if (!openalexId) return null;
+  const mailto = Deno.env.get("OPENALEX_MAILTO");
+  const url = `https://api.openalex.org/works/${encodeURIComponent(openalexId)}${
+    mailto ? `?${new URLSearchParams({ mailto })}` : ""
+  }`;
+  const resp = await fetch(url);
+  if (!resp.ok) return null;
+  const work = await resp.json();
+  const pdfUrl = work?.best_oa_location?.pdf_url;
+  return typeof pdfUrl === "string" && pdfUrl.startsWith("https://") ? pdfUrl : null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: CORS_HEADERS });
@@ -87,12 +110,13 @@ Deno.serve(async (req) => {
 
   let hasPdf = false;
   let pdfError: string | null = null;
-  if (result.oa_pdf_url) {
+  const trustedPdfUrl = await fetchTrustedOaPdfUrl(result.openalex_id);
+  if (trustedPdfUrl) {
     try {
       // Manche Verlage (z.B. MDPI) blocken Anfragen ohne plausiblen
       // Browser-User-Agent mit 403 - hoeflicher, aber browserartiger
       // User-Agent statt der Deno-Default-Kennung.
-      const pdfResp = await fetch(result.oa_pdf_url, {
+      const pdfResp = await fetch(trustedPdfUrl, {
         headers: { "User-Agent": "Mozilla/5.0 (compatible; LitTool/0.1; +academic research tool)" },
       });
       if (!pdfResp.ok) {
