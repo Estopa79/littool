@@ -38,6 +38,7 @@ import {
   reviewOwnText,
   type DiscussionEntry,
 } from '../lib/discussion'
+import { cancelJob, fetchActiveDebateJobForSection, requestDebate } from '../lib/debate'
 import { formatAuthorYear } from '../lib/sourceFormat'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { CitationCopyButtons } from '../components/CitationCopyButtons'
@@ -359,6 +360,15 @@ function DiskussionColumn({
   onSubmitReview,
   submittingReview,
   reviewError,
+  debatePersonaIds,
+  onToggleDebatePersona,
+  debateRoundLimit,
+  onDebateRoundLimitChange,
+  onStartDebate,
+  debateRequesting,
+  debateError,
+  debateJob,
+  onCancelDebate,
 }: {
   currentDraft: Draft | null
   entries: DiscussionEntry[]
@@ -378,7 +388,18 @@ function DiskussionColumn({
   onSubmitReview: () => void
   submittingReview: boolean
   reviewError: string | null
+  debatePersonaIds: Set<string>
+  onToggleDebatePersona: (id: string) => void
+  debateRoundLimit: number
+  onDebateRoundLimitChange: (n: number) => void
+  onStartDebate: () => void
+  debateRequesting: boolean
+  debateError: string | null
+  debateJob: DraftJob | null
+  onCancelDebate: () => void
 }) {
+  const debateJobRunning = debateJob && (debateJob.status === 'pending' || debateJob.status === 'running')
+  const debateJobFinishingCancel = debateJob && debateJob.status === 'cancelled' && debateJob.progress < 100
   return (
     <div className="flex h-full flex-col overflow-y-auto p-4">
       <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
@@ -412,9 +433,22 @@ function DiskussionColumn({
           {loadingEntries && <p className="text-sm text-slate-400">Lädt …</p>}
           <ul className="mb-3 flex flex-col gap-2">
             {entries.map((e) => (
-              <li key={e.id} className="rounded-md border border-slate-200 p-2 text-xs dark:border-slate-800">
-                <p className="mb-1 font-medium text-slate-700 dark:text-slate-300">
-                  {e.author_type === 'user' ? 'Du' : (e.persona_name ?? 'Persona')}
+              <li
+                key={e.id}
+                className={`rounded-md border p-2 text-xs ${
+                  e.author_type === 'system'
+                    ? 'border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950'
+                    : 'border-slate-200 dark:border-slate-800'
+                }`}
+              >
+                <p
+                  className={`mb-1 font-medium ${
+                    e.author_type === 'system'
+                      ? 'text-amber-800 dark:text-amber-300'
+                      : 'text-slate-700 dark:text-slate-300'
+                  }`}
+                >
+                  {e.author_type === 'user' ? 'Du' : e.author_type === 'system' ? '📋 Kernpunkte der Debatte' : (e.persona_name ?? 'Persona')}
                 </p>
                 <p className="whitespace-pre-wrap text-slate-600 dark:text-slate-400">{e.text}</p>
               </li>
@@ -457,6 +491,84 @@ function DiskussionColumn({
           )}
         </>
       )}
+
+      <details className="mb-3 rounded-md border border-slate-200 p-2 dark:border-slate-800">
+        <summary className="cursor-pointer select-none text-xs font-medium text-slate-600 dark:text-slate-400">
+          Debatte starten
+        </summary>
+        <div className="mt-2 flex flex-col gap-2 text-xs">
+          <p className="text-slate-500 dark:text-slate-400">
+            2-3 Personas auswählen, die autonom über mehrere Runden den aktuellen Entwurf diskutieren.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {personas.map((p) => (
+              <label key={p.id} className="flex items-center gap-1">
+                <input
+                  type="checkbox"
+                  checked={debatePersonaIds.has(p.id)}
+                  onChange={() => onToggleDebatePersona(p.id)}
+                  disabled={!!debateJobRunning || (!debatePersonaIds.has(p.id) && debatePersonaIds.size >= 3)}
+                />
+                {p.name}
+              </label>
+            ))}
+          </div>
+          <label className="flex items-center gap-1.5">
+            Runden
+            <input
+              type="number"
+              min={1}
+              max={5}
+              value={debateRoundLimit}
+              onChange={(e) => onDebateRoundLimitChange(Number(e.target.value))}
+              disabled={!!debateJobRunning}
+              className="w-14 rounded-md border border-slate-300 bg-white px-1.5 py-0.5 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={onStartDebate}
+            disabled={
+              !currentDraft ||
+              !!debateJobRunning ||
+              debateRequesting ||
+              debatePersonaIds.size < 2 ||
+              debatePersonaIds.size > 3
+            }
+            className="self-start rounded-md bg-slate-900 px-2 py-1 font-medium text-white hover:bg-slate-800 disabled:opacity-40 dark:bg-slate-100 dark:text-slate-900"
+          >
+            Debatte starten
+          </button>
+          {!currentDraft && <p className="text-slate-400">Erst einen Entwurf anfordern oder eigenen Text prüfen.</p>}
+
+          {debateJobRunning && (
+            <div className="rounded-md bg-slate-100 px-2 py-1.5 dark:bg-slate-800">
+              <p className="text-slate-600 dark:text-slate-300">
+                Debatte läuft … ({debateJob!.progress}%) - läuft im Hintergrund, die Seite kann verlassen werden.
+              </p>
+              <button type="button" onClick={onCancelDebate} className="mt-1 text-red-600 hover:underline dark:text-red-400">
+                Abbrechen
+              </button>
+            </div>
+          )}
+          {debateJobFinishingCancel && (
+            <p className="text-slate-500 dark:text-slate-400">
+              Wird abgebrochen … (laufende Runde wird noch zu Ende geführt, danach folgt die Zusammenfassung)
+            </p>
+          )}
+          {debateJob?.status === 'cancelled' && debateJob.progress >= 100 && (
+            <p className="text-slate-500 dark:text-slate-400">Debatte abgebrochen - Zusammenfassung wurde trotzdem erstellt.</p>
+          )}
+          {debateJob?.status === 'failed' && (
+            <p className="rounded-md bg-red-50 px-2 py-1.5 text-red-700 dark:bg-red-950 dark:text-red-300">
+              Debatte fehlgeschlagen: {debateJob.error}
+            </p>
+          )}
+          {debateError && (
+            <p className="rounded-md bg-red-50 px-2 py-1.5 text-red-700 dark:bg-red-950 dark:text-red-300">{debateError}</p>
+          )}
+        </div>
+      </details>
 
       <div className="mt-auto border-t border-slate-200 pt-3 dark:border-slate-800">
         <h4 className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
@@ -655,6 +767,13 @@ export function Schreibwerkstatt() {
   const [submittingReview, setSubmittingReview] = useState(false)
   const [reviewError, setReviewError] = useState<string | null>(null)
 
+  const [debatePersonaIds, setDebatePersonaIds] = useState<Set<string>>(new Set())
+  const [debateRoundLimit, setDebateRoundLimit] = useState(3)
+  const [debateJobId, setDebateJobId] = useState<string | null>(null)
+  const [debateJob, setDebateJob] = useState<DraftJob | null>(null)
+  const [debateRequesting, setDebateRequesting] = useState(false)
+  const [debateError, setDebateError] = useState<string | null>(null)
+
   useEffect(() => {
     fetchAllResearchQuestions().then(setAllRqs)
     fetchAllTopics().then(setAllTopics)
@@ -687,6 +806,9 @@ export function Schreibwerkstatt() {
     setReviewText('')
     setReactionError(null)
     setReviewError(null)
+    setDebatePersonaIds(new Set())
+    setDebateRoundLimit(3)
+    setDebateError(null)
     fetchSectionLinks(selected.id).then(setLinks)
 
     fetchDraftsForSection(selected.id).then((rows) => {
@@ -696,6 +818,10 @@ export function Schreibwerkstatt() {
     fetchActiveDraftJobForSection(selected.id).then((job) => {
       setActiveJob(job)
       setActiveJobId(job?.id ?? null)
+    })
+    fetchActiveDebateJobForSection(selected.id).then((job) => {
+      setDebateJob(job)
+      setDebateJobId(job?.id ?? null)
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected?.id])
@@ -729,6 +855,44 @@ export function Schreibwerkstatt() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeJobId])
+
+  // Gleiches Polling-Muster fuer die Debatte (Paket 7) - separater Job, kann
+  // parallel zu einem Entwurfs-Job laufen. Nach Abschluss/Abbruch werden nur
+  // die Diskussionsbeitraege neu geladen (die Debatte legt keine neue
+  // Entwurfsversion an).
+  //
+  // Wichtig: 'cancelled' allein ist NICHT terminal - cancelJob() setzt den
+  // Status sofort vom Frontend aus, aber der Hintergrund-Job prueft das nur
+  // vor der naechsten Runde, beendet die laufende Runde noch reguaer und
+  // schreibt danach erst die Abschluss-Zusammenfassung + progress:100. Ein
+  // Poll, der genau in dieser Zwischenzeit landet, wuerde sonst zu frueh
+  // aufhoeren und die Zusammenfassung verpassen (live gegen die echte
+  // Function beobachtet).
+  useEffect(() => {
+    if (!debateJobId) return
+    let cancelled = false
+    const interval = setInterval(async () => {
+      try {
+        const job = await fetchJob(debateJobId)
+        if (cancelled) return
+        setDebateJob(job)
+        const finished = job.status === 'done' || job.status === 'failed' || (job.status === 'cancelled' && job.progress >= 100)
+        if (finished) {
+          setDebateJobId(null)
+          if (job.status !== 'failed') {
+            await reloadDiscussion()
+          }
+        }
+      } catch {
+        // Netzwerkfehler beim Pollen - naechster Tick versucht es erneut.
+      }
+    }, JOB_POLL_INTERVAL_MS)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debateJobId])
 
   const currentDraft = drafts.find((d) => d.version === selectedVersion) ?? null
   const previousDraft =
@@ -806,6 +970,42 @@ export function Schreibwerkstatt() {
     } finally {
       setSubmittingReview(false)
     }
+  }
+
+  function toggleDebatePersona(id: string) {
+    setDebatePersonaIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else if (next.size < 3) next.add(id)
+      return next
+    })
+  }
+
+  async function handleStartDebate() {
+    if (!selected || !currentDraft) return
+    const personaIds = Array.from(debatePersonaIds)
+    if (personaIds.length < 2 || personaIds.length > 3) return
+    setDebateRequesting(true)
+    setDebateError(null)
+    try {
+      const jobId = await requestDebate({
+        section_id: selected.id,
+        draft_id: currentDraft.id,
+        persona_ids: personaIds,
+        round_limit: debateRoundLimit,
+      })
+      setDebateJobId(jobId)
+      setDebateJob({ id: jobId, type: 'debate', status: 'pending', progress: 0, result: null, error: null, payload: {} })
+    } catch (err) {
+      setDebateError((err as Error).message)
+    } finally {
+      setDebateRequesting(false)
+    }
+  }
+
+  async function handleCancelDebate() {
+    if (!debateJobId) return
+    await cancelJob(debateJobId)
   }
 
   const filteredPool = useMemo(() => filterPassagesForSection(pool, links), [pool, links])
@@ -1030,6 +1230,15 @@ export function Schreibwerkstatt() {
       onSubmitReview={handleSubmitReview}
       submittingReview={submittingReview}
       reviewError={reviewError}
+      debatePersonaIds={debatePersonaIds}
+      onToggleDebatePersona={toggleDebatePersona}
+      debateRoundLimit={debateRoundLimit}
+      onDebateRoundLimitChange={setDebateRoundLimit}
+      onStartDebate={handleStartDebate}
+      debateRequesting={debateRequesting}
+      debateError={debateError}
+      debateJob={debateJob}
+      onCancelDebate={handleCancelDebate}
     />
   )
 

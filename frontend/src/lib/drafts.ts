@@ -34,14 +34,25 @@ export async function fetchDraftPassages(draftId: string): Promise<DraftPassageL
   return (data ?? []) as DraftPassageLink[]
 }
 
+// Generische Job-Zeile - wird sowohl fuer Entwurfs-Generierung (Paket 5) als
+// auch fuer Debatten (Paket 7) verwendet, gleiche Tabelle/Struktur, nur
+// unterschiedliches `type`/`payload`.
 export type DraftJob = {
   id: string
   type: string
-  status: 'pending' | 'running' | 'done' | 'failed'
+  status: 'pending' | 'running' | 'done' | 'failed' | 'cancelled'
   progress: number
-  result: { draft_id?: string; unverified_count?: number } | null
+  result: { draft_id?: string; unverified_count?: number; rounds_completed?: number; turns?: number } | null
   error: string | null
-  payload: { section_id?: string; persona_id?: string; passage_ids?: string[]; version?: number }
+  payload: {
+    section_id?: string
+    persona_id?: string
+    passage_ids?: string[]
+    version?: number
+    draft_id?: string
+    persona_ids?: string[]
+    round_limit?: number
+  }
 }
 
 export async function requestDraftGeneration(input: {

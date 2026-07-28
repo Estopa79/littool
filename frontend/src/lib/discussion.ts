@@ -5,7 +5,7 @@ export type DiscussionEntry = {
   id: string
   section_id: string
   draft_id: string
-  author_type: 'persona' | 'user'
+  author_type: 'persona' | 'user' | 'system'
   persona_id: string | null
   persona_name: string | null
   text: string
@@ -16,7 +16,7 @@ type RawEntryRow = {
   id: string
   section_id: string
   draft_id: string
-  author_type: 'persona' | 'user'
+  author_type: 'persona' | 'user' | 'system'
   persona_id: string | null
   text: string
   created_at: string

@@ -150,12 +150,26 @@ Live gegen die echte DB/Functions getestet, am echten Abschnitt „1 Einleitung"
 
 **Noch nicht Teil dieses Pakets:** Mehr-Runden-Debatte mit Rundenlimit (Paket 7, als Hintergrund-Job) - „Reaktion anfordern" bleibt bewusst auf eine einzelne Reaktion pro Klick begrenzt.
 
-## Paket 7 – Debatte (Mehr-Runden) ☐
+## Paket 7 – Debatte (Mehr-Runden) ☑
 
 - „Debatte starten": gewählte Personas (2–3) diskutieren den aktuellen Entwurf autonom, Rundenlimit 3 (konfigurierbar), jederzeit abbrechbar; Verlauf erscheint als lesbarer Faden mit Sprecher-Kennzeichnung.
 - Als Hintergrund-Job (Handy-tauglich: starten, weglegen, Ergebnis wartet); Kosten je Debatte im AiLog.
 - Abschluss-Zusammenfassung: „Kernpunkte der Debatte" als letzter Eintrag.
 - **Fertig, wenn:** Eine Debatte über einen echten Entwurf einen brauchbaren, nachvollziehbaren Faden liefert und das Limit greift.
+
+**Notizen:**
+
+**Migration `0036_debate_support.sql`:** `discussion_entries.author_type` um `'system'` erweitert (fuer die automatische Abschluss-Zusammenfassung - weder Persona-Meinung noch Autoren-Kommentar; `persona_id` bleibt dabei null, gleiche Regel wie bei `'user'`), `jobs.status` um `'cancelled'` erweitert ("jederzeit abbrechbar"), `ai_log_entries.action_type` um `'debatte'` erweitert. Alle drei Constraint-Anpassungen wieder mit dynamischer `pg_constraint`-Ermittlung (kein lokaler DB-Zugriff/Docker).
+
+**Debatte laeuft im selben Diskussionsfaden** wie einzelne Reaktionen/Kommentare (Paket 6) - jede Wortmeldung ist eine ganz normale `discussion_entries`-Zeile, nur automatisiert statt per Klick erzeugt. Kein separates Debatten-Schema noetig; die Abschluss-Zusammenfassung ist die letzte Zeile mit `author_type='system'`.
+
+**Neue Edge Function `run-debate`** (zweite Nutzung der Job-Infrastruktur nach `generate-draft`/Paket 5, gleiches `EdgeRuntime.waitUntil`-Muster): validiert (2-3 Personas, alle aktiv/verschieden, Rundenlimit 1-5), legt einen `jobs`-Eintrag (`type='debate'`) an, antwortet sofort mit der Job-ID. Im Hintergrund: pro Runde spricht jede gewaehlte Persona einmal (feste Reihenfolge), jeder Beitrag sieht den gesamten bisherigen Verlauf (inkl. vorheriger Diskussion vor Debattenbeginn) und reagiert darauf explizit in seiner Rolle. Vor jeder neuen Runde wird der Job-Status neu geladen - steht er auf `'cancelled'`, bricht die Schleife kontrolliert ab. Am Ende (ob durch Limit oder Abbruch) folgt immer ein neutraler, personenunabhaengiger Zusammenfassungs-Aufruf, dann ein einzelner `ai_log_entries`-Eintrag fuer die gesamte Debatte (Gesamtkosten, nicht ein Eintrag pro Redebeitrag - sonst waere das Verzeichnis bei einer 3x3-Debatte mit zehn Eintraegen fuer eine Nutzeraktion ueberladen).
+
+**Echter Race-Bug beim Testen gefunden und behoben:** `cancelJob()` setzt `status='cancelled'` sofort vom Frontend aus, aber der Hintergrund-Job prueft das nur vor der naechsten Runde - er beendet die laufende Runde noch, schreibt danach erst die Zusammenfassung und setzt `progress:100`. Ein Poll, der genau in dieser Zwischenzeit landet (`status='cancelled'`, `progress<100`), wuerde bei einer naiven "cancelled = fertig"-Pruefung zu frueh aufhoeren und die Zusammenfassung im Frontend nie anzeigen (obwohl sie serverseitig kurz danach tatsaechlich entsteht) - live reproduziert. Behoben: das Frontend wertet `cancelled` nur zusammen mit `progress>=100` als tatsaechlich abgeschlossen, zeigt in der Zwischenzeit „Wird abgebrochen …" an.
+
+Live gegen die echte DB/Function getestet, am echten Abschnitt „1 Einleitung": (1) Debatte mit 2 Personas (Naiver Student, Wohlwollender Lektor), 2 Runden, ueber einen per „Eigenen Text pruefen" erzeugten Entwurf - 4 Redebeitraege + Zusammenfassung entstanden, Sprecher nahmen inhaltlich nachweislich aufeinander Bezug ("Ich stimme dem Professor zu ..."), lehnten mangels Zitat-Pool korrekt jede erfundene Quelle ab, Zusammenfassung als letzter Eintrag fasste Konsens/Uneinigkeit und naechste Schritte zutreffend zusammen. `ai_log_entries` bekam einen Eintrag mit Gesamt-Tokenzahl (15315) ueber alle 5 Claude-Aufrufe. (2) Abbrechen-Test mit 3 Personas/3 Runden: Klick auf „Abbrechen" nach dem ersten Redebeitrag - Job blieb korrekt bis zum Ende der laufenden Runde aktiv (3 Beitraege, dann Abbruch bei Rundenbeginn 2), Zusammenfassung wurde trotzdem erstellt, `jobs.status` endete korrekt als `cancelled` mit `progress:100`. (3) Nach dem Bugfix erneut getestet: Zwischenzustand „Wird abgebrochen …" sichtbar, danach automatisch (ohne Neuladen) „Debatte abgebrochen - Zusammenfassung wurde trotzdem erstellt." mit der tatsaechlichen Zusammenfassung im Faden. Alle Testartefakte (3 Entwuerfe/Debatten-Laeufe, alle Diskussionsbeitraege, Jobs, AiLog-Eintraege) wieder vollstaendig entfernt. TypeScript-Build und `vite build` fehlerfrei. Mobiler Diskussion-Tab mit Debatte-Sektion geprueft, kein neuer Overflow.
+
+**Damit ist die Kernfunktionalität der Schreibwerkstatt (Pakete 1-7) komplett** - Paket 8 (Uebernahme/Haekchen-Kopplung/Export) und Paket 9 (freier Chat) bleiben fuer kommende Sitzungen.
 
 ## Paket 8 – Übernahme, Häkchen-Kopplung & Export ☐
 
