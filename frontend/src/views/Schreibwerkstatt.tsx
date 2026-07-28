@@ -21,6 +21,16 @@ import {
   type SectionRow,
 } from '../lib/sections'
 import { fetchConfirmedPassagesPool, filterPassagesForSection, type PoolPassage } from '../lib/sectionPool'
+import { fetchPersonas, type Persona } from '../lib/personas'
+import {
+  fetchActiveDraftJobForSection,
+  fetchDraftPassages,
+  fetchDraftsForSection,
+  fetchJob,
+  requestDraftGeneration,
+  type Draft,
+  type DraftJob,
+} from '../lib/drafts'
 import { formatAuthorYear } from '../lib/sourceFormat'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { CitationCopyButtons } from '../components/CitationCopyButtons'
@@ -28,6 +38,7 @@ import { UsedCitationCheckbox } from '../components/UsedCitationCheckbox'
 import { DraftNoticeBanner } from '../components/DraftNoticeBanner'
 
 const EMPTY_SET: Set<string> = new Set()
+const JOB_POLL_INTERVAL_MS = 2000
 type MobileTab = 'entwurf' | 'pool' | 'diskussion'
 
 function SectionRowItem({
@@ -124,18 +135,199 @@ function SectionRowItem({
   )
 }
 
-function EntwurfColumn({ pendingCount }: { pendingCount: number }) {
+// Rendert Fliesstext mit [n]-Markern als klickbare Chips; Marker ohne
+// bekannte Zuordnung (sollte dank Belegpruefung im Backend nicht vorkommen)
+// bleiben reiner Text statt eine kaputte Referenz anklickbar zu machen.
+function DraftMarkerText({
+  text,
+  markerToPassageId,
+  onMarkerClick,
+}: {
+  text: string
+  markerToPassageId: Map<number, string>
+  onMarkerClick: (passageId: string) => void
+}) {
+  const parts = text.split(/(\[\d+\])/g)
+  return (
+    <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700 dark:text-slate-300">
+      {parts.map((part, i) => {
+        const m = part.match(/^\[(\d+)\]$/)
+        const passageId = m ? markerToPassageId.get(Number(m[1])) : undefined
+        if (!m || !passageId) return <span key={i}>{part}</span>
+        return (
+          <button
+            key={i}
+            type="button"
+            onClick={() => onMarkerClick(passageId)}
+            title="Zitat im Pool hervorheben"
+            className="mx-0.5 rounded bg-slate-200 px-1 align-baseline text-xs font-medium text-slate-700 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
+          >
+            {part}
+          </button>
+        )
+      })}
+    </p>
+  )
+}
+
+function EntwurfColumn({
+  pendingCount,
+  personas,
+  selectedPersonaId,
+  onSelectPersona,
+  onRequestDraft,
+  requesting,
+  requestError,
+  activeJob,
+  drafts,
+  selectedVersion,
+  onSelectVersion,
+  currentDraft,
+  markerToPassageId,
+  onMarkerClick,
+  showDiff,
+  onToggleDiff,
+  previousDraft,
+}: {
+  pendingCount: number
+  personas: Persona[]
+  selectedPersonaId: string
+  onSelectPersona: (id: string) => void
+  onRequestDraft: () => void
+  requesting: boolean
+  requestError: string | null
+  activeJob: DraftJob | null
+  drafts: Draft[]
+  selectedVersion: number | null
+  onSelectVersion: (version: number) => void
+  currentDraft: Draft | null
+  markerToPassageId: Map<number, string>
+  onMarkerClick: (passageId: string) => void
+  showDiff: boolean
+  onToggleDiff: () => void
+  previousDraft: Draft | null
+}) {
+  const jobRunning = activeJob && (activeJob.status === 'pending' || activeJob.status === 'running')
+
   return (
     <div className="flex h-full flex-col overflow-y-auto p-4">
       <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Entwurf</h3>
-      <p className="text-sm text-slate-500 dark:text-slate-400">
-        Noch kein Entwurf für diesen Abschnitt. „Entwurf anfordern" (mit Persona-Wahl und Belegmarkern) kommt in
-        Paket 5.
-      </p>
-      {pendingCount > 0 && (
-        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-          {pendingCount} Zitat(e) aus dem Pool für den nächsten Entwurf vorgemerkt.
+
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <select
+          value={selectedPersonaId}
+          onChange={(e) => onSelectPersona(e.target.value)}
+          disabled={!!jobRunning}
+          className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+        >
+          <option value="">Persona wählen …</option>
+          {personas.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          onClick={onRequestDraft}
+          disabled={!!jobRunning || requesting || !selectedPersonaId || pendingCount === 0}
+          className="rounded-md bg-slate-900 px-2 py-1 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-40 dark:bg-slate-100 dark:text-slate-900"
+        >
+          Entwurf anfordern
+        </button>
+      </div>
+
+      {pendingCount === 0 && !jobRunning && (
+        <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+          Erst im Zitat-Pool Zitate für den Entwurf auswählen, dann Persona wählen und anfordern.
         </p>
+      )}
+      {pendingCount > 0 && (
+        <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+          {pendingCount} Zitat(e) aus dem Pool ausgewählt.
+        </p>
+      )}
+
+      {jobRunning && (
+        <p className="mb-3 rounded-md bg-slate-100 px-2 py-1.5 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+          Entwurf wird erstellt … ({activeJob!.progress}%) - läuft im Hintergrund, die Seite kann verlassen werden.
+        </p>
+      )}
+      {activeJob?.status === 'failed' && (
+        <p className="mb-3 rounded-md bg-red-50 px-2 py-1.5 text-xs text-red-700 dark:bg-red-950 dark:text-red-300">
+          Entwurf fehlgeschlagen: {activeJob.error}
+        </p>
+      )}
+      {requestError && (
+        <p className="mb-3 rounded-md bg-red-50 px-2 py-1.5 text-xs text-red-700 dark:bg-red-950 dark:text-red-300">
+          {requestError}
+        </p>
+      )}
+
+      {drafts.length === 0 && !jobRunning && (
+        <p className="text-sm text-slate-500 dark:text-slate-400">Noch kein Entwurf für diesen Abschnitt.</p>
+      )}
+
+      {drafts.length > 0 && (
+        <>
+          <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
+            <label className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
+              Version
+              <select
+                value={selectedVersion ?? ''}
+                onChange={(e) => onSelectVersion(Number(e.target.value))}
+                className="rounded-md border border-slate-300 bg-white px-1.5 py-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              >
+                {drafts.map((d) => (
+                  <option key={d.id} value={d.version}>
+                    v{d.version}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {previousDraft && (
+              <button type="button" onClick={onToggleDiff} className="text-slate-500 hover:underline dark:text-slate-400">
+                {showDiff ? 'Diff ausblenden' : `Diff zu v${previousDraft.version} anzeigen`}
+              </button>
+            )}
+          </div>
+
+          {currentDraft && !showDiff && (
+            <DraftMarkerText
+              text={currentDraft.text}
+              markerToPassageId={markerToPassageId}
+              onMarkerClick={onMarkerClick}
+            />
+          )}
+
+          {currentDraft && showDiff && previousDraft && (
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div>
+                <p className="mb-1 font-medium text-slate-500 dark:text-slate-400">v{previousDraft.version} (alt)</p>
+                <p className="whitespace-pre-wrap text-slate-600 dark:text-slate-400">{previousDraft.text}</p>
+              </div>
+              <div>
+                <p className="mb-1 font-medium text-slate-500 dark:text-slate-400">v{currentDraft.version} (neu)</p>
+                <p className="whitespace-pre-wrap text-slate-600 dark:text-slate-400">{currentDraft.text}</p>
+              </div>
+            </div>
+          )}
+
+          {currentDraft && currentDraft.unverified_claims.length > 0 && (
+            <div className="mt-3 rounded-md border border-amber-300 bg-amber-50 p-2 dark:border-amber-800 dark:bg-amber-950">
+              <p className="mb-1 text-xs font-medium text-amber-800 dark:text-amber-300">
+                ⚠ Unbelegte Aussagen ({currentDraft.unverified_claims.length})
+              </p>
+              <ul className="flex flex-col gap-1 text-xs text-amber-800 dark:text-amber-300">
+                {currentDraft.unverified_claims.map((c, i) => (
+                  <li key={i}>
+                    „{c.auszug}" - {c.grund}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </>
       )}
     </div>
   )
@@ -158,15 +350,24 @@ function PoolPassageCard({
   passage,
   selected,
   onToggleSelect,
+  highlighted,
 }: {
   passage: PoolPassage
   selected: boolean
   onToggleSelect: () => void
+  highlighted: boolean
 }) {
   const [expanded, setExpanded] = useState(false)
 
   return (
-    <li className="rounded-lg border border-slate-200 p-2 text-xs dark:border-slate-800">
+    <li
+      data-passage-id={passage.id}
+      className={`rounded-lg border p-2 text-xs ${
+        highlighted
+          ? 'border-slate-500 ring-2 ring-slate-400 dark:border-slate-400 dark:ring-slate-500'
+          : 'border-slate-200 dark:border-slate-800'
+      }`}
+    >
       <div className="mb-1 flex items-center justify-between gap-2">
         <span className="font-medium text-slate-800 dark:text-slate-100">
           {formatAuthorYear(passage)}, S. {passage.page}
@@ -208,6 +409,7 @@ function ZitatPoolColumn({
   onToggleShowAll,
   selectedIds,
   onToggleSelect,
+  highlightedId,
 }: {
   filtered: PoolPassage[]
   all: PoolPassage[]
@@ -215,6 +417,7 @@ function ZitatPoolColumn({
   onToggleShowAll: () => void
   selectedIds: Set<string>
   onToggleSelect: (id: string) => void
+  highlightedId: string | null
 }) {
   const list = showAll ? all : filtered
   return (
@@ -240,7 +443,13 @@ function ZitatPoolColumn({
 
       <ul className="flex flex-col gap-2">
         {list.map((p) => (
-          <PoolPassageCard key={p.id} passage={p} selected={selectedIds.has(p.id)} onToggleSelect={() => onToggleSelect(p.id)} />
+          <PoolPassageCard
+            key={p.id}
+            passage={p}
+            selected={selectedIds.has(p.id)}
+            onToggleSelect={() => onToggleSelect(p.id)}
+            highlighted={highlightedId === p.id}
+          />
         ))}
       </ul>
     </div>
@@ -277,11 +486,25 @@ export function Schreibwerkstatt() {
   const [showAllPool, setShowAllPool] = useState(false)
   const [draftSelections, setDraftSelections] = useState<Record<string, Set<string>>>({})
   const [mobileTab, setMobileTab] = useState<MobileTab>('entwurf')
+  const [highlightedPassageId, setHighlightedPassageId] = useState<string | null>(null)
+
+  const [personas, setPersonas] = useState<Persona[]>([])
+  const [selectedPersonaId, setSelectedPersonaId] = useState('')
+  const [drafts, setDrafts] = useState<Draft[]>([])
+  const [selectedVersion, setSelectedVersion] = useState<number | null>(null)
+  const [draftPassages, setDraftPassages] = useState<Map<number, string>>(new Map())
+  const [showDiff, setShowDiff] = useState(false)
+
+  const [activeJobId, setActiveJobId] = useState<string | null>(null)
+  const [activeJob, setActiveJob] = useState<DraftJob | null>(null)
+  const [requesting, setRequesting] = useState(false)
+  const [requestError, setRequestError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchAllResearchQuestions().then(setAllRqs)
     fetchAllTopics().then(setAllTopics)
     fetchConfirmedPassagesPool().then(setPool)
+    fetchPersonas().then(setPersonas)
   }, [])
 
   useEffect(() => {
@@ -302,9 +525,65 @@ export function Schreibwerkstatt() {
     setNumberDraft(selected.number ?? '')
     setTitleDraft(selected.title)
     setShowAllPool(false)
+    setShowDiff(false)
+    setRequestError(null)
+    setHighlightedPassageId(null)
     fetchSectionLinks(selected.id).then(setLinks)
+
+    fetchDraftsForSection(selected.id).then((rows) => {
+      setDrafts(rows)
+      setSelectedVersion(rows[0]?.version ?? null)
+    })
+    fetchActiveDraftJobForSection(selected.id).then((job) => {
+      setActiveJob(job)
+      setActiveJobId(job?.id ?? null)
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected?.id])
+
+  // Hintergrund-Job pollen, bis er fertig/fehlgeschlagen ist - ueberlebt einen
+  // Abschnittswechsel oder das Verlassen der Seite (beim Wiederkommen greift
+  // die fetchActiveDraftJobForSection-Abfrage oben erneut).
+  useEffect(() => {
+    if (!activeJobId) return
+    let cancelled = false
+    const interval = setInterval(async () => {
+      try {
+        const job = await fetchJob(activeJobId)
+        if (cancelled) return
+        setActiveJob(job)
+        if (job.status === 'done' || job.status === 'failed') {
+          setActiveJobId(null)
+          if (job.status === 'done' && selected) {
+            const rows = await fetchDraftsForSection(selected.id)
+            setDrafts(rows)
+            setSelectedVersion(rows[0]?.version ?? null)
+          }
+        }
+      } catch {
+        // Netzwerkfehler beim Pollen - naechster Tick versucht es erneut.
+      }
+    }, JOB_POLL_INTERVAL_MS)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeJobId])
+
+  const currentDraft = drafts.find((d) => d.version === selectedVersion) ?? null
+  const previousDraft =
+    currentDraft ? drafts.find((d) => d.version === currentDraft.version - 1) ?? null : null
+
+  useEffect(() => {
+    if (!currentDraft) {
+      setDraftPassages(new Map())
+      return
+    }
+    fetchDraftPassages(currentDraft.id).then((rows) => {
+      setDraftPassages(new Map(rows.map((r) => [r.marker, r.passage_id])))
+    })
+  }, [currentDraft?.id])
 
   const filteredPool = useMemo(() => filterPassagesForSection(pool, links), [pool, links])
 
@@ -330,6 +609,37 @@ export function Schreibwerkstatt() {
       else current.add(passageId)
       return { ...prev, [sectionId]: current }
     })
+  }
+
+  function handleMarkerClick(passageId: string) {
+    if (!filteredPool.some((p) => p.id === passageId) && !showAllPool) {
+      setShowAllPool(true)
+    }
+    setHighlightedPassageId(passageId)
+    requestAnimationFrame(() => {
+      document.querySelector(`[data-passage-id="${passageId}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    })
+  }
+
+  async function handleRequestDraft() {
+    if (!selected || !selectedPersonaId) return
+    const passageIds = Array.from(draftSelections[selected.id] ?? EMPTY_SET)
+    if (passageIds.length === 0) return
+    setRequesting(true)
+    setRequestError(null)
+    try {
+      const jobId = await requestDraftGeneration({
+        section_id: selected.id,
+        persona_id: selectedPersonaId,
+        passage_ids: passageIds,
+      })
+      setActiveJobId(jobId)
+      setActiveJob({ id: jobId, type: 'draft_generation', status: 'pending', progress: 0, result: null, error: null, payload: {} })
+    } catch (err) {
+      setRequestError((err as Error).message)
+    } finally {
+      setRequesting(false)
+    }
   }
 
   async function handleAddRoot() {
@@ -442,6 +752,40 @@ export function Schreibwerkstatt() {
   const descendantIdsOfSelected = selected ? collectDescendantIds(sections, selected.id) : new Set<string>()
   const reparentOptions = sections.filter((s) => !descendantIdsOfSelected.has(s.id))
   const selectedPoolIds = selected ? (draftSelections[selected.id] ?? EMPTY_SET) : EMPTY_SET
+
+  const entwurfColumn = selected && (
+    <EntwurfColumn
+      pendingCount={selectedPoolIds.size}
+      personas={personas.filter((p) => p.active)}
+      selectedPersonaId={selectedPersonaId}
+      onSelectPersona={setSelectedPersonaId}
+      onRequestDraft={handleRequestDraft}
+      requesting={requesting}
+      requestError={requestError}
+      activeJob={activeJob}
+      drafts={drafts}
+      selectedVersion={selectedVersion}
+      onSelectVersion={setSelectedVersion}
+      currentDraft={currentDraft}
+      markerToPassageId={draftPassages}
+      onMarkerClick={handleMarkerClick}
+      showDiff={showDiff}
+      onToggleDiff={() => setShowDiff((v) => !v)}
+      previousDraft={previousDraft}
+    />
+  )
+
+  const zitatPoolColumn = (
+    <ZitatPoolColumn
+      filtered={filteredPool}
+      all={pool}
+      showAll={showAllPool}
+      onToggleShowAll={() => setShowAllPool((v) => !v)}
+      selectedIds={selectedPoolIds}
+      onToggleSelect={(id) => selected && toggleDraftSelection(selected.id, id)}
+      highlightedId={highlightedPassageId}
+    />
+  )
 
   return (
     <div className="flex h-full flex-col md:flex-row">
@@ -653,15 +997,8 @@ export function Schreibwerkstatt() {
 
             {/* Desktop: drei Spalten nebeneinander */}
             <div className="hidden min-h-0 flex-1 md:grid md:grid-cols-3 md:divide-x md:divide-slate-200 dark:md:divide-slate-800">
-              <EntwurfColumn pendingCount={selectedPoolIds.size} />
-              <ZitatPoolColumn
-                filtered={filteredPool}
-                all={pool}
-                showAll={showAllPool}
-                onToggleShowAll={() => setShowAllPool((v) => !v)}
-                selectedIds={selectedPoolIds}
-                onToggleSelect={(id) => toggleDraftSelection(selected.id, id)}
-              />
+              {entwurfColumn}
+              {zitatPoolColumn}
               <DiskussionColumn />
             </div>
 
@@ -690,17 +1027,8 @@ export function Schreibwerkstatt() {
                 ))}
               </div>
               <div className="min-h-0 flex-1 overflow-y-auto">
-                {mobileTab === 'entwurf' && <EntwurfColumn pendingCount={selectedPoolIds.size} />}
-                {mobileTab === 'pool' && (
-                  <ZitatPoolColumn
-                    filtered={filteredPool}
-                    all={pool}
-                    showAll={showAllPool}
-                    onToggleShowAll={() => setShowAllPool((v) => !v)}
-                    selectedIds={selectedPoolIds}
-                    onToggleSelect={(id) => toggleDraftSelection(selected.id, id)}
-                  />
-                )}
+                {mobileTab === 'entwurf' && entwurfColumn}
+                {mobileTab === 'pool' && zitatPoolColumn}
                 {mobileTab === 'diskussion' && <DiskussionColumn />}
               </div>
             </div>
