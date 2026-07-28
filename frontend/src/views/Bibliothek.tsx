@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { UploadPanel } from '../components/UploadPanel'
 import { EingangTab } from '../components/EingangTab'
+import { MethodentabelleTab } from '../components/MethodentabelleTab'
 import { GreyLiteratureDialog } from '../components/GreyLiteratureDialog'
 import { deleteSource, fetchSources, type Source } from '../lib/sources'
 import { formatAuthorYear, formatRanking, STATUS_ICON, STATUS_LABEL, TYPE_LABEL } from '../lib/sourceFormat'
@@ -11,6 +12,7 @@ import { CitationReviewDialog } from '../components/CitationReviewDialog'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { fetchAllSourceTopics, fetchAllTopics, fetchReviewCounts, type TopicOption } from '../lib/qsReview'
 import { generateTopicRelevance } from '../lib/topicRelevance'
+import { buildBibtexFile, downloadBibtex, fetchAllSourcesForBibtex } from '../lib/bibtex'
 
 type SortKey = 'author_year' | 'title' | 'venue' | 'ranking' | 'status'
 type SortDir = 'asc' | 'desc'
@@ -42,7 +44,7 @@ const STATUS_OPTIONS: Array<{ value: string; label: string }> = [
 
 export function Bibliothek() {
   const navigate = useNavigate()
-  const [activeTab, setActiveTab] = useState<'bestand' | 'eingang'>('bestand')
+  const [activeTab, setActiveTab] = useState<'bestand' | 'eingang' | 'methodentabelle'>('bestand')
   const [sources, setSources] = useState<Source[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -66,6 +68,8 @@ export function Bibliothek() {
     null,
   )
   const [generateError, setGenerateError] = useState<string | null>(null)
+  const [exportingBibtex, setExportingBibtex] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
   const [unconfirmedTotal, setUnconfirmedTotal] = useState(0)
   const [classifyingId, setClassifyingId] = useState<string | null>(null)
   const [classifyError, setClassifyError] = useState<string | null>(null)
@@ -138,6 +142,19 @@ export function Bibliothek() {
   useEffect(() => {
     load()
   }, [])
+
+  async function handleExportBibtex() {
+    setExportingBibtex(true)
+    setExportError(null)
+    try {
+      const bibtexSources = await fetchAllSourcesForBibtex()
+      downloadBibtex(buildBibtexFile(bibtexSources), 'littool-bestand.bib')
+    } catch (err) {
+      setExportError((err as Error).message)
+    } finally {
+      setExportingBibtex(false)
+    }
+  }
 
   async function handleGenerate(source: Source, e: MouseEvent) {
     e.stopPropagation()
@@ -261,9 +278,21 @@ export function Bibliothek() {
         >
           Eingang
         </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('methodentabelle')}
+          className={`px-3 py-1.5 text-sm font-medium ${
+            activeTab === 'methodentabelle'
+              ? 'border-b-2 border-slate-900 text-slate-900 dark:border-slate-100 dark:text-slate-100'
+              : 'text-slate-500 dark:text-slate-400'
+          }`}
+        >
+          Methodentabelle
+        </button>
       </div>
 
       {activeTab === 'eingang' && <EingangTab />}
+      {activeTab === 'methodentabelle' && <MethodentabelleTab />}
 
       {activeTab === 'bestand' && (
         <>
@@ -276,7 +305,17 @@ export function Bibliothek() {
         >
           + Graue Literatur
         </button>
+        <button
+          type="button"
+          onClick={handleExportBibtex}
+          disabled={exportingBibtex}
+          title="Gesamter Bestand als .bib-Datei - macht die Literatur portabel, kein Lock-in"
+          className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+        >
+          {exportingBibtex ? 'Exportiert …' : '⬇ BibTeX (gesamter Bestand)'}
+        </button>
       </div>
+      {exportError && <p className="mb-3 text-sm text-red-600 dark:text-red-400">Fehler: {exportError}</p>}
 
       {showGreyDialog && (
         <GreyLiteratureDialog onClose={() => setShowGreyDialog(false)} onCreated={load} />

@@ -21,6 +21,17 @@ export const STUDY_TYPE_LABEL: Record<StudyType, string> = {
   nicht_anwendbar: 'Nicht anwendbar',
 }
 
+// Fuer die Methodentabelle (Phase 6, Paket 3): alle Profile auf einmal,
+// gleiches Muster wie fetchAllSourceTopics/fetchAllSourceFunctions
+// (Bestandsgroesse macht Einzelabfragen pro Zeile unnoetig).
+export async function fetchAllMethodProfiles(): Promise<MethodProfile[]> {
+  const { data, error } = await supabase
+    .from('method_profiles')
+    .select('source_id, study_type, method, data_basis, analysis_method, page_hint, confirmed')
+  if (error) throw error
+  return (data ?? []) as MethodProfile[]
+}
+
 export async function fetchMethodProfile(sourceId: string): Promise<MethodProfile | null> {
   const { data, error } = await supabase
     .from('method_profiles')

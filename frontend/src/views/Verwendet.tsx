@@ -6,6 +6,7 @@ import { CitationCopyButtons } from '../components/CitationCopyButtons'
 import { fetchUsedCitations, type UsedCitationEntry } from '../lib/usedCitations'
 import { formatAuthorYear } from '../lib/sourceFormat'
 import { fetchUsedSources, buildLiteratureList, type LiteratureEntry } from '../lib/literatureList'
+import { buildBibtexFile, downloadBibtex, fetchUsedSourcesForBibtex } from '../lib/bibtex'
 
 type GroupBy = 'source' | 'rq'
 
@@ -98,6 +99,8 @@ function LiteraturverzeichnisSection({ documentId }: { documentId: string }) {
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [copyAllState, setCopyAllState] = useState<'idle' | 'copied' | 'error'>('idle')
+  const [exportingBibtex, setExportingBibtex] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
 
   async function handleGenerate() {
     setGenerating(true)
@@ -109,6 +112,19 @@ function LiteraturverzeichnisSection({ documentId }: { documentId: string }) {
       setError((err as Error).message)
     } finally {
       setGenerating(false)
+    }
+  }
+
+  async function handleExportBibtex() {
+    setExportingBibtex(true)
+    setExportError(null)
+    try {
+      const sources = await fetchUsedSourcesForBibtex(documentId)
+      downloadBibtex(buildBibtexFile(sources), 'littool-verwendete-quellen.bib')
+    } catch (err) {
+      setExportError((err as Error).message)
+    } finally {
+      setExportingBibtex(false)
     }
   }
 
@@ -125,17 +141,29 @@ function LiteraturverzeichnisSection({ documentId }: { documentId: string }) {
 
   return (
     <div className="mt-6 border-t border-slate-200 pt-4 dark:border-slate-800">
-      <button
-        type="button"
-        disabled={generating}
-        onClick={handleGenerate}
-        className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-      >
-        📋 {generating ? 'Erzeugt …' : 'Literaturverzeichnis erzeugen'}
-      </button>
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          disabled={generating}
+          onClick={handleGenerate}
+          className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+        >
+          📋 {generating ? 'Erzeugt …' : 'Literaturverzeichnis erzeugen'}
+        </button>
+        <button
+          type="button"
+          disabled={exportingBibtex}
+          onClick={handleExportBibtex}
+          title="Nur die in diesem Dokument verwendeten Quellen als .bib-Datei"
+          className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+        >
+          {exportingBibtex ? 'Exportiert …' : '⬇ BibTeX (verwendete Quellen)'}
+        </button>
+      </div>
       <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Alphabetisch nach Erstautor, APA 7.</p>
 
       {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">Fehler: {error}</p>}
+      {exportError && <p className="mt-2 text-sm text-red-600 dark:text-red-400">Fehler: {exportError}</p>}
 
       {entries && (
         <>
