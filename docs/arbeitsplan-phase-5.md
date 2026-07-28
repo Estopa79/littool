@@ -212,7 +212,7 @@ Live gegen die echte DB/UI getestet, am echten ISP-Abschnitt „1 Einleitung": (
 
 Damit sind alle Kernfunktionen der Schreibwerkstatt (Pakete 1-8) abgeschlossen. Nur Paket 9 (freier, belegter Chat über den Bestand) steht noch aus.
 
-## Paket 9 – Freier Chat mit dem Bestand ☐
+## Paket 9 – Freier Chat mit dem Bestand ☑
 
 - Chat-Ansicht: optional Persona, Filter (Themenfeld, Ranking, Studientyp, einzelne Quellen); RAG über Phase-2-Suche; **jede inhaltliche Aussage mit Beleg (Quelle + Seite)**, sonst „dazu habe ich keine Quelle".
 - Verläufe speichern, benennen, durchsuchen; aus einer Chat-Antwort heraus: „Stelle als Zitat-Kandidat übernehmen" (läuft durch die normale Prüfung aus Phase 3).
@@ -221,6 +221,20 @@ Damit sind alle Kernfunktionen der Schreibwerkstatt (Pakete 1-8) abgeschlossen. 
 **Notizen:**
 
 **Platzierung (mit dem Autor abgestimmt):** Kein neuer Sidebar-Eintrag - Chat ist ein Modus-Umschalter innerhalb der Schreibwerkstatt (nicht in der Drei-Spalten-Ansicht, da corpus-weit statt abschnittsgebunden), spart einen 9. Eintrag in der ohnehin schon vollen `BottomTabBar`.
+
+**Migration `0037_chat_action_type.sql`:** erweitert `ai_log_entries.action_type` um `'chat'` (gleiches dynamisches Constraint-Ermitteln wie 0034-0036). Keine weiteren Schema-Änderungen - `chat_sessions` existiert bereits seit Migration 0032.
+
+**RAG ueber die bestehende Hybrid-Suche aus Phase 2** (`search_hybrid`-RPC, gleiche RPC wie die "search"-Function): neue, bewusst SYNCHRONE Edge Function `chat-query` (kein Hintergrund-Job - ein einzelner kurzer Claude-Aufruf wie `generate-reaction`). Themen-/Studientyp-/Einzelquellen-Filter, die `search_hybrid` selbst nicht kennt (nur `ranking_system`/`type`), werden **serverseitig nachgefiltert** statt die RPC selbst zu erweitern - bewusst keine Aenderung an der bestehenden Suche-Ansicht (Phase 2), die dieselbe RPC nutzt. Fuer die tatsaechliche Zitations-Berechnung wird zusaetzlich der volle Chunk-Text (nicht der ggf. gekuerzte/hervorgehobene Snippet aus `search_hybrid`) sowie der `page_offset` der Quelle nachgeladen (gleiches Muster wie `generate-citations`, Phase 3).
+
+**Belegpflicht technisch durchgesetzt, nicht nur per Prompt:** Claude bekommt eine nummerierte Liste tatsaechlicher Bestands-Ausschnitte (mit fertiger Zitation) als einzige Wissensquelle und liefert `{answer, used_indices}` zurueck - die fuer „Stelle als Zitat-Kandidat uebernehmen" noetigen Beleg-Metadaten (`source_id`/`page`/`chunk_id`/Original) baut der Code aus den eigenen Retrieval-Daten anhand der zurueckgemeldeten Indizes, kein Vertrauen in von Claude selbst behauptete Zitationsstrings. 0 Treffer (leere/zu enge Filterkombination) fuehrt zu einer festen „Dazu habe ich keine Quelle im Bestand"-Antwort statt eines Claude-Aufrufs ohne Kontext.
+
+**„Stelle als Zitat-Kandidat uebernehmen":** legt eine unbestaetigte Zeile in `passages` an (`confirmed: false`) - laeuft dadurch automatisch durch die normale QS-Pruefung aus Phase 3 (`/pruefen`). Der Chat kennt selbst keine Forschungsfrage (er ist FF-uebergreifend) - der Autor waehlt sie beim Uebernehmen ueber einen kleinen Inline-Picker aus, bevor die Zeile angelegt wird. Kein zusaetzlicher AiLog-Eintrag fuer diese Aktion (reines Kopieren bereits abgerufener Daten, kein neuer Claude-Aufruf - analog zum bestehenden manuellen "Text markieren -> Als Zitat uebernehmen" im PDF-Viewer).
+
+**Verlaeufe:** `chat_sessions.messages` (jsonb-Array) speichert den kompletten Verlauf; `filters`/`persona_id` werden beim ersten Zug der Sitzung mitgespeichert. Umbenennen inline (Stift-Icon -> Textfeld -> Speichern bei Blur, gleiches Muster wie andere Inline-Edits im Tool), Suche ueber die Sitzungsliste rein clientseitig per Titel-Teilstring (Bestandsgroesse macht Serverseitiges unnoetig).
+
+Live gegen die echte DB/Function getestet, mit einer echten Fachfrage („Welche Rolle spielt Business-IT Alignment für die digitale Transformation von Versicherungsunternehmen?", keine Persona/Filter): Antwort zog **fuenf verschiedene echte Quellen** heran (Jonathan et al. 2021, Earnest & Young 2017 dreifach, KPMG AG 2017, Eckert & Osterrieder 2020), jede Aussage mit korrekter Zitation im Format „(Autor, Jahr, S. x)", alle sechs Quell-Pills unter der Antwort stimmten mit den tatsaechlich im Fliesstext verwendeten Zitationen ueberein. „Als Zitat-Kandidat uebernehmen" fuer eine der Quellen (KPMG AG 2017, FF „HFF" gewaehlt) legte korrekt eine unbestaetigte `passages`-Zeile mit vollem Chunk-Text, korrekter Seite (79) und Zitation an. Umbenennen einer Sitzung persistiert und ueberlebt „Neue Unterhaltung" + Zurueckwechseln (Nachrichtenverlauf korrekt wiederhergestellt). Alle Testartefakte (Chat-Sitzung, Kandidat-Passage, AiLog-Eintrag) wieder vollstaendig entfernt. TypeScript-Build und `vite build` fehlerfrei. Mobile Ansicht geprueft (Sitzungsliste <-> Thread mit „← Zu den Verlaeufen", gleiches Zurueck-Muster wie die Abschnitts-Liste), kein neuer Overflow.
+
+**Damit sind alle neun Pakete der Schreibwerkstatt-Kernfunktionalität abgeschlossen.** Offen bleiben: die nachtraeglich in Paket 4 ergaenzten Editor-/Zitat-Einfuege-Anforderungen (eigene Sitzung), das eingeschobene Paket E (Eingangspruefung), und Paket 10 (End-to-End-Abnahme ueber den kompletten Zyklus).
 
 ## Paket 10 – End-to-End-Abnahme ☐
 

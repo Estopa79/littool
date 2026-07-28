@@ -47,10 +47,12 @@ import { CitationCopyButtons } from '../components/CitationCopyButtons'
 import { UsedCitationCheckbox } from '../components/UsedCitationCheckbox'
 import { DraftNoticeBanner } from '../components/DraftNoticeBanner'
 import { TransferSectionDialog } from '../components/TransferSectionDialog'
+import { CorpusChat } from '../components/CorpusChat'
 
 const EMPTY_SET: Set<string> = new Set()
 const JOB_POLL_INTERVAL_MS = 2000
 type MobileTab = 'entwurf' | 'pool' | 'diskussion'
+type WorkstattMode = 'abschnitte' | 'chat'
 
 function SectionRowItem({
   node,
@@ -770,6 +772,7 @@ function ZitatPoolColumn({
 }
 
 export function Schreibwerkstatt() {
+  const [mode, setMode] = useState<WorkstattMode>('abschnitte')
   const { activeDocumentId } = useActiveDocument()
   const [sections, setSections] = useState<SectionRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -1327,7 +1330,38 @@ export function Schreibwerkstatt() {
   )
 
   return (
-    <div className="flex h-full flex-col md:flex-row">
+    <div className="flex h-full flex-col">
+      <div className="flex shrink-0 gap-1 border-b border-slate-200 p-2 dark:border-slate-800">
+        <button
+          type="button"
+          onClick={() => setMode('abschnitte')}
+          className={`rounded-md px-3 py-1 text-sm font-medium ${
+            mode === 'abschnitte'
+              ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
+              : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
+          }`}
+        >
+          Abschnitte
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode('chat')}
+          className={`rounded-md px-3 py-1 text-sm font-medium ${
+            mode === 'chat'
+              ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
+              : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
+          }`}
+        >
+          💬 Chat
+        </button>
+      </div>
+
+      {mode === 'chat' ? (
+        <div className="min-h-0 flex-1">
+          <CorpusChat />
+        </div>
+      ) : (
+      <div className="flex h-full min-h-0 flex-1 flex-col md:flex-row">
       <aside
         className={`shrink-0 overflow-y-auto border-slate-200 p-4 dark:border-slate-800 md:w-72 md:border-r ${
           selectedId ? 'hidden md:block' : 'block'
@@ -1611,6 +1645,8 @@ export function Schreibwerkstatt() {
             setTransferMessage('Abschnitt übernommen.')
           }}
         />
+      )}
+      </div>
       )}
     </div>
   )
