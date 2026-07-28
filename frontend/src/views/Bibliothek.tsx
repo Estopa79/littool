@@ -194,6 +194,17 @@ export function Bibliothek() {
     [sources],
   )
 
+  // "in Verarbeitung" ist kein automatischer Hintergrund-Fortschrittsbalken,
+  // sondern wartet auf den naechsten manuellen Worker-Lauf (extract-doi,
+  // enrich-metadata, extract-fulltext, chunk, embed) - ohne Hinweis nicht von
+  // einem haengengebliebenen Fehler zu unterscheiden. Eigener Banner statt nur
+  // Tooltip auf der Statuszelle, damit der Hinweis auch am Handy sichtbar ist
+  // (Tooltips feuern dort nicht zuverlaessig).
+  const processingCount = useMemo(
+    () => sources.filter((s) => s.status === 'processing').length,
+    [sources],
+  )
+
   const visible = useMemo(() => {
     let result = sources
 
@@ -319,6 +330,17 @@ export function Bibliothek() {
 
       {showGreyDialog && (
         <GreyLiteratureDialog onClose={() => setShowGreyDialog(false)} onCreated={load} />
+      )}
+
+      {processingCount > 0 && (
+        <button
+          type="button"
+          onClick={() => setFilterStatus('processing')}
+          title="Die Verarbeitung (DOI, Metadaten, Volltext, Embeddings) läuft nicht automatisch im Hintergrund, sondern in manuell gestarteten Worker-Läufen - das kann je nachdem, wann der Autor den nächsten Lauf startet, eine Weile dauern. Kein Fehler, solange hier kein Extraktionsfehler steht."
+          className="mb-4 mr-2 rounded-md border border-slate-300 bg-slate-50 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+        >
+          ⏳ {processingCount} in Verarbeitung – wartet auf nächsten Worker-Lauf, kein Fehler
+        </button>
       )}
 
       {needsReviewCount > 0 && (
@@ -505,7 +527,15 @@ export function Bibliothek() {
                     {formatRanking(s)}
                   </td>
                   <td className="whitespace-nowrap py-2 pr-3">
-                    {STATUS_ICON[s.status]} {STATUS_LABEL[s.status]}
+                    <span
+                      title={
+                        s.status === 'processing'
+                          ? 'Wartet auf den nächsten manuellen Worker-Lauf - kein Fehler, kann eine Weile dauern.'
+                          : undefined
+                      }
+                    >
+                      {STATUS_ICON[s.status]} {STATUS_LABEL[s.status]}
+                    </span>
                     {s.extraction_status === 'extraction_failed' && (
                       <span title={s.extraction_hint ?? undefined} className="ml-1">
                         📄⚠️
@@ -573,7 +603,15 @@ export function Bibliothek() {
                     {formatAuthorYear(s)}
                   </span>
                   <span className="shrink-0 text-sm">
-                    {STATUS_ICON[s.status]} {STATUS_LABEL[s.status]}
+                    <span
+                      title={
+                        s.status === 'processing'
+                          ? 'Wartet auf den nächsten manuellen Worker-Lauf - kein Fehler, kann eine Weile dauern.'
+                          : undefined
+                      }
+                    >
+                      {STATUS_ICON[s.status]} {STATUS_LABEL[s.status]}
+                    </span>
                     {s.extraction_status === 'extraction_failed' && (
                       <span title={s.extraction_hint ?? undefined} className="ml-1">
                         📄⚠️

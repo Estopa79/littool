@@ -707,6 +707,9 @@ function DiskussionColumn({
             Debatte starten
           </button>
           {!currentDraft && <p className="text-slate-400">Erst einen Entwurf anfordern oder eigenen Text prüfen.</p>}
+          {currentDraft && (debatePersonaIds.size < 2 || debatePersonaIds.size > 3) && (
+            <p className="text-slate-400">Genau 2 oder 3 Personas auswählen.</p>
+          )}
 
           {debateJobRunning && (
             <div className="rounded-md bg-slate-100 px-2 py-1.5 dark:bg-slate-800">

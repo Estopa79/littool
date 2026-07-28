@@ -131,6 +131,29 @@ Zwei Ad-hoc-Änderungen, die der Autor direkt im Chat angefragt hat (kein eigene
 
 **Getestet:** TypeScript-Build/`vite build` fehlerfrei für beide Änderungen. Kein Browser-Klick-Test möglich (gleiche Login-Einschränkung wie bei den Phase-6-Paketen zuvor) - insbesondere der Drag&Drop-Spaltentausch und das tatsächliche Wiederherstellen nach einem echten Routenwechsel konnten dadurch nicht visuell bestätigt werden, nur die zugrundeliegende Logik (Spalten-Merge, Sortierfunktionen, Session-Restore-Bedingungen) wurde per Code-Review sorgfältig geprüft.
 
+### Aufräumrunde (2026-07-28, Autor jetzt im Browser eingeloggt - erstmals echte UI-Tests in dieser Session möglich)
+
+Auf Wunsch des Autors ("räume die offenen Punkte einmal so gut es geht auf") ein Durchgang durch dokumentierte Altlasten + zwei konkrete Wünsche (asynchrone Verarbeitung erklären, hilfreiche Hinweise ergänzen):
+
+1. **Bibliothek: Hinweis für asynchrone Verarbeitung** - neuer Banner „⏳ N in Verarbeitung – wartet auf nächsten Worker-Lauf, kein Fehler" (gleiches Muster wie die bestehenden Extraktionsfehler-/QS-Banner), zusätzlich Tooltip an der einzelnen Statuszelle. Adressiert direkt die Rückmeldung des Autors: „man weiß sonst nicht, ist das ein Fehler oder braucht das nur Zeit".
+2. **Mobiler `BottomTabBar`-Seitenoverflow behoben** (seit Phase 2/3 dokumentiert, nie gefixt): Ursache war `flex-1` auf acht gleich breiten Spalten, die bei 375px nicht hineinpassten - der Überlauf zog die gesamte Seite in die Breite statt nur die Leiste. Fix: Leiste bekommt `overflow-x-auto`, Einträge `shrink-0` mit fester Breite statt `flex-1` - live verifiziert (`document.documentElement.scrollWidth` jetzt exakt 375 bei 375px Viewport, die Leiste selbst scrollt intern bei Bedarf).
+3. **Vier konkrete Datenqualitäts-Fixes** an real identifizierten Quellen (per SQL-Scan nach unplausiblen Jahren, doppelten Titelsubstrings, verdächtig langen Autoren-Feldern gezielt gesucht, keine geraten):
+   - `f8f3b1dc…` (Jonathan et al.): Jahr `22` → `2022` (Titel nennt "BIR 2022 Workshops").
+   - `82c0f29e…` (Nissen & Termer): Jahr `-1` → `2014` (aus der DOI abgeleitet), Titel entdoppelt (war zweimal hintereinander gespeichert), DOI-Feld von vollständiger URL auf reine DOI gekürzt (war zuvor inkonsistent zum Rest des Bestands - hätte in `apaFormat.ts::doiSuffix` zu einer doppelt verschachtelten URL geführt).
+   - `27d04943…` (Henderson & Venkatraman 1990): korrupte Autoren-Felder (`given: "hn Henderson N."`) korrigiert auf `J. C.`/`N.` - abgeglichen mit der bereits im Bestand vorhandenen 1993er Version desselben Autorenpaars.
+   - `2f3dd03e…` (Henderson & Venkatraman 1993): dateinamen-artiger Titel `"Strategic_alignment_Leveraging_informati"` korrigiert auf den echten Titel des bekannten Aufsatzes.
+   - Die zwei ursprünglich in Phase 4 dokumentierten Fixes „Charoensuk Issue-Feld" und „Völzow given/family vertauscht" waren bei Prüfung bereits korrekt/anders - vermutlich durch eine spätere Re-Anreicherung überschrieben, keine Aktion mehr nötig.
+   - Weitere, dateinamen-artige Titel (z. B. "FactorsthatInfluencetheSocialDimensionMISQ2000") bewusst **nicht** angefasst - ohne verlässliche externe Quelle für den echten Titel wäre eine Korrektur geraten, nicht belegt.
+4. **Erklärender Hinweis ergänzt:** „Debatte starten" nannte bislang nur den Grund „kein Entwurf", nicht aber die zweite, ebenso stumm blockierende Bedingung (2–3 Personas nötig) - neuer Hinweistext „Genau 2 oder 3 Personas auswählen." ergänzt.
+
+**Getestet:** TypeScript-Build/`vite build` fehlerfrei. **Erstmals in dieser Session per echtem Login im Browser statt nur Code-Review verifiziert:** Bibliothek/Methodentabelle/BibTeX-Export/Suche-Extern-Tab/Prüfbericht-Tab laden sichtbar korrekt; mobiler Seitenoverflow live bei 375px reproduziert und der Fix live bestätigt (`scrollWidth` vorher 540, nachher 375, Leiste selbst bleibt intern scrollbar mit `scrollWidth 512 > clientWidth 375`). Alle vier Datenfixes per Direktabfrage vor und nach der Änderung verifiziert; `passages.citation`-Sync-Trigger geprüft (keine bestehenden Passagen an den betroffenen Quellen, daher kein Nachzieh-Bedarf). Debatte-Hinweis nicht live nachgestellt (kein Entwurf im getesteten Abschnitt vorhanden), nur per Code-Review geprüft.
+
+**Offen, braucht eine Entscheidung/Aktion des Autors (nicht angefasst):**
+- Zwei vermutete Duplikate im Bestand (u. a. „Business-IT-Alignment" von Reinheimer/Robra-Bissantz, zwei sehr ähnliche Einträge) - zusammenführen oder als zwei echte Werke bestätigen.
+- 28 unmatched BibTeX-Einträge aus dem Citavi-Import (Phase 3/4) warten weiterhin auf manuelle Durchsicht.
+- Restore-Test des Backups (`backups/20260726_221744`) noch nicht bestätigt.
+- QS-Prüf-Rückstand (`/pruefen`): weiterhin nur ein Bruchteil der Passagen bestätigt - eigentliche Schreibarbeit des Autors, keine Engineering-Aufgabe.
+
 ## Paket 4 – Eigene Notizen (Confluence-Import) ☐
 
 - Neuer Quellentyp `note`: eigene Notizen mit Titel, Text, optionalen Verknüpfungen zu Quellen/Themenfeldern; im Chat und in der Suche auffindbar, aber ausgeschlossen von Literaturverzeichnis, Matrizen und Rankings (es ist keine zitierfähige Literatur).
