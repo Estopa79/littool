@@ -6,6 +6,20 @@ Voraussetzung: Phase 4 abgeschlossen. **Grundsatz (CLAUDE.md, Prinzip „Vorschl
 
 ---
 
+## ⚠️ Eingeschobenes Paket E – Eingangsprüfung / Prüf-Pool (unabhängig, jederzeit einschiebbar) ☐
+
+Neue Quellen sollen vor der Übernahme in den Bestand auf Relevanz geprüft werden können, um unnötige Erfassungsarbeit zu vermeiden.
+
+- Bibliothek erhält Tab „Eingang": Upload dorthin legt Quellen mit Status `triage` an – nur PDF + Dateiname, KEINE Voll-Verarbeitung (keine Metadaten-Anreicherung, kein Chunking, keine Embeddings). `triage`-Quellen erscheinen nirgendwo sonst (Suche, Matrizen, Zähler, Analysen).
+- Schnell-Einschätzung je Kandidat: Claude erhält Abstract/erste Seiten + Thema + Forschungsfragen → Empfehlung (aufnehmen / grenzwertig / verwerfen) mit kurzer Begründung je relevanter FF; als Karte dargestellt; AiLog-Eintrag.
+- Buttons: „Übernehmen" → Quelle wechselt in den normalen Ingest (Paket 3–6 aus Phase 1 laufen an); „Verwerfen" → PDF wird gelöscht (mit Bestätigungsfrage), aber ein **Merkeintrag bleibt**: Titel/Dateiname, DOI (falls erkannt), Datei-Hash, Datum, Ablehnungs-Begründung.
+- **Sektion „Verworfen"** im Eingang-Tab: Liste aller Merkeinträge (nur Name + Datum + Begründung, kein PDF), durchsuchbar.
+- **Wiedererkennung beim Upload:** Neuer Upload (Eingang UND Direkt-Upload) wird gegen Verworfen-Liste geprüft (Hash exakt, sonst DOI/Titel-Fuzzy) → Hinweis „Bereits am [Datum] geprüft und verworfen – Begründung: …" statt neuer Prüfung; Button „Trotzdem erneut prüfen" hebt die Sperre für diesen Fall auf.
+- Auch für Stapel: mehrere PDFs hochladen, Einschätzungen laufen als Hintergrund-Job, Karten zum Durcharbeiten.
+- **Fertig, wenn:** Ein Test-PDF den Weg Eingang → Einschätzung → Übernehmen in den Bestand bzw. → Verwerfen sauber durchläuft und `triage`-Quellen nachweislich nirgendwo sonst auftauchen.
+
+---
+
 ## Paket 0 – Rückblick & Leitplanken ☑
 
 - Stand Phase 4 prüfen (Häkchen, Verzeichnisse, AiLog lückenlos?).
@@ -58,7 +72,7 @@ FF-/Themen-Chips: Klick toggelt direkt gegen `section_research_questions`/`secti
 
 Live gegen die echte DB getestet (Testdaten danach vollständig entfernt): (1) CRUD-Zyklus - Abschnitt anlegen, Unterabschnitt anlegen, umbenennen, FF-/Themen-Chip togglen und zurück-togglen (Join-Zeile jeweils per Direktabfrage bestätigt), zwei Wurzel-Abschnitte per ↑ vertauscht (`sort_order`-Tausch bestätigt), ein Abschnitt reparented (neue `parent_id` + ans Ende der neuen Geschwisterliste einsortiert, bestätigt), Löschen mit 2 Unterabschnitten - Dialog nannte korrekt „2 Unterabschnitt(e)", Kaskade per Direktabfrage bestätigt (alle 3 Zeilen weg). (2) Schnellerfassung mit einem synthetischen 7-Zeilen-Beispiel (3 Ebenen, ein Eintrag ohne Nummer) - Baum-Struktur exakt wie erwartet, Zeile ohne Nummer korrekt mit `number: null`. (3) **Echte ISP-Gliederung** (vom Autor als Screenshot des Inhaltsverzeichnisses geliefert, 52 Einträge, bis Ebene 4 verschachtelt) per Schnellerfassung importiert - Baum-Struktur per Direktabfrage gegen die transkribierte Vorlage geprüft, exakte Übereinstimmung (Nummern, Titel, Verschachtelung, Reihenfolge). TypeScript-Build (`tsc -b`) und `vite build` fehlerfrei. Mobiler Seiten-Overflow (375px) geprüft - identisch mit dem bereits dokumentierten, vorbestehenden `BottomTabBar`-Fall (auf der unveränderten Bibliothek-Seite reproduziert), keine neue Regression durch diese Ansicht.
 
-**Auffälligkeit in der Vorlage (dem Autor gemeldet, unverändert übernommen):** Punkt 5 und Punkt 10 des Inhaltsverzeichnisses heißen beide „Literaturverzeichnis" (S. 38 bzw. 39) - wirkt wie eine Dopplung/ein Tippfehler im Original-Dokument. Bewusst nicht stillschweigend korrigiert (CLAUDE.md „nie stillschweigend ändern"); Rückmeldung des Autors zur korrekten Bezeichnung von Punkt 10 steht noch aus.
+**Auffälligkeit in der Vorlage (dem Autor gemeldet, korrigiert):** Punkt 5 und Punkt 10 des ursprünglichen Inhaltsverzeichnisses hießen beide „Literaturverzeichnis" (S. 38 bzw. 39) - Dopplung im Original-Dokument. Punkt 10 auf Wunsch des Autors gelöscht (war ein Fehler in der Vorlage).
 
 **Nicht Teil dieses Pakets (bewusst, siehe Wireframe/Plan):** Entwurf/Zitat-Pool/Diskussion-Spalten (Paket 4/5/6), „●"-Marker im Baum für „hat Entwurf" (setzt `drafts` mit echten Daten voraus), Drag&Drop-Umsortierung.
 
@@ -78,13 +92,17 @@ Live gegen die echte DB getestet: drei Standard-Personas laden korrekt (Name/Rol
 
 **Noch nicht Teil dieses Pakets:** eine tatsaechliche Persona-Auswahl beim Anfordern eines Entwurfs/einer Reaktion - dafuer gibt es vor Paket 5/6 noch keinen Konsumenten; `active` legt nur fest, welche Personas dort spaeter zur Wahl stehen.
 
-## Paket 4 – Drei-Spalten-Ansicht ☑ (Hinweis-Badges noch ohne Datenbasis, s. u.)
+## Paket 4 – Drei-Spalten-Ansicht ☐ (Basis-Layout gebaut, erweiterte Editor-Anforderungen offen - s. u.)
 
 - Layout gemäß Wireframe: links Gliederungsbaum, dann Entwurf / Zitat-Pool / Diskussion; mobil als Tabs mit Hinweis-Badges (neue Diskussionsbeiträge, fertiger Job).
-- Zitat-Pool-Spalte: bestätigte Zitate, vorgefiltert auf die FFs/Themen des Abschnitts, umschaltbar auf „alle"; Karten mit Häkchen-Status; Zitate für den Entwurf an-/abwählbar.
-- **Fertig, wenn:** Navigation Abschnitt → drei Bereiche flüssig funktioniert, Desktop und mobil.
+- **Die Entwurf-Spalte ist ein Editor:** Der Autor kann leer starten und selbst schreiben, einen Agenten-Entwurf umschreiben oder Text einfügen. Jedes Speichern = neue Version mit Urheber-Kennzeichnung (Autor / Persona).
+- **Zitate aus dem Pool in den Text einfügen** (an Cursor-Position), drei Varianten je Zitat-Karte: „Beleg einfügen" (Marker [n], bleibt mit dem Zitat verknüpft – empfohlener Standard), „Wörtlich einfügen" (Zitat in Anführungszeichen + Zitation; Original oder Übersetzung mit Kennzeichnung), „Paraphrase einfügen". **Jedes in den Text eingefügte Zitat wird automatisch im aktiven Dokument angehakt** (Verwendet-Kopplung); wird der letzte Verweis entfernt, fragt das Tool, ob das Häkchen fallen soll.
+- Zitat-Pool-Spalte: bestätigte Zitate, vorgefiltert auf die FFs/Themen des Abschnitts, umschaltbar auf „alle"; Karten mit Häkchen-Status; Zitate für den Agenten-Entwurf an-/abwählbar.
+- **Fertig, wenn:** Eigener Text mit eingefügten Belegen, wörtlichen Zitaten und Paraphrasen schreibbar ist; Häkchen laufen automatisch mit; Desktop und mobil.
 
 **Notizen:**
+
+**Nachtrag (2026-07-28):** Die drei fett markierten Anforderungen oben (editierbare Entwurf-Spalte, Zitate an Cursor-Position einfügen in drei Varianten, Auto-Häkchen beim Einfügen/Entfernen) wurden nachträglich ergänzt, nachdem das ursprüngliche Basis-Layout unten bereits gebaut und getestet war. Sie sind **noch nicht umgesetzt** - mit dem Autor abgestimmt: Paket 9 (Chat) wird zuerst fertiggestellt, diese Erweiterung folgt danach als eigene Sitzung. Bis dahin bleibt der Entwurfsbereich, wie unten beschrieben, eine reine Anzeige generierter/eingereichter Texte (kein Editor, kein Cursor-Zitat-Einfügen) - „Eigenen Text prüfen" (Paket 6) deckt das manuelle Einreichen eigenen Textes bereits ab, aber nicht das direkte Editieren/Einfügen an Ort und Stelle.
 
 Layout in `views/Schreibwerkstatt.tsx` erweitert: Abschnitts-Kopf (Nummer/Titel/Speichern/Löschen) bleibt oben, „Übergeordneter Abschnitt"/FF-/Themen-Chips jetzt in einem `<details>`-Element eingeklappt (waren in Paket 2 permanent sichtbar - mussten fuer die drei Spalten platzsparender werden). Direkt darunter der `DraftNoticeBanner` aus Paket 0 - hier zum ersten Mal tatsaechlich eingebunden, da dies der erste echte Einbauort ist. Danach Desktop: `grid grid-cols-3` mit `divide-x`; mobil (`md:hidden`): Tab-Leiste + einspaltiger Inhalt, gleiche Spalten-Komponenten wiederverwendet (kein Duplikat).
 
@@ -92,7 +110,7 @@ Layout in `views/Schreibwerkstatt.tsx` erweitert: Abschnitts-Kopf (Nummer/Titel/
 
 **„Zitate fuer den Entwurf an-/abwaehlbar":** eigene Checkbox je Karte, getrennt vom „verwendet"-Haekchen. Bewusste Scope-Entscheidung: Diese Auswahl ist reiner Client-State (`Record<sectionId, Set<passageId>>`), nicht in `draft_passages` persistiert - die Junction-Tabelle aus Migration 0032 ist an eine konkrete Entwurfsversion gebunden, die es vor Paket 5 noch nicht gibt. Die Auswahl ueberlebt das Wechseln zwischen Abschnitten innerhalb der Sitzung (pro Abschnitt gemerkt), aber keinen Reload - Paket 5 entscheidet, wie „Entwurf anfordern" diese Auswahl tatsaechlich in `draft_passages` ueberfuehrt.
 
-**Entwurf-Spalte:** Platzhalter-Text + Hinweis auf die Anzahl vorgemerkter Pool-Zitate (einzige heute schon echte Information - der eigentliche Entwurf/Versionen/Buttons sind Paket 5). **Diskussion-Spalte:** reiner Platzhalter - `discussion_entries.draft_id` ist laut Migration 0032 `NOT NULL`, ohne existierenden Entwurf (Paket 5) kann technisch noch keine einzige Zeile entstehen, nicht nur eine UI-Entscheidung.
+**Entwurf-Spalte (Basis-Version, s. Nachtrag oben):** Platzhalter-Text + Hinweis auf die Anzahl vorgemerkter Pool-Zitate (einzige heute schon echte Information - der eigentliche Entwurf/Versionen/Buttons sind Paket 5). **Diskussion-Spalte:** reiner Platzhalter - `discussion_entries.draft_id` ist laut Migration 0032 `NOT NULL`, ohne existierenden Entwurf (Paket 5) kann technisch noch keine einzige Zeile entstehen, nicht nur eine UI-Entscheidung.
 
 **Hinweis-Badges („neue Diskussionsbeiträge, fertiger Job") aus dem Plan:** bewusst noch nicht gebaut. Beide brauchen Daten, die es vor Paket 5 (Jobs pro Abschnitt) bzw. Paket 6 (Diskussionsbeiträge) gar nicht geben kann - eine Badge-Anzeige waere sonst dauerhaft totes 0-Icon. Wird nachgezogen, sobald die jeweilige Datengrundlage existiert.
 
@@ -199,6 +217,10 @@ Damit sind alle Kernfunktionen der Schreibwerkstatt (Pakete 1-8) abgeschlossen. 
 - Chat-Ansicht: optional Persona, Filter (Themenfeld, Ranking, Studientyp, einzelne Quellen); RAG über Phase-2-Suche; **jede inhaltliche Aussage mit Beleg (Quelle + Seite)**, sonst „dazu habe ich keine Quelle".
 - Verläufe speichern, benennen, durchsuchen; aus einer Chat-Antwort heraus: „Stelle als Zitat-Kandidat übernehmen" (läuft durch die normale Prüfung aus Phase 3).
 - **Fertig, wenn:** Fachfragen an den Bestand belegte, nachprüfbare Antworten liefern.
+
+**Notizen:**
+
+**Platzierung (mit dem Autor abgestimmt):** Kein neuer Sidebar-Eintrag - Chat ist ein Modus-Umschalter innerhalb der Schreibwerkstatt (nicht in der Drei-Spalten-Ansicht, da corpus-weit statt abschnittsgebunden), spart einen 9. Eintrag in der ohnehin schon vollen `BottomTabBar`.
 
 ## Paket 10 – End-to-End-Abnahme ☐
 
