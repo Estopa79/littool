@@ -78,11 +78,25 @@ Live gegen die echte DB getestet: drei Standard-Personas laden korrekt (Name/Rol
 
 **Noch nicht Teil dieses Pakets:** eine tatsaechliche Persona-Auswahl beim Anfordern eines Entwurfs/einer Reaktion - dafuer gibt es vor Paket 5/6 noch keinen Konsumenten; `active` legt nur fest, welche Personas dort spaeter zur Wahl stehen.
 
-## Paket 4 – Drei-Spalten-Ansicht ☐
+## Paket 4 – Drei-Spalten-Ansicht ☑ (Hinweis-Badges noch ohne Datenbasis, s. u.)
 
 - Layout gemäß Wireframe: links Gliederungsbaum, dann Entwurf / Zitat-Pool / Diskussion; mobil als Tabs mit Hinweis-Badges (neue Diskussionsbeiträge, fertiger Job).
 - Zitat-Pool-Spalte: bestätigte Zitate, vorgefiltert auf die FFs/Themen des Abschnitts, umschaltbar auf „alle"; Karten mit Häkchen-Status; Zitate für den Entwurf an-/abwählbar.
 - **Fertig, wenn:** Navigation Abschnitt → drei Bereiche flüssig funktioniert, Desktop und mobil.
+
+**Notizen:**
+
+Layout in `views/Schreibwerkstatt.tsx` erweitert: Abschnitts-Kopf (Nummer/Titel/Speichern/Löschen) bleibt oben, „Übergeordneter Abschnitt"/FF-/Themen-Chips jetzt in einem `<details>`-Element eingeklappt (waren in Paket 2 permanent sichtbar - mussten fuer die drei Spalten platzsparender werden). Direkt darunter der `DraftNoticeBanner` aus Paket 0 - hier zum ersten Mal tatsaechlich eingebunden, da dies der erste echte Einbauort ist. Danach Desktop: `grid grid-cols-3` mit `divide-x`; mobil (`md:hidden`): Tab-Leiste + einspaltiger Inhalt, gleiche Spalten-Komponenten wiederverwendet (kein Duplikat).
+
+**Zitat-Pool-Spalte** (`lib/sectionPool.ts` + `ZitatPoolColumn`/`PoolPassageCard`): laedt einmalig alle bestaetigten Zitate (Bestandsgroesse macht das unproblematisch, gleiches Muster wie andernorts), Filterung auf den Abschnitt rein clientseitig (`filterPassagesForSection` - passt, wenn die Forschungsfrage ODER ein bestaetigtes Themenfeld des Zitats mit den Verknuepfungen des Abschnitts uebereinstimmt), Umschalter „alle anzeigen"/„nur passende". Karten nutzen die bestehenden Komponenten `CitationCopyButtons` und `UsedCitationCheckbox` wieder (kein Duplikat der Kopier-/Haekchen-Logik aus Phase 3/4).
+
+**„Zitate fuer den Entwurf an-/abwaehlbar":** eigene Checkbox je Karte, getrennt vom „verwendet"-Haekchen. Bewusste Scope-Entscheidung: Diese Auswahl ist reiner Client-State (`Record<sectionId, Set<passageId>>`), nicht in `draft_passages` persistiert - die Junction-Tabelle aus Migration 0032 ist an eine konkrete Entwurfsversion gebunden, die es vor Paket 5 noch nicht gibt. Die Auswahl ueberlebt das Wechseln zwischen Abschnitten innerhalb der Sitzung (pro Abschnitt gemerkt), aber keinen Reload - Paket 5 entscheidet, wie „Entwurf anfordern" diese Auswahl tatsaechlich in `draft_passages` ueberfuehrt.
+
+**Entwurf-Spalte:** Platzhalter-Text + Hinweis auf die Anzahl vorgemerkter Pool-Zitate (einzige heute schon echte Information - der eigentliche Entwurf/Versionen/Buttons sind Paket 5). **Diskussion-Spalte:** reiner Platzhalter - `discussion_entries.draft_id` ist laut Migration 0032 `NOT NULL`, ohne existierenden Entwurf (Paket 5) kann technisch noch keine einzige Zeile entstehen, nicht nur eine UI-Entscheidung.
+
+**Hinweis-Badges („neue Diskussionsbeiträge, fertiger Job") aus dem Plan:** bewusst noch nicht gebaut. Beide brauchen Daten, die es vor Paket 5 (Jobs pro Abschnitt) bzw. Paket 6 (Diskussionsbeiträge) gar nicht geben kann - eine Badge-Anzeige waere sonst dauerhaft totes 0-Icon. Wird nachgezogen, sobald die jeweilige Datengrundlage existiert.
+
+Live gegen die echte DB getestet (Testverknuepfung danach entfernt): Abschnitt „1 Einleitung" testweise mit FF „HFF" verknuepft - Zitat-Pool zeigt korrekt genau das eine passende Zitat (Luftman 2000, S. 4), „alle anzeigen" zeigt alle 3 bestaetigten Zitate im Bestand, Umschalten zurueck auf „nur passende" korrekt. Auswahl-Checkbox getoggelt - Entwurf-Spalte zeigt „1 Zitat(e) ... vorgemerkt", Auswahl blieb beim Umschalten auf „alle anzeigen" korrekt nur auf dem einen ausgewaehlten Zitat (nicht auf alle 3 uebergesprungen). Zu Abschnitt „2 Stand der Forschung" gewechselt (kein Treffer, 0 vorgemerkt, `showAllPool` korrekt zurueckgesetzt) und zurueck zu „1 Einleitung" - Auswahl und FF-Verknuepfung beide korrekt erhalten geblieben (Sitzungs-Persistenz clientseitig bestaetigt). Desktop-Breakpoint (1280px) zeigt drei echte Spalten nebeneinander, kein „← Zur Gliederung"; mobile Breite (375px) zeigt Tab-Leiste, alle drei Tabs durchgeklickt (Entwurf/Zitat-Pool/Diskussion), Inhalte korrekt je Tab. Mobiler Seiten-Overflow identisch mit dem bereits dokumentierten, vorbestehenden `BottomTabBar`-Fall - keine neue Regression. TypeScript-Build und `vite build` fehlerfrei.
 
 ## Paket 5 – Agenten-Entwurf mit Belegpflicht ☐
 

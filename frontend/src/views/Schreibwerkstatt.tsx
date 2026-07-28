@@ -20,7 +20,15 @@ import {
   type SectionNode,
   type SectionRow,
 } from '../lib/sections'
+import { fetchConfirmedPassagesPool, filterPassagesForSection, type PoolPassage } from '../lib/sectionPool'
+import { formatAuthorYear } from '../lib/sourceFormat'
 import { ConfirmDialog } from '../components/ConfirmDialog'
+import { CitationCopyButtons } from '../components/CitationCopyButtons'
+import { UsedCitationCheckbox } from '../components/UsedCitationCheckbox'
+import { DraftNoticeBanner } from '../components/DraftNoticeBanner'
+
+const EMPTY_SET: Set<string> = new Set()
+type MobileTab = 'entwurf' | 'pool' | 'diskussion'
 
 function SectionRowItem({
   node,
@@ -116,6 +124,129 @@ function SectionRowItem({
   )
 }
 
+function EntwurfColumn({ pendingCount }: { pendingCount: number }) {
+  return (
+    <div className="flex h-full flex-col overflow-y-auto p-4">
+      <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Entwurf</h3>
+      <p className="text-sm text-slate-500 dark:text-slate-400">
+        Noch kein Entwurf für diesen Abschnitt. „Entwurf anfordern" (mit Persona-Wahl und Belegmarkern) kommt in
+        Paket 5.
+      </p>
+      {pendingCount > 0 && (
+        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+          {pendingCount} Zitat(e) aus dem Pool für den nächsten Entwurf vorgemerkt.
+        </p>
+      )}
+    </div>
+  )
+}
+
+function DiskussionColumn() {
+  return (
+    <div className="flex h-full flex-col overflow-y-auto p-4">
+      <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
+        Diskussion
+      </h3>
+      <p className="text-sm text-slate-500 dark:text-slate-400">
+        Diskussion startet, sobald ein Entwurf vorliegt (Paket 6).
+      </p>
+    </div>
+  )
+}
+
+function PoolPassageCard({
+  passage,
+  selected,
+  onToggleSelect,
+}: {
+  passage: PoolPassage
+  selected: boolean
+  onToggleSelect: () => void
+}) {
+  const [expanded, setExpanded] = useState(false)
+
+  return (
+    <li className="rounded-lg border border-slate-200 p-2 text-xs dark:border-slate-800">
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <span className="font-medium text-slate-800 dark:text-slate-100">
+          {formatAuthorYear(passage)}, S. {passage.page}
+        </span>
+        <label
+          className="flex shrink-0 items-center gap-1 text-slate-500 dark:text-slate-400"
+          title="Für den nächsten Entwurf auswählen"
+        >
+          <input type="checkbox" checked={selected} onChange={onToggleSelect} />
+          Entwurf
+        </label>
+      </div>
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="text-left italic text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+      >
+        {expanded ? `„${passage.original}"` : `„${passage.original.slice(0, 70)}${passage.original.length > 70 ? ' …' : ''}"`}
+      </button>
+      {expanded && passage.translation && <p className="mt-1 text-slate-600 dark:text-slate-400">DE: {passage.translation}</p>}
+      <div className="mt-1 flex flex-wrap items-center gap-2">
+        <span className="text-slate-400 dark:text-slate-500">{passage.citation}</span>
+        <CitationCopyButtons
+          original={passage.original}
+          translation={passage.translation}
+          paraphrase={passage.paraphrase}
+          citation={passage.citation}
+        />
+        <UsedCitationCheckbox passageId={passage.id} />
+      </div>
+    </li>
+  )
+}
+
+function ZitatPoolColumn({
+  filtered,
+  all,
+  showAll,
+  onToggleShowAll,
+  selectedIds,
+  onToggleSelect,
+}: {
+  filtered: PoolPassage[]
+  all: PoolPassage[]
+  showAll: boolean
+  onToggleShowAll: () => void
+  selectedIds: Set<string>
+  onToggleSelect: (id: string) => void
+}) {
+  const list = showAll ? all : filtered
+  return (
+    <div className="flex h-full flex-col overflow-y-auto p-4">
+      <div className="mb-2 flex items-center justify-between">
+        <h3 className="text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Zitat-Pool</h3>
+        <button
+          type="button"
+          onClick={onToggleShowAll}
+          className="text-xs text-slate-500 hover:underline dark:text-slate-400"
+        >
+          {showAll ? 'nur passende' : 'alle anzeigen'}
+        </button>
+      </div>
+
+      {list.length === 0 && (
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          {showAll
+            ? 'Noch keine bestätigten Zitate im Bestand.'
+            : 'Keine passenden Zitate zu den FFs/Themen dieses Abschnitts - Abschnitt verknüpfen oder „alle anzeigen".'}
+        </p>
+      )}
+
+      <ul className="flex flex-col gap-2">
+        {list.map((p) => (
+          <PoolPassageCard key={p.id} passage={p} selected={selectedIds.has(p.id)} onToggleSelect={() => onToggleSelect(p.id)} />
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 export function Schreibwerkstatt() {
   const { activeDocumentId } = useActiveDocument()
   const [sections, setSections] = useState<SectionRow[]>([])
@@ -142,9 +273,15 @@ export function Schreibwerkstatt() {
   const [deleteTarget, setDeleteTarget] = useState<SectionRow | null>(null)
   const [deleting, setDeleting] = useState(false)
 
+  const [pool, setPool] = useState<PoolPassage[]>([])
+  const [showAllPool, setShowAllPool] = useState(false)
+  const [draftSelections, setDraftSelections] = useState<Record<string, Set<string>>>({})
+  const [mobileTab, setMobileTab] = useState<MobileTab>('entwurf')
+
   useEffect(() => {
     fetchAllResearchQuestions().then(setAllRqs)
     fetchAllTopics().then(setAllTopics)
+    fetchConfirmedPassagesPool().then(setPool)
   }, [])
 
   useEffect(() => {
@@ -164,9 +301,12 @@ export function Schreibwerkstatt() {
     if (!selected) return
     setNumberDraft(selected.number ?? '')
     setTitleDraft(selected.title)
+    setShowAllPool(false)
     fetchSectionLinks(selected.id).then(setLinks)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected?.id])
+
+  const filteredPool = useMemo(() => filterPassagesForSection(pool, links), [pool, links])
 
   async function reload() {
     if (!activeDocumentId) return
@@ -180,6 +320,15 @@ export function Schreibwerkstatt() {
       if (next.has(id)) next.delete(id)
       else next.add(id)
       return next
+    })
+  }
+
+  function toggleDraftSelection(sectionId: string, passageId: string) {
+    setDraftSelections((prev) => {
+      const current = new Set(prev[sectionId] ?? [])
+      if (current.has(passageId)) current.delete(passageId)
+      else current.add(passageId)
+      return { ...prev, [sectionId]: current }
     })
   }
 
@@ -292,6 +441,7 @@ export function Schreibwerkstatt() {
 
   const descendantIdsOfSelected = selected ? collectDescendantIds(sections, selected.id) : new Set<string>()
   const reparentOptions = sections.filter((s) => !descendantIdsOfSelected.has(s.id))
+  const selectedPoolIds = selected ? (draftSelections[selected.id] ?? EMPTY_SET) : EMPTY_SET
 
   return (
     <div className="flex h-full flex-col md:flex-row">
@@ -370,131 +520,191 @@ export function Schreibwerkstatt() {
         )}
       </aside>
 
-      <section className={`flex-1 overflow-y-auto p-4 sm:p-6 ${selectedId ? 'block' : 'hidden md:block'}`}>
-        <button
-          type="button"
-          onClick={() => setSelectedId(null)}
-          className="mb-2 text-sm text-slate-500 hover:underline dark:text-slate-400 md:hidden"
-        >
-          ← Zur Gliederung
-        </button>
-
+      <section className={`flex min-h-0 flex-1 flex-col ${selectedId ? 'flex' : 'hidden md:flex'}`}>
         {!selected && (
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Abschnitt links auswählen oder anlegen. Entwurf, Zitat-Pool und Diskussion kommen in den folgenden Paketen
-            dieser Phase.
+          <p className="p-4 text-sm text-slate-500 dark:text-slate-400 sm:p-6">
+            Abschnitt links auswählen oder anlegen.
           </p>
         )}
 
         {selected && (
-          <div className="flex max-w-2xl flex-col gap-4">
-            <div className="flex flex-wrap items-end gap-2">
-              <label className="flex flex-col text-xs text-slate-500 dark:text-slate-400">
-                Nummer
-                <input
-                  value={numberDraft}
-                  onChange={(e) => setNumberDraft(e.target.value)}
-                  placeholder="z. B. 2.3"
-                  className="mt-0.5 w-24 rounded-md border border-slate-300 bg-white px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                />
-              </label>
-              <label className="flex flex-1 flex-col text-xs text-slate-500 dark:text-slate-400">
-                Titel
-                <input
-                  value={titleDraft}
-                  onChange={(e) => setTitleDraft(e.target.value)}
-                  className="mt-0.5 rounded-md border border-slate-300 bg-white px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                />
-              </label>
-              <button
-                type="button"
-                onClick={handleSaveDetail}
-                disabled={numberDraft === (selected.number ?? '') && titleDraft === selected.title}
-                className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-40 dark:bg-slate-100 dark:text-slate-900"
-              >
-                Speichern
-              </button>
-              <button
-                type="button"
-                onClick={() => setDeleteTarget(selected)}
-                className="rounded-md border border-red-300 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950"
-              >
-                🗑 Löschen
-              </button>
+          <>
+            <button
+              type="button"
+              onClick={() => setSelectedId(null)}
+              className="p-4 pb-0 text-left text-sm text-slate-500 hover:underline dark:text-slate-400 md:hidden"
+            >
+              ← Zur Gliederung
+            </button>
+
+            <div className="shrink-0 p-4 pb-3 sm:px-6 sm:pt-5">
+              <div className="flex flex-wrap items-end gap-2">
+                <label className="flex flex-col text-xs text-slate-500 dark:text-slate-400">
+                  Nummer
+                  <input
+                    value={numberDraft}
+                    onChange={(e) => setNumberDraft(e.target.value)}
+                    placeholder="z. B. 2.3"
+                    className="mt-0.5 w-24 rounded-md border border-slate-300 bg-white px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                  />
+                </label>
+                <label className="flex flex-1 flex-col text-xs text-slate-500 dark:text-slate-400">
+                  Titel
+                  <input
+                    value={titleDraft}
+                    onChange={(e) => setTitleDraft(e.target.value)}
+                    className="mt-0.5 rounded-md border border-slate-300 bg-white px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={handleSaveDetail}
+                  disabled={numberDraft === (selected.number ?? '') && titleDraft === selected.title}
+                  className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-40 dark:bg-slate-100 dark:text-slate-900"
+                >
+                  Speichern
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDeleteTarget(selected)}
+                  className="rounded-md border border-red-300 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950"
+                >
+                  🗑 Löschen
+                </button>
+              </div>
+
+              <details className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                <summary className="cursor-pointer select-none">Übergeordneter Abschnitt, Forschungsfragen, Themenfelder</summary>
+                <div className="mt-2 flex flex-col gap-3">
+                  <label className="flex max-w-xs flex-col">
+                    Übergeordneter Abschnitt
+                    <select
+                      value={selected.parent_id ?? ''}
+                      onChange={(e) => handleReparent(e.target.value || null)}
+                      className="mt-0.5 rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                    >
+                      <option value="">— oberste Ebene —</option>
+                      {reparentOptions.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.number ? `${s.number} ` : ''}
+                          {s.title}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <div>
+                    <h3 className="mb-1 font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                      Forschungsfragen
+                    </h3>
+                    <div className="flex flex-wrap gap-1.5">
+                      {allRqs.map((rq) => {
+                        const active = links.rqIds.has(rq.id)
+                        return (
+                          <button
+                            key={rq.id}
+                            type="button"
+                            onClick={() => handleToggleRq(rq.id)}
+                            title={rq.question}
+                            className={`rounded-full px-2 py-0.5 ${
+                              active
+                                ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
+                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700'
+                            }`}
+                          >
+                            {rq.code}
+                          </button>
+                        )
+                      })}
+                      {allRqs.length === 0 && <p className="text-slate-400">Keine Forschungsfragen im Bestand.</p>}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="mb-1 font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                      Themenfelder
+                    </h3>
+                    <div className="flex flex-wrap gap-1.5">
+                      {allTopics.map((t) => {
+                        const active = links.topicIds.has(t.id)
+                        return (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => handleToggleTopic(t.id)}
+                            className={`rounded-full px-2 py-0.5 ${
+                              active
+                                ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
+                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700'
+                            }`}
+                          >
+                            {t.name}
+                          </button>
+                        )
+                      })}
+                      {allTopics.length === 0 && <p className="text-slate-400">Keine Themenfelder im Bestand.</p>}
+                    </div>
+                  </div>
+                </div>
+              </details>
             </div>
 
-            <label className="flex max-w-xs flex-col text-xs text-slate-500 dark:text-slate-400">
-              Übergeordneter Abschnitt
-              <select
-                value={selected.parent_id ?? ''}
-                onChange={(e) => handleReparent(e.target.value || null)}
-                className="mt-0.5 rounded-md border border-slate-300 bg-white px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-              >
-                <option value="">— oberste Ebene —</option>
-                {reparentOptions.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.number ? `${s.number} ` : ''}
-                    {s.title}
-                  </option>
+            <DraftNoticeBanner />
+
+            {/* Desktop: drei Spalten nebeneinander */}
+            <div className="hidden min-h-0 flex-1 md:grid md:grid-cols-3 md:divide-x md:divide-slate-200 dark:md:divide-slate-800">
+              <EntwurfColumn pendingCount={selectedPoolIds.size} />
+              <ZitatPoolColumn
+                filtered={filteredPool}
+                all={pool}
+                showAll={showAllPool}
+                onToggleShowAll={() => setShowAllPool((v) => !v)}
+                selectedIds={selectedPoolIds}
+                onToggleSelect={(id) => toggleDraftSelection(selected.id, id)}
+              />
+              <DiskussionColumn />
+            </div>
+
+            {/* Mobil: Tabs statt Spalten */}
+            <div className="flex min-h-0 flex-1 flex-col md:hidden">
+              <div className="flex shrink-0 border-b border-slate-200 dark:border-slate-800">
+                {(
+                  [
+                    { key: 'entwurf', label: 'Entwurf' },
+                    { key: 'pool', label: 'Zitat-Pool' },
+                    { key: 'diskussion', label: 'Diskussion' },
+                  ] as const
+                ).map((tab) => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setMobileTab(tab.key)}
+                    className={`flex-1 px-2 py-2 text-sm font-medium ${
+                      mobileTab === tab.key
+                        ? 'border-b-2 border-slate-900 text-slate-900 dark:border-slate-100 dark:text-slate-100'
+                        : 'text-slate-500 dark:text-slate-400'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
                 ))}
-              </select>
-            </label>
-
-            <div>
-              <h3 className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
-                Forschungsfragen
-              </h3>
-              <div className="flex flex-wrap gap-1.5">
-                {allRqs.map((rq) => {
-                  const active = links.rqIds.has(rq.id)
-                  return (
-                    <button
-                      key={rq.id}
-                      type="button"
-                      onClick={() => handleToggleRq(rq.id)}
-                      title={rq.question}
-                      className={`rounded-full px-2 py-0.5 text-xs ${
-                        active
-                          ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
-                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700'
-                      }`}
-                    >
-                      {rq.code}
-                    </button>
-                  )
-                })}
-                {allRqs.length === 0 && (
-                  <p className="text-xs text-slate-400">Keine Forschungsfragen im Bestand.</p>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                {mobileTab === 'entwurf' && <EntwurfColumn pendingCount={selectedPoolIds.size} />}
+                {mobileTab === 'pool' && (
+                  <ZitatPoolColumn
+                    filtered={filteredPool}
+                    all={pool}
+                    showAll={showAllPool}
+                    onToggleShowAll={() => setShowAllPool((v) => !v)}
+                    selectedIds={selectedPoolIds}
+                    onToggleSelect={(id) => toggleDraftSelection(selected.id, id)}
+                  />
                 )}
+                {mobileTab === 'diskussion' && <DiskussionColumn />}
               </div>
             </div>
-
-            <div>
-              <h3 className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
-                Themenfelder
-              </h3>
-              <div className="flex flex-wrap gap-1.5">
-                {allTopics.map((t) => {
-                  const active = links.topicIds.has(t.id)
-                  return (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => handleToggleTopic(t.id)}
-                      className={`rounded-full px-2 py-0.5 text-xs ${
-                        active
-                          ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
-                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700'
-                      }`}
-                    >
-                      {t.name}
-                    </button>
-                  )
-                })}
-                {allTopics.length === 0 && <p className="text-xs text-slate-400">Keine Themenfelder im Bestand.</p>}
-              </div>
-            </div>
-          </div>
+          </>
         )}
       </section>
 
