@@ -62,11 +62,21 @@ Live gegen die echte DB getestet (Testdaten danach vollständig entfernt): (1) C
 
 **Nicht Teil dieses Pakets (bewusst, siehe Wireframe/Plan):** Entwurf/Zitat-Pool/Diskussion-Spalten (Paket 4/5/6), „●"-Marker im Baum für „hat Entwurf" (setzt `drafts` mit echten Daten voraus), Drag&Drop-Umsortierung.
 
-## Paket 3 – Personas ☐
+## Paket 3 – Personas ☑
 
 - Personas-Verwaltung (in Einstellungen): Name, Rolle, Haltung/Kritikstil, Systemprompt; aktivierbar/deaktivierbar.
 - Drei Standard-Personas als Seed: kritischer Professor (hinterfragt Argumentation, Quellenwahl, Stringenz), wohlwollender Lektor (Struktur, Sprache, Lesefluss), naiver Student (versteht er es? wo hakt es?). Systemprompts enthalten die Belegpflicht: keine inhaltliche Behauptung ohne Verweis auf ein Zitat aus dem Pool.
 - **Fertig, wenn:** Personas anleg-, editier- und wählbar sind.
+
+**Notizen:**
+
+Migration `0033_personas_seed.sql` (echte Konfiguration, kein Testfixture - analog zum Dokumente-Seed aus Migration 0031) legt die drei Standard-Personas mit ausformulierten Systemprompts an; jeder Prompt enthält die Belegpflicht explizit ausformuliert (keine inhaltliche Behauptung ohne Verweis auf ein Zitat aus dem Pool, sonst als unbelegte Vermutung/Frage kennzeichnen) - das ist die Stelle, an der diese Regel fuer die Agenten in Paket 5 ff. tatsaechlich technisch durchgesetzt wird, nicht nur eine UI-Kennzeichnung.
+
+`lib/personas.ts` (CRUD, gleiches Muster wie `lib/settings.ts`) + `PersonasCard` in `views/Einstellungen.tsx` (gleiche Karten-Struktur wie `ForschungsfragenCard`/`ThemenfelderCard`: Inline-Felder mit Speichern-bei-Blur, Formular zum Hinzufuegen unten, Loeschen mit Bestaetigung). Systemprompt ist standardmaessig eingeklappt (`+ Systemprompt bearbeiten`), da er lang ist und in der Uebersicht nicht stoeren soll. `active`-Checkbox schaltet sofort (kein Speichern-Button), gleiches Sofort-Muster wie die Chip-Toggles aus Paket 2.
+
+Live gegen die echte DB getestet: drei Standard-Personas laden korrekt (Name/Rolle/Haltung/Systemprompt exakt wie geseedet), Systemprompt-Anzeige beim Aufklappen inhaltlich verifiziert, `active`-Toggle aus/an mit Direktabfrage bestaetigt, Haltung-Feld editiert und per Blur gespeichert (danach zurueckgesetzt), eine Test-Persona ueber das Formular angelegt und ueber den Loeschen-Button wieder entfernt. Zusaetzlich der Loeschschutz aus Migration 0032 (`ON DELETE RESTRICT`) gezielt geprueft: Testabschnitt + Testentwurf mit echter Persona-Referenz angelegt, Loeschversuch der referenzierten Persona schlaegt korrekt mit Fremdschluessel-Fehler fehl (`23503`), Testdaten (Abschnitt, kaskadiert zum Entwurf) danach entfernt, Persona selbst blieb unangetastet. TypeScript-Build und `vite build` fehlerfrei.
+
+**Noch nicht Teil dieses Pakets:** eine tatsaechliche Persona-Auswahl beim Anfordern eines Entwurfs/einer Reaktion - dafuer gibt es vor Paket 5/6 noch keinen Konsumenten; `active` legt nur fest, welche Personas dort spaeter zur Wahl stehen.
 
 ## Paket 4 – Drei-Spalten-Ansicht ☐
 

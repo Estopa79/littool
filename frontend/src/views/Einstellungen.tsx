@@ -13,6 +13,7 @@ import {
   type ResearchQuestion,
   type Topic,
 } from '../lib/settings'
+import { createPersona, deletePersona, fetchPersonas, updatePersona, type Persona } from '../lib/personas'
 
 const inputClass =
   'rounded-md border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100'
@@ -306,6 +307,190 @@ function ThemenfelderCard() {
   )
 }
 
+function PersonasCard() {
+  const [personas, setPersonas] = useState<Persona[]>([])
+  const [loading, setLoading] = useState(true)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [newName, setNewName] = useState('')
+  const [newRole, setNewRole] = useState('')
+  const [newStance, setNewStance] = useState('')
+  const [newSystemPrompt, setNewSystemPrompt] = useState('')
+
+  function load() {
+    return fetchPersonas().then(setPersonas)
+  }
+
+  useEffect(() => {
+    load().finally(() => setLoading(false))
+  }, [])
+
+  async function handleAdd(e: FormEvent) {
+    e.preventDefault()
+    if (!newName.trim() || !newRole.trim() || !newSystemPrompt.trim()) return
+    await createPersona({
+      name: newName.trim(),
+      role: newRole.trim(),
+      stance: newStance.trim() || null,
+      system_prompt: newSystemPrompt.trim(),
+      active: true,
+    })
+    setNewName('')
+    setNewRole('')
+    setNewStance('')
+    setNewSystemPrompt('')
+    await load()
+  }
+
+  function handleFieldChange(persona: Persona, patch: Partial<Persona>) {
+    setPersonas((prev) => prev.map((p) => (p.id === persona.id ? { ...p, ...patch } : p)))
+  }
+
+  async function handleBlurSave(persona: Persona) {
+    await updatePersona(persona.id, {
+      name: persona.name,
+      role: persona.role,
+      stance: persona.stance,
+      system_prompt: persona.system_prompt,
+    })
+  }
+
+  async function handleToggleActive(persona: Persona) {
+    const next = !persona.active
+    handleFieldChange(persona, { active: next })
+    await updatePersona(persona.id, { active: next })
+  }
+
+  async function handleDelete(id: string) {
+    if (
+      !confirm(
+        'Persona wirklich löschen? Geht nur, solange sie noch keine Entwürfe/Diskussionsbeiträge erzeugt hat - sonst besser deaktivieren.',
+      )
+    )
+      return
+    try {
+      await deletePersona(id)
+      await load()
+    } catch (err) {
+      alert(`Löschen fehlgeschlagen: ${(err as Error).message}`)
+    }
+  }
+
+  if (loading) return <Card title="Personas">Lädt …</Card>
+
+  return (
+    <Card title="Personas">
+      <div className="flex flex-col gap-3">
+        {personas.map((persona) => {
+          const expanded = expandedId === persona.id
+          return (
+            <div key={persona.id} className="rounded-md border border-slate-200 p-3 dark:border-slate-800">
+              <div className="flex items-start gap-2">
+                <div className="flex flex-1 flex-col gap-2">
+                  <div className="flex flex-wrap gap-2">
+                    <input
+                      type="text"
+                      value={persona.name}
+                      onChange={(e) => handleFieldChange(persona, { name: e.target.value })}
+                      onBlur={() => handleBlurSave(persona)}
+                      placeholder="Name"
+                      className={`${inputClass} w-48 font-medium`}
+                    />
+                    <input
+                      type="text"
+                      value={persona.role}
+                      onChange={(e) => handleFieldChange(persona, { role: e.target.value })}
+                      onBlur={() => handleBlurSave(persona)}
+                      placeholder="Rolle"
+                      className={`${inputClass} flex-1`}
+                    />
+                  </div>
+                  <input
+                    type="text"
+                    value={persona.stance ?? ''}
+                    onChange={(e) => handleFieldChange(persona, { stance: e.target.value })}
+                    onBlur={() => handleBlurSave(persona)}
+                    placeholder="Haltung/Kritikstil"
+                    className={inputClass}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setExpandedId(expanded ? null : persona.id)}
+                    className="self-start text-xs text-slate-500 hover:underline dark:text-slate-400"
+                  >
+                    {expanded ? '– Systemprompt ausblenden' : '+ Systemprompt bearbeiten'}
+                  </button>
+                  {expanded && (
+                    <textarea
+                      value={persona.system_prompt}
+                      onChange={(e) => handleFieldChange(persona, { system_prompt: e.target.value })}
+                      onBlur={() => handleBlurSave(persona)}
+                      rows={8}
+                      className={`${inputClass} font-mono text-xs`}
+                    />
+                  )}
+                </div>
+                <div className="flex shrink-0 flex-col items-end gap-2">
+                  <label className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+                    <input type="checkbox" checked={persona.active} onChange={() => handleToggleActive(persona)} />
+                    aktiv
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(persona.id)}
+                    className="text-slate-400 hover:text-red-600 dark:hover:text-red-400"
+                    aria-label="Löschen"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            </div>
+          )
+        })}
+
+        <form onSubmit={handleAdd} className="flex flex-col gap-2 border-t border-slate-200 pt-3 dark:border-slate-800">
+          <div className="flex flex-wrap gap-2">
+            <input
+              type="text"
+              placeholder="Name"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              className={`${inputClass} w-48`}
+            />
+            <input
+              type="text"
+              placeholder="Rolle"
+              value={newRole}
+              onChange={(e) => setNewRole(e.target.value)}
+              className={`${inputClass} flex-1`}
+            />
+          </div>
+          <input
+            type="text"
+            placeholder="Haltung/Kritikstil"
+            value={newStance}
+            onChange={(e) => setNewStance(e.target.value)}
+            className={inputClass}
+          />
+          <textarea
+            placeholder="Systemprompt (inkl. Belegpflicht)"
+            value={newSystemPrompt}
+            onChange={(e) => setNewSystemPrompt(e.target.value)}
+            rows={4}
+            className={`${inputClass} font-mono text-xs`}
+          />
+          <button
+            type="submit"
+            className="self-start rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800"
+          >
+            + Persona hinzufügen
+          </button>
+        </form>
+      </div>
+    </Card>
+  )
+}
+
 export function Einstellungen() {
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6 p-4 sm:p-6">
@@ -313,6 +498,7 @@ export function Einstellungen() {
       <ThemaCard />
       <ForschungsfragenCard />
       <ThemenfelderCard />
+      <PersonasCard />
     </div>
   )
 }
