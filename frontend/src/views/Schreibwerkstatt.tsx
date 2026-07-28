@@ -57,6 +57,38 @@ const JOB_POLL_INTERVAL_MS = 2000
 const COLUMN_WIDTHS_STORAGE_KEY = 'littool:schreibwerkstatt:columnWidths'
 type MobileTab = 'entwurf' | 'pool' | 'diskussion'
 type WorkstattMode = 'abschnitte' | 'chat'
+
+// Sitzungszustand ueberlebt einen Routenwechsel (z.B. kurz in den Chat/eine
+// andere Ansicht springen und zurueckkommen) - die Komponente unmountet dabei
+// komplett, sessionStorage bleibt aber ueber die ganze Browser-Sitzung
+// bestehen (anders als localStorage bewusst NICHT ueber das Schliessen des
+// Tabs hinaus - reiner Wiedereinstiegs-Komfort, keine dauerhafte Einstellung).
+const SESSION_STORAGE_KEY = 'littool:schreibwerkstatt:session'
+
+type PersistedDraft = {
+  sectionId: string
+  editMode: boolean
+  editorText: string
+  editorCursorPos: number
+  editorMarkerMap: Array<[number, string]>
+  insertedCitations: Array<{ passageId: string; snippet: string }>
+}
+
+type PersistedSession = {
+  mode: WorkstattMode
+  selectedId: string | null
+  expanded: string[]
+  draft: PersistedDraft | null
+}
+
+function loadPersistedSession(): PersistedSession | null {
+  try {
+    const raw = sessionStorage.getItem(SESSION_STORAGE_KEY)
+    return raw ? (JSON.parse(raw) as PersistedSession) : null
+  } catch {
+    return null
+  }
+}
 type InsertVariant = 'beleg' | 'original' | 'uebersetzung' | 'paraphrase'
 
 function SectionRowItem({
@@ -921,13 +953,21 @@ function ZitatPoolColumn({
 }
 
 export function Schreibwerkstatt() {
-  const [mode, setMode] = useState<WorkstattMode>('abschnitte')
+  // Einmalig beim Mount gelesen (lazy initializer) - liefert den zuletzt
+  // verlassenen Zustand dieser Browser-Sitzung zurueck, statt immer mit
+  // leerem Baum/erstem Modus zu starten.
+  const [persistedSession] = useState(() => loadPersistedSession())
+  const [pendingDraftRestore, setPendingDraftRestore] = useState<PersistedDraft | null>(
+    () => persistedSession?.draft ?? null,
+  )
+  const [mode, setMode] = useState<WorkstattMode>(() => persistedSession?.mode ?? 'abschnitte')
   const { activeDocumentId, markUsed, unmarkUsed } = useActiveDocument()
   const [sections, setSections] = useState<SectionRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [selectedId, setSelectedId] = useState<string | null>(() => persistedSession?.selectedId ?? null)
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(persistedSession?.expanded ?? []))
+  const isFirstDocEffectRun = useRef(true)
 
   const [allRqs, setAllRqs] = useState<Rq[]>([])
   const [allTopics, setAllTopics] = useState<TopicOption[]>([])
@@ -1088,7 +1128,15 @@ export function Schreibwerkstatt() {
   useEffect(() => {
     if (!activeDocumentId) return
     setLoading(true)
-    setSelectedId(null)
+    // Beim allerersten Lauf (Mount) NICHT zuruecksetzen - sonst wuerde eine
+    // aus der Sitzung wiederhergestellte selectedId sofort wieder verworfen,
+    // noch bevor sie ueberhaupt gegen die geladenen Sections geprueft wurde.
+    // Ein echter Dokumentwechsel (Nutzer waehlt bewusst ISP/Expose/Diss) soll
+    // die Auswahl weiterhin zuruecksetzen.
+    if (!isFirstDocEffectRun.current) {
+      setSelectedId(null)
+    }
+    isFirstDocEffectRun.current = false
     fetchSections(activeDocumentId)
       .then(setSections)
       .catch((err: Error) => setError(err.message))
@@ -1115,8 +1163,23 @@ export function Schreibwerkstatt() {
     setDebateError(null)
     setAdoptError(null)
     setTransferMessage(null)
-    setEditMode(false)
     setSaveEditorError(null)
+
+    // Wiederhergestellter, noch ungespeicherter Entwurf aus einem frueheren
+    // Aufenthalt in dieser Browser-Sitzung (sessionStorage) - nur einmalig
+    // konsumiert (danach null), damit ein spaeterer, regulaerer
+    // Abschnittswechsel wieder normal zuruecksetzt statt den alten Entwurf
+    // erneut einzuspielen.
+    if (pendingDraftRestore && pendingDraftRestore.sectionId === selected.id) {
+      setEditMode(pendingDraftRestore.editMode)
+      setEditorText(pendingDraftRestore.editorText)
+      setEditorCursorPos(pendingDraftRestore.editorCursorPos)
+      setEditorMarkerMap(new Map(pendingDraftRestore.editorMarkerMap))
+      setInsertedCitations(pendingDraftRestore.insertedCitations)
+      setPendingDraftRestore(null)
+    } else {
+      setEditMode(false)
+    }
     fetchSectionLinks(selected.id).then(setLinks)
 
     fetchDraftsForSection(selected.id).then((rows) => {
@@ -1133,6 +1196,34 @@ export function Schreibwerkstatt() {
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected?.id])
+
+  // Sitzungszustand fortlaufend sichern (sessionStorage) - Modus, ausgewaehlter
+  // Abschnitt, aufgeklappte Baumknoten und ein noch ungespeicherter Entwurf
+  // (an die jeweilige Section-ID gebunden, damit er nicht faelschlich in
+  // einem anderen Abschnitt auftaucht). Ueberlebt damit einen Routenwechsel
+  // innerhalb derselben Browser-Sitzung (z.B. kurz in den Chat springen),
+  // nicht aber das Schliessen des Tabs - bewusst sessionStorage statt
+  // localStorage, das ist reiner Wiedereinstiegs-Komfort, keine dauerhafte
+  // Einstellung.
+  useEffect(() => {
+    const draft: PersistedDraft | null =
+      selected && editMode
+        ? {
+            sectionId: selected.id,
+            editMode,
+            editorText,
+            editorCursorPos,
+            editorMarkerMap: Array.from(editorMarkerMap.entries()),
+            insertedCitations,
+          }
+        : null
+    const session: PersistedSession = { mode, selectedId, expanded: Array.from(expanded), draft }
+    try {
+      sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session))
+    } catch {
+      // sessionStorage evtl. voll/deaktiviert - Wiedereinstiegs-Komfort ist optional, kein Fehler noetig
+    }
+  }, [mode, selectedId, expanded, selected, editMode, editorText, editorCursorPos, editorMarkerMap, insertedCitations])
 
   // Hintergrund-Job pollen, bis er fertig/fehlgeschlagen ist - ueberlebt einen
   // Abschnittswechsel oder das Verlassen der Seite (beim Wiederkommen greift

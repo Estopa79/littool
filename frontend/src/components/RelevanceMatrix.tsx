@@ -9,21 +9,76 @@ import { VennDiagram } from './VennDiagram'
 
 const RELEVANCE_DOTS: Record<number, string> = { 1: '•', 2: '••', 3: '•••' }
 
+const COLUMN_ORDER_STORAGE_KEY = 'littool:relevanzmatrix:columnOrder'
+
+type FixedColumnKey = 'author_year' | 'title' | 'ranking' | 'study_type'
+const FIXED_COLUMNS: Array<{ key: FixedColumnKey; label: string }> = [
+  { key: 'author_year', label: 'Autor/Jahr' },
+  { key: 'title', label: 'Titel' },
+  { key: 'ranking', label: 'Ranking' },
+  { key: 'study_type', label: 'Studientyp' },
+]
+
+function rqKey(rqId: string): string {
+  return `rq:${rqId}`
+}
+
+function columnLabel(key: string, rqs: MatrixRq[]): string {
+  const fixed = FIXED_COLUMNS.find((c) => c.key === key)
+  if (fixed) return fixed.label
+  return rqs.find((r) => rqKey(r.id) === key)?.code ?? '?'
+}
+
+// Behaelt bereits gemerkte Spalten in ihrer gespeicherten Reihenfolge bei,
+// haengt neu hinzugekommene (z.B. eine neue Forschungsfrage) automatisch
+// hinten an, statt sie zu verlieren oder die gespeicherte Reihenfolge zu
+// verwerfen.
+function mergeColumnOrder(persisted: string[] | null, defaultOrder: string[]): string[] {
+  if (!persisted) return defaultOrder
+  const filtered = persisted.filter((k) => defaultOrder.includes(k))
+  const missing = defaultOrder.filter((k) => !filtered.includes(k))
+  return [...filtered, ...missing]
+}
+
+function rankingSortValue(row: MatrixRow): string {
+  return row.ranking_system ? `${row.ranking_system} ${row.ranking_value ?? ''}`.trim() : ''
+}
+
+function compareByColumn(key: string, a: MatrixRow, b: MatrixRow): number {
+  if (key === 'author_year') return formatAuthorYear(a).localeCompare(formatAuthorYear(b))
+  if (key === 'title') return a.title.localeCompare(b.title)
+  if (key === 'ranking') return rankingSortValue(a).localeCompare(rankingSortValue(b))
+  if (key === 'study_type') {
+    const la = a.study_type ? STUDY_TYPE_LABEL[a.study_type] : ''
+    const lb = b.study_type ? STUDY_TYPE_LABEL[b.study_type] : ''
+    return la.localeCompare(lb)
+  }
+  if (key.startsWith('rq:')) {
+    const rqId = key.slice(3)
+    return (a.relevance[rqId] ?? 0) - (b.relevance[rqId] ?? 0)
+  }
+  return 0
+}
+
 function relevanceCsvCell(value: number | undefined): string {
   if (!value) return ''
   return RELEVANCE_DOTS[value] ?? String(value)
 }
 
-function toCsv(rqs: MatrixRq[], rows: MatrixRow[]): string {
-  const header = ['Autor/Jahr', 'Titel', 'Ranking', 'Studientyp', ...rqs.map((r) => r.code)]
-  const lines = rows.map((row) => {
-    const ranking = row.ranking_system ? `${row.ranking_system} ${row.ranking_value ?? ''}`.trim() : ''
-    const studyType = row.study_type ? STUDY_TYPE_LABEL[row.study_type] : ''
-    const cells = rqs.map((rq) => relevanceCsvCell(row.relevance[rq.id]))
-    return [formatAuthorYear(row), row.title, ranking, studyType, ...cells]
-  })
+function toCsv(columnOrder: string[], rqs: MatrixRq[], rows: MatrixRow[]): string {
+  const header = columnOrder.map((key) => columnLabel(key, rqs))
+  const lines = rows.map((row) => columnOrder.map((key) => csvCell(key, row)))
   const escape = (v: string) => (v.includes(',') || v.includes('"') || v.includes('\n') ? `"${v.replace(/"/g, '""')}"` : v)
   return [header, ...lines].map((line) => line.map(escape).join(',')).join('\n')
+}
+
+function csvCell(key: string, row: MatrixRow): string {
+  if (key === 'author_year') return formatAuthorYear(row)
+  if (key === 'title') return row.title
+  if (key === 'ranking') return rankingSortValue(row)
+  if (key === 'study_type') return row.study_type ? STUDY_TYPE_LABEL[row.study_type] : ''
+  if (key.startsWith('rq:')) return relevanceCsvCell(row.relevance[key.slice(3)])
+  return ''
 }
 
 function CellModal({
@@ -97,7 +152,10 @@ export function RelevanceMatrix() {
   const [filterStudyType, setFilterStudyType] = useState('')
   const [filterTopic, setFilterTopic] = useState('')
   const [allTopics, setAllTopics] = useState<TopicOption[]>([])
-  const [sortBy, setSortBy] = useState<'title' | 'relevance'>('title')
+  const [sortKey, setSortKey] = useState<string>('author_year')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  const [columnOrder, setColumnOrder] = useState<string[]>([])
+  const [draggedKey, setDraggedKey] = useState<string | null>(null)
   const [cell, setCell] = useState<{ sourceId: string; sourceTitle: string; rqId: string; rqCode: string } | null>(null)
 
   useEffect(() => {
@@ -111,6 +169,56 @@ export function RelevanceMatrix() {
     fetchAllTopics().then(setAllTopics)
   }, [])
 
+  // Spaltenreihenfolge (Paket: Ad-hoc-Wunsch des Autors) - gespeichert je
+  // Browser, nicht in der DB (reine Anzeige-Praeferenz). Erst berechenbar,
+  // sobald die Forschungsfragen geladen sind (bestimmen die dynamischen
+  // Spalten); bereits gespeicherte Reihenfolge bleibt erhalten, neue FFs
+  // werden automatisch hinten angehaengt.
+  useEffect(() => {
+    if (rqs.length === 0 && rows.length === 0) return
+    const defaultOrder = [...FIXED_COLUMNS.map((c) => c.key as string), ...rqs.map((r) => rqKey(r.id))]
+    let persisted: string[] | null = null
+    try {
+      const raw = localStorage.getItem(COLUMN_ORDER_STORAGE_KEY)
+      persisted = raw ? JSON.parse(raw) : null
+    } catch {
+      // ungueltiger localStorage-Wert - Default greift
+    }
+    setColumnOrder(mergeColumnOrder(persisted, defaultOrder))
+  }, [rqs, rows.length])
+
+  useEffect(() => {
+    if (columnOrder.length === 0) return
+    localStorage.setItem(COLUMN_ORDER_STORAGE_KEY, JSON.stringify(columnOrder))
+  }, [columnOrder])
+
+  function toggleSort(key: string) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortKey(key)
+      // Relevanz-Spalten (rq:*) starten sinnvollerweise mit "hoechste zuerst".
+      setSortDir(key.startsWith('rq:') ? 'desc' : 'asc')
+    }
+  }
+
+  function handleDrop(targetKey: string) {
+    if (!draggedKey || draggedKey === targetKey) {
+      setDraggedKey(null)
+      return
+    }
+    setColumnOrder((prev) => {
+      const next = [...prev]
+      const fromIdx = next.indexOf(draggedKey)
+      const toIdx = next.indexOf(targetKey)
+      if (fromIdx === -1 || toIdx === -1) return prev
+      next.splice(fromIdx, 1)
+      next.splice(toIdx, 0, draggedKey)
+      return next
+    })
+    setDraggedKey(null)
+  }
+
   const visible = useMemo(() => {
     let result = rows
     if (filterRanking === 'kein Ranking') result = result.filter((r) => !r.ranking_system)
@@ -119,18 +227,14 @@ export function RelevanceMatrix() {
     if (filterTopic) result = result.filter((r) => r.topics.includes(filterTopic))
 
     result = [...result].sort((a, b) => {
-      if (sortBy === 'relevance') {
-        const maxA = Math.max(0, ...Object.values(a.relevance))
-        const maxB = Math.max(0, ...Object.values(b.relevance))
-        return maxB - maxA
-      }
-      return formatAuthorYear(a).localeCompare(formatAuthorYear(b))
+      const cmp = compareByColumn(sortKey, a, b)
+      return sortDir === 'asc' ? cmp : -cmp
     })
     return result
-  }, [rows, filterRanking, filterStudyType, filterTopic, sortBy])
+  }, [rows, filterRanking, filterStudyType, filterTopic, sortKey, sortDir])
 
   function exportCsv() {
-    const csv = toCsv(rqs, visible)
+    const csv = toCsv(columnOrder, rqs, visible)
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -148,7 +252,8 @@ export function RelevanceMatrix() {
       <p className="mb-4 max-w-2xl text-sm text-slate-500 dark:text-slate-400">
         Zeigt, wie stark die KI jede Quelle für jede Forschungsfrage einschätzt (Punkte = Relevanz 0–3). Hilft dir zu
         sehen, welche Quellen für eine Forschungsfrage am wichtigsten sind – und wo im Bestand noch Lücken liegen.
-        Zelle anklicken für die Begründung und ggf. schon bestätigte Zitate.
+        Zelle anklicken für die Begründung und ggf. schon bestätigte Zitate. Spaltenköpfe ziehen zum Umsortieren,
+        anklicken zum Sortieren.
       </p>
 
       <VennDiagram />
@@ -189,14 +294,6 @@ export function RelevanceMatrix() {
             </option>
           ))}
         </select>
-        <select
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value as 'title' | 'relevance')}
-          className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-        >
-          <option value="title">Titel (A–Z)</option>
-          <option value="relevance">Höchste Relevanz</option>
-        </select>
         <button
           type="button"
           onClick={exportCsv}
@@ -210,13 +307,26 @@ export function RelevanceMatrix() {
         <table className="w-full min-w-[700px] table-auto border-collapse text-sm">
           <thead>
             <tr className="border-b border-slate-200 text-left text-slate-500 dark:border-slate-800 dark:text-slate-400">
-              <th className="py-2 pr-3 font-medium">Autor/Jahr</th>
-              <th className="py-2 pr-3 font-medium">Titel</th>
-              <th className="py-2 pr-3 font-medium">Ranking</th>
-              <th className="py-2 pr-3 font-medium">Studientyp</th>
-              {rqs.map((rq) => (
-                <th key={rq.id} className="py-2 pr-3 text-center font-medium">
-                  {rq.code}
+              {columnOrder.map((key) => (
+                <th
+                  key={key}
+                  draggable
+                  onDragStart={() => setDraggedKey(key)}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={() => handleDrop(key)}
+                  className={`cursor-move py-2 pr-3 font-medium ${key.startsWith('rq:') ? 'text-center' : ''} ${
+                    draggedKey === key ? 'opacity-40' : ''
+                  }`}
+                  title="Ziehen zum Umsortieren, klicken zum Sortieren"
+                >
+                  <button
+                    type="button"
+                    className="select-none hover:text-slate-700 dark:hover:text-slate-200"
+                    onClick={() => toggleSort(key)}
+                  >
+                    {columnLabel(key, rqs)}
+                    {sortKey === key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
+                  </button>
                 </th>
               ))}
             </tr>
@@ -224,30 +334,46 @@ export function RelevanceMatrix() {
           <tbody>
             {visible.map((row) => (
               <tr key={row.source_id} className="border-b border-slate-100 dark:border-slate-900">
-                <td className="whitespace-nowrap py-2 pr-3 text-slate-700 dark:text-slate-300">
-                  {formatAuthorYear(row)}
-                </td>
-                <td className="max-w-xs truncate py-2 pr-3 text-slate-800 dark:text-slate-100">
-                  <Link to={`/bibliothek/${row.source_id}`} className="hover:underline">
-                    {row.title}
-                  </Link>
-                </td>
-                <td className="whitespace-nowrap py-2 pr-3 text-slate-600 dark:text-slate-400">
-                  {row.ranking_system ? `${row.ranking_system} ${row.ranking_value}` : '–'}
-                </td>
-                <td className="whitespace-nowrap py-2 pr-3 text-slate-600 dark:text-slate-400">
-                  {row.study_type ? STUDY_TYPE_LABEL[row.study_type] : '–'}
-                </td>
-                {rqs.map((rq) => {
-                  const value = row.relevance[rq.id] ?? 0
+                {columnOrder.map((key) => {
+                  if (key === 'author_year') {
+                    return (
+                      <td key={key} className="whitespace-nowrap py-2 pr-3 text-slate-700 dark:text-slate-300">
+                        {formatAuthorYear(row)}
+                      </td>
+                    )
+                  }
+                  if (key === 'title') {
+                    return (
+                      <td key={key} className="max-w-xs truncate py-2 pr-3 text-slate-800 dark:text-slate-100">
+                        <Link to={`/bibliothek/${row.source_id}`} className="hover:underline">
+                          {row.title}
+                        </Link>
+                      </td>
+                    )
+                  }
+                  if (key === 'ranking') {
+                    return (
+                      <td key={key} className="whitespace-nowrap py-2 pr-3 text-slate-600 dark:text-slate-400">
+                        {row.ranking_system ? `${row.ranking_system} ${row.ranking_value}` : '–'}
+                      </td>
+                    )
+                  }
+                  if (key === 'study_type') {
+                    return (
+                      <td key={key} className="whitespace-nowrap py-2 pr-3 text-slate-600 dark:text-slate-400">
+                        {row.study_type ? STUDY_TYPE_LABEL[row.study_type] : '–'}
+                      </td>
+                    )
+                  }
+                  const rqId = key.slice(3)
+                  const rq = rqs.find((r) => r.id === rqId)
+                  const value = row.relevance[rqId] ?? 0
                   return (
-                    <td key={rq.id} className="py-2 pr-3 text-center">
-                      {value > 0 ? (
+                    <td key={key} className="py-2 pr-3 text-center">
+                      {value > 0 && rq ? (
                         <button
                           type="button"
-                          onClick={() =>
-                            setCell({ sourceId: row.source_id, sourceTitle: row.title, rqId: rq.id, rqCode: rq.code })
-                          }
+                          onClick={() => setCell({ sourceId: row.source_id, sourceTitle: row.title, rqId, rqCode: rq.code })}
                           className="text-amber-600 hover:underline dark:text-amber-400"
                           title={`Relevanz ${value}/3`}
                         >
