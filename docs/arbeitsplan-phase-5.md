@@ -126,11 +126,29 @@ Live gegen die echte DB/Function getestet, am echten ISP-Abschnitt „1 Einleitu
 
 **Noch nicht Teil dieses Pakets:** „Version übernehmen" (Paket 8), Diskussion/Kritik-Anfrage (Paket 6), Debatte (Paket 7) - Entwurf-Status bleibt für alle in diesem Paket erzeugten Versionen `draft`.
 
-## Paket 6 – Diskussion & Text-Prüfung ☐
+## Paket 6 – Diskussion & Text-Prüfung ☑
 
 - Diskussionsfaden je Abschnitt: eigener Kommentar, „Reaktion anfordern" mit Persona-Wahl (eine Reaktion pro Klick), Bezug auf Entwurf-Version.
 - „Eigenen Text prüfen": Autor fügt eigenen Text ein → gewählte Persona prüft: Passt er zum Abschnitt? Ist er durch Pool-Zitate gedeckt? Was fehlt/ist abwegig? Antwort mit Belegverweisen.
 - **Fertig, wenn:** Frage-Antwort-Zyklen mit Personas am echten Abschnitt funktionieren; AiLog vollständig.
+
+**Notizen:**
+
+**Migration `0035_discussion_action_types.sql`:** erweitert `ai_log_entries.action_type` um `'reaktion'` und `'textpruefung'` (gleiches dynamisches Constraint-Ermitteln wie Migration 0034).
+
+**Scope-Entscheidung "Eigenen Text prüfen" legt selbst eine Entwurfsversion an:** `discussion_entries.draft_id` ist laut Migration 0032 `NOT NULL` - eine Diskussion kann nur zu einer existierenden Entwurfsversion stattfinden. Statt dafür das Schema aufzuweichen, nutzt „Eigenen Text prüfen" die in Paket 1 bereits vorgesehene Unterscheidung `drafts.created_by IN ('persona','author')`: der eingereichte Text wird selbst als neue Version (`created_by='author'`) gespeichert, die Persona-Rückmeldung dazu landet als ganz normaler `discussion_entries`-Eintrag zu dieser Version. Dadurch ist der eigene Text automatisch versioniert, im Versionswechsler sichtbar und vergleichbar (Diff aus Paket 5 funktioniert ohne Zusatzaufwand) - ohne neue Spalten.
+
+**Zwei neue, bewusst SYNCHRONE Edge Functions** (`generate-reaction`, `review-own-text`) - kein Hintergrund-Job wie bei `generate-draft`/Paket 5: CLAUDE.md nennt explizit „Entwurf, Debatte, Batch-Ingest" als lange Aktionen; eine einzelne Reaktion („eine Reaktion pro Klick", Arbeitsplan) bzw. eine Textprüfung ist ein einzelner kurzer Claude-Aufruf, gleiches Muster wie die bestehenden `generate-citations`/`paraphrase-passage`. Beide holen sich die Zitat-Liste serverseitig ueber dieselbe FF-/Themen-Filterlogik wie der Zitat-Pool in Paket 4 (dupliziert statt gemeinsam importiert - kein `_shared`-Ordner-Muster in diesem Projekt, jede Function ist bewusst eigenständig, gleiches Vorbild wie die bestehenden Functions).
+
+**Keine zweite automatisierte Nachprüfung wie bei Entwürfen (Paket 5):** Reaktionen sind primär Meinung/Kritik/Frage aus der Persona-Rolle, keine neue inhaltliche Textproduktion - die Belegpflicht wirkt hier ueber den Persona-Systemprompt (Paket 3) plus eine Format-Instruktion, die die Zitat-Liste als einzige zulaessige Quellenbasis vorgibt, nicht ueber einen zweiten Pruefungs-Aufruf. Bei „Eigenen Text prüfen" IST die Persona-Rückmeldung bereits die Prüfung selbst.
+
+**Diskussionsfaden ist bewusst pro Entwurfsversion isoliert** (Arbeitsplan: „Bezug auf Entwurf-Version") - Umschalten des Versionswechslers aus Paket 5 zeigt automatisch den zugehörigen, eigenständigen Diskussionsfaden dieser Version.
+
+**Persona-Auswahl geteilt zwischen den drei Aktionen:** Entwurf anfordern (Paket 5), Reaktion anfordern und Eigenen Text prüfen nutzen dieselbe `selectedPersonaId`-State - ein Dropdown-Wert für „mit wem arbeite ich gerade", in Entwurf- und Diskussion-Spalte gleichermassen sichtbar/aenderbar, kein separater Zustand pro Aktion noetig.
+
+Live gegen die echte DB/Functions getestet, am echten Abschnitt „1 Einleitung": (1) „Eigenen Text prüfen" mit einem bewusst unbelegten Zwei-Satz-Text (Persona Wohlwollender Lektor) - legte korrekt `v1` mit `created_by='author'` an, Rückmeldung benannte zutreffend beide Aussagen als „vollständig ungedeckt" (Zitat-Pool fuer den Abschnitt war leer) und gab zusätzlich Sprach-/Struktur-Kritik passend zur Lektor-Rolle. (2) Eigener Kommentar hinzugefügt („Du"-Eintrag korrekt einsortiert). (3) „Reaktion anfordern" mit Kritischer Professor - Reaktion nahm inhaltlich korrekt auf den vorherigen Kommentar Bezug (Diskussionsverlauf wird tatsächlich als Kontext mitgegeben). Diskussionsfaden zeigte alle drei Eintraege in der richtigen Reihenfolge mit korrekter Sprecher-Zuordnung. (4) `ai_log_entries` bekam je einen Eintrag (`textpruefung`, `reaktion`) mit Token-Zahlen. (5) Negativtests: deaktivierte Persona → 400 bei beiden Functions, unbekannte `draft_id` → 404 bei `generate-reaction`. Alle Testartefakte (1 Entwurf, 3 Diskussionsbeiträge, 2 AiLog-Einträge) wieder vollständig entfernt. TypeScript-Build und `vite build` fehlerfrei. Mobiler Diskussion-Tab geprüft, kein neuer Overflow (identisch mit dem bereits dokumentierten `BottomTabBar`-Fall).
+
+**Noch nicht Teil dieses Pakets:** Mehr-Runden-Debatte mit Rundenlimit (Paket 7, als Hintergrund-Job) - „Reaktion anfordern" bleibt bewusst auf eine einzelne Reaktion pro Klick begrenzt.
 
 ## Paket 7 – Debatte (Mehr-Runden) ☐
 

@@ -31,6 +31,13 @@ import {
   type Draft,
   type DraftJob,
 } from '../lib/drafts'
+import {
+  fetchDiscussionEntries,
+  postUserComment,
+  requestReaction,
+  reviewOwnText,
+  type DiscussionEntry,
+} from '../lib/discussion'
 import { formatAuthorYear } from '../lib/sourceFormat'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { CitationCopyButtons } from '../components/CitationCopyButtons'
@@ -333,15 +340,153 @@ function EntwurfColumn({
   )
 }
 
-function DiskussionColumn() {
+function DiskussionColumn({
+  currentDraft,
+  entries,
+  loadingEntries,
+  commentText,
+  onCommentChange,
+  onPostComment,
+  postingComment,
+  personas,
+  selectedPersonaId,
+  onSelectPersona,
+  onRequestReaction,
+  requestingReaction,
+  reactionError,
+  reviewText,
+  onReviewTextChange,
+  onSubmitReview,
+  submittingReview,
+  reviewError,
+}: {
+  currentDraft: Draft | null
+  entries: DiscussionEntry[]
+  loadingEntries: boolean
+  commentText: string
+  onCommentChange: (v: string) => void
+  onPostComment: () => void
+  postingComment: boolean
+  personas: Persona[]
+  selectedPersonaId: string
+  onSelectPersona: (id: string) => void
+  onRequestReaction: () => void
+  requestingReaction: boolean
+  reactionError: string | null
+  reviewText: string
+  onReviewTextChange: (v: string) => void
+  onSubmitReview: () => void
+  submittingReview: boolean
+  reviewError: string | null
+}) {
   return (
     <div className="flex h-full flex-col overflow-y-auto p-4">
       <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
         Diskussion
       </h3>
-      <p className="text-sm text-slate-500 dark:text-slate-400">
-        Diskussion startet, sobald ein Entwurf vorliegt (Paket 6).
-      </p>
+
+      <div className="mb-3">
+        <select
+          value={selectedPersonaId}
+          onChange={(e) => onSelectPersona(e.target.value)}
+          className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+        >
+          <option value="">Persona wählen …</option>
+          {personas.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {!currentDraft && (
+        <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
+          Noch kein Entwurf für diesen Abschnitt - der Diskussionsfaden startet, sobald einer vorliegt (per „Entwurf
+          anfordern" in der Entwurf-Spalte oder unten per „Eigenen Text prüfen").
+        </p>
+      )}
+
+      {currentDraft && (
+        <>
+          {loadingEntries && <p className="text-sm text-slate-400">Lädt …</p>}
+          <ul className="mb-3 flex flex-col gap-2">
+            {entries.map((e) => (
+              <li key={e.id} className="rounded-md border border-slate-200 p-2 text-xs dark:border-slate-800">
+                <p className="mb-1 font-medium text-slate-700 dark:text-slate-300">
+                  {e.author_type === 'user' ? 'Du' : (e.persona_name ?? 'Persona')}
+                </p>
+                <p className="whitespace-pre-wrap text-slate-600 dark:text-slate-400">{e.text}</p>
+              </li>
+            ))}
+          </ul>
+          {!loadingEntries && entries.length === 0 && (
+            <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">Noch keine Diskussionsbeiträge zu dieser Version.</p>
+          )}
+
+          <div className="mb-3 flex flex-col gap-1.5">
+            <textarea
+              value={commentText}
+              onChange={(e) => onCommentChange(e.target.value)}
+              rows={2}
+              placeholder="Eigener Kommentar …"
+              className="rounded-md border border-slate-300 bg-white p-2 text-xs dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+            />
+            <button
+              type="button"
+              onClick={onPostComment}
+              disabled={postingComment || !commentText.trim()}
+              className="self-start rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
+            >
+              Kommentar hinzufügen
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={onRequestReaction}
+            disabled={requestingReaction || !selectedPersonaId}
+            className="mb-3 self-start rounded-md bg-slate-900 px-2 py-1 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-40 dark:bg-slate-100 dark:text-slate-900"
+          >
+            {requestingReaction ? 'Fragt an …' : 'Reaktion anfordern'}
+          </button>
+          {reactionError && (
+            <p className="mb-3 rounded-md bg-red-50 px-2 py-1.5 text-xs text-red-700 dark:bg-red-950 dark:text-red-300">
+              {reactionError}
+            </p>
+          )}
+        </>
+      )}
+
+      <div className="mt-auto border-t border-slate-200 pt-3 dark:border-slate-800">
+        <h4 className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
+          Eigenen Text prüfen
+        </h4>
+        <p className="mb-1 text-xs text-slate-500 dark:text-slate-400">
+          Eigenen (nicht KI-generierten) Text einfügen - legt eine neue Version an und lässt die oben gewählte Persona
+          ihn beurteilen (passt er zum Abschnitt, ist er durch Pool-Zitate gedeckt, was fehlt).
+        </p>
+        <textarea
+          value={reviewText}
+          onChange={(e) => onReviewTextChange(e.target.value)}
+          rows={4}
+          placeholder="Eigenen Text hier einfügen …"
+          className="mb-1.5 w-full rounded-md border border-slate-300 bg-white p-2 text-xs dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+        />
+        <button
+          type="button"
+          onClick={onSubmitReview}
+          disabled={submittingReview || !reviewText.trim() || !selectedPersonaId}
+          className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
+        >
+          {submittingReview ? 'Prüft …' : 'Eigenen Text prüfen'}
+        </button>
+        {reviewError && (
+          <p className="mt-1.5 rounded-md bg-red-50 px-2 py-1.5 text-xs text-red-700 dark:bg-red-950 dark:text-red-300">
+            {reviewError}
+          </p>
+        )}
+      </div>
     </div>
   )
 }
@@ -500,6 +645,16 @@ export function Schreibwerkstatt() {
   const [requesting, setRequesting] = useState(false)
   const [requestError, setRequestError] = useState<string | null>(null)
 
+  const [discussionEntries, setDiscussionEntries] = useState<DiscussionEntry[]>([])
+  const [loadingDiscussion, setLoadingDiscussion] = useState(false)
+  const [commentText, setCommentText] = useState('')
+  const [postingComment, setPostingComment] = useState(false)
+  const [requestingReaction, setRequestingReaction] = useState(false)
+  const [reactionError, setReactionError] = useState<string | null>(null)
+  const [reviewText, setReviewText] = useState('')
+  const [submittingReview, setSubmittingReview] = useState(false)
+  const [reviewError, setReviewError] = useState<string | null>(null)
+
   useEffect(() => {
     fetchAllResearchQuestions().then(setAllRqs)
     fetchAllTopics().then(setAllTopics)
@@ -528,6 +683,10 @@ export function Schreibwerkstatt() {
     setShowDiff(false)
     setRequestError(null)
     setHighlightedPassageId(null)
+    setCommentText('')
+    setReviewText('')
+    setReactionError(null)
+    setReviewError(null)
     fetchSectionLinks(selected.id).then(setLinks)
 
     fetchDraftsForSection(selected.id).then((rows) => {
@@ -584,6 +743,70 @@ export function Schreibwerkstatt() {
       setDraftPassages(new Map(rows.map((r) => [r.marker, r.passage_id])))
     })
   }, [currentDraft?.id])
+
+  useEffect(() => {
+    if (!currentDraft) {
+      setDiscussionEntries([])
+      return
+    }
+    setLoadingDiscussion(true)
+    fetchDiscussionEntries(currentDraft.id)
+      .then(setDiscussionEntries)
+      .finally(() => setLoadingDiscussion(false))
+  }, [currentDraft?.id])
+
+  async function reloadDiscussion() {
+    if (!currentDraft) return
+    const rows = await fetchDiscussionEntries(currentDraft.id)
+    setDiscussionEntries(rows)
+  }
+
+  async function handlePostComment() {
+    if (!selected || !currentDraft || !commentText.trim()) return
+    setPostingComment(true)
+    try {
+      await postUserComment(selected.id, currentDraft.id, commentText.trim())
+      setCommentText('')
+      await reloadDiscussion()
+    } finally {
+      setPostingComment(false)
+    }
+  }
+
+  async function handleRequestReaction() {
+    if (!selected || !currentDraft || !selectedPersonaId) return
+    setRequestingReaction(true)
+    setReactionError(null)
+    try {
+      await requestReaction({ section_id: selected.id, draft_id: currentDraft.id, persona_id: selectedPersonaId })
+      await reloadDiscussion()
+    } catch (err) {
+      setReactionError((err as Error).message)
+    } finally {
+      setRequestingReaction(false)
+    }
+  }
+
+  async function handleSubmitReview() {
+    if (!selected || !selectedPersonaId || !reviewText.trim()) return
+    setSubmittingReview(true)
+    setReviewError(null)
+    try {
+      const result = await reviewOwnText({
+        section_id: selected.id,
+        text: reviewText.trim(),
+        persona_id: selectedPersonaId,
+      })
+      setReviewText('')
+      const rows = await fetchDraftsForSection(selected.id)
+      setDrafts(rows)
+      setSelectedVersion(result.draft.version)
+    } catch (err) {
+      setReviewError((err as Error).message)
+    } finally {
+      setSubmittingReview(false)
+    }
+  }
 
   const filteredPool = useMemo(() => filterPassagesForSection(pool, links), [pool, links])
 
@@ -784,6 +1007,29 @@ export function Schreibwerkstatt() {
       selectedIds={selectedPoolIds}
       onToggleSelect={(id) => selected && toggleDraftSelection(selected.id, id)}
       highlightedId={highlightedPassageId}
+    />
+  )
+
+  const diskussionColumn = (
+    <DiskussionColumn
+      currentDraft={currentDraft}
+      entries={discussionEntries}
+      loadingEntries={loadingDiscussion}
+      commentText={commentText}
+      onCommentChange={setCommentText}
+      onPostComment={handlePostComment}
+      postingComment={postingComment}
+      personas={personas.filter((p) => p.active)}
+      selectedPersonaId={selectedPersonaId}
+      onSelectPersona={setSelectedPersonaId}
+      onRequestReaction={handleRequestReaction}
+      requestingReaction={requestingReaction}
+      reactionError={reactionError}
+      reviewText={reviewText}
+      onReviewTextChange={setReviewText}
+      onSubmitReview={handleSubmitReview}
+      submittingReview={submittingReview}
+      reviewError={reviewError}
     />
   )
 
@@ -999,7 +1245,7 @@ export function Schreibwerkstatt() {
             <div className="hidden min-h-0 flex-1 md:grid md:grid-cols-3 md:divide-x md:divide-slate-200 dark:md:divide-slate-800">
               {entwurfColumn}
               {zitatPoolColumn}
-              <DiskussionColumn />
+              {diskussionColumn}
             </div>
 
             {/* Mobil: Tabs statt Spalten */}
@@ -1029,7 +1275,7 @@ export function Schreibwerkstatt() {
               <div className="min-h-0 flex-1 overflow-y-auto">
                 {mobileTab === 'entwurf' && entwurfColumn}
                 {mobileTab === 'pool' && zitatPoolColumn}
-                {mobileTab === 'diskussion' && <DiskussionColumn />}
+                {mobileTab === 'diskussion' && diskussionColumn}
               </div>
             </div>
           </>
