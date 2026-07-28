@@ -88,3 +88,56 @@ export async function fetchActiveDraftJobForSection(sectionId: string): Promise<
   if (error) throw error
   return (data?.[0] as DraftJob) ?? null
 }
+
+// Phase 5, Paket 8: "Version übernehmen" - markiert die Version als
+// Arbeitsstand (nur eine je Abschnitt, eine vorher adoptierte Version faellt
+// automatisch zurueck auf 'draft') und hakt alle darin per Marker zitierten
+// Passagen im aktiven Dokument an. Rein additiv (upsert mit
+// ignoreDuplicates) - ein bereits gesetztes Haekchen (von hier oder von Hand)
+// wird nie entfernt, auch nicht beim Wechsel auf eine andere Version.
+export async function adoptDraft(draftId: string, sectionId: string, documentId: string): Promise<void> {
+  const { error: resetError } = await supabase
+    .from('drafts')
+    .update({ status: 'draft' })
+    .eq('section_id', sectionId)
+    .eq('status', 'adopted')
+    .neq('id', draftId)
+  if (resetError) throw resetError
+
+  const { error: adoptError } = await supabase.from('drafts').update({ status: 'adopted' }).eq('id', draftId)
+  if (adoptError) throw adoptError
+
+  const { data: draftPassageRows, error: dpError } = await supabase
+    .from('draft_passages')
+    .select('passage_id')
+    .eq('draft_id', draftId)
+  if (dpError) throw dpError
+
+  if (draftPassageRows && draftPassageRows.length > 0) {
+    const rows = draftPassageRows.map((r) => ({ passage_id: r.passage_id, document_id: documentId }))
+    const { error: usedError } = await supabase
+      .from('used_citations')
+      .upsert(rows, { onConflict: 'passage_id,document_id', ignoreDuplicates: true })
+    if (usedError) throw usedError
+  }
+}
+
+// "Text kopieren": ersetzt [n]-Marker durch die ausformulierte APA-Zitation
+// der referenzierten Passage. Bewusst OHNE Uebersetzungs-Kennzeichnung aus
+// Phase 4: ein Marker steht fuer eine vom Agenten synthetisierte, mit
+// eigenen Worten formulierte Aussage (kein woertliches Zitat/keine woertliche
+// Uebersetzung) - analog zur bestehenden "Paraphrase"-Kopiervariante in
+// CitationCopyButtons.tsx, die ebenfalls keinen Uebersetzungs-Hinweis traegt.
+// Marker ohne bekannte Zuordnung bleiben unveraendert stehen, statt sie
+// stillschweigend verschwinden zu lassen.
+export function buildCopyableDraftText(
+  text: string,
+  markerToPassageId: Map<number, string>,
+  passageCitations: Map<string, string>,
+): string {
+  return text.replace(/\[(\d+)\]/g, (match, n: string) => {
+    const passageId = markerToPassageId.get(Number(n))
+    const citation = passageId ? passageCitations.get(passageId) : undefined
+    return citation ?? match
+  })
+}

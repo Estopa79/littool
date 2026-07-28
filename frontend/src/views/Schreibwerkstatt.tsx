@@ -23,6 +23,8 @@ import {
 import { fetchConfirmedPassagesPool, filterPassagesForSection, type PoolPassage } from '../lib/sectionPool'
 import { fetchPersonas, type Persona } from '../lib/personas'
 import {
+  adoptDraft,
+  buildCopyableDraftText,
   fetchActiveDraftJobForSection,
   fetchDraftPassages,
   fetchDraftsForSection,
@@ -44,6 +46,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { CitationCopyButtons } from '../components/CitationCopyButtons'
 import { UsedCitationCheckbox } from '../components/UsedCitationCheckbox'
 import { DraftNoticeBanner } from '../components/DraftNoticeBanner'
+import { TransferSectionDialog } from '../components/TransferSectionDialog'
 
 const EMPTY_SET: Set<string> = new Set()
 const JOB_POLL_INTERVAL_MS = 2000
@@ -196,6 +199,10 @@ function EntwurfColumn({
   showDiff,
   onToggleDiff,
   previousDraft,
+  passageCitations,
+  onAdoptDraft,
+  adopting,
+  adoptError,
 }: {
   pendingCount: number
   personas: Persona[]
@@ -214,8 +221,25 @@ function EntwurfColumn({
   showDiff: boolean
   onToggleDiff: () => void
   previousDraft: Draft | null
+  passageCitations: Map<string, string>
+  onAdoptDraft: () => void
+  adopting: boolean
+  adoptError: string | null
 }) {
   const jobRunning = activeJob && (activeJob.status === 'pending' || activeJob.status === 'running')
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle')
+
+  async function handleCopyText() {
+    if (!currentDraft) return
+    try {
+      const text = buildCopyableDraftText(currentDraft.text, markerToPassageId, passageCitations)
+      await navigator.clipboard.writeText(text)
+      setCopyState('copied')
+    } catch {
+      setCopyState('error')
+    }
+    setTimeout(() => setCopyState('idle'), 1500)
+  }
 
   return (
     <div className="flex h-full flex-col overflow-y-auto p-4">
@@ -298,7 +322,39 @@ function EntwurfColumn({
                 {showDiff ? 'Diff ausblenden' : `Diff zu v${previousDraft.version} anzeigen`}
               </button>
             )}
+            {currentDraft?.status === 'adopted' && (
+              <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-medium text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300">
+                ✓ Arbeitsstand
+              </span>
+            )}
           </div>
+
+          {currentDraft && (
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={onAdoptDraft}
+                disabled={adopting || currentDraft.status === 'adopted'}
+                className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
+                title="Markiert diese Version als Arbeitsstand und hakt alle darin per Marker zitierten Passagen im aktiven Dokument an"
+              >
+                {adopting ? 'Übernimmt …' : 'Version übernehmen'}
+              </button>
+              <button
+                type="button"
+                onClick={handleCopyText}
+                className="text-slate-500 hover:underline dark:text-slate-400"
+                title="Entwurf mit ausformulierten APA-Zitationen statt Markern kopieren"
+              >
+                {copyState === 'copied' ? '✓ kopiert' : copyState === 'error' ? '✗ fehlgeschlagen' : 'Text kopieren'}
+              </button>
+            </div>
+          )}
+          {adoptError && (
+            <p className="mb-3 rounded-md bg-red-50 px-2 py-1.5 text-xs text-red-700 dark:bg-red-950 dark:text-red-300">
+              {adoptError}
+            </p>
+          )}
 
           {currentDraft && !showDiff && (
             <DraftMarkerText
@@ -774,6 +830,11 @@ export function Schreibwerkstatt() {
   const [debateRequesting, setDebateRequesting] = useState(false)
   const [debateError, setDebateError] = useState<string | null>(null)
 
+  const [adopting, setAdopting] = useState(false)
+  const [adoptError, setAdoptError] = useState<string | null>(null)
+  const [transferDialogOpen, setTransferDialogOpen] = useState(false)
+  const [transferMessage, setTransferMessage] = useState<string | null>(null)
+
   useEffect(() => {
     fetchAllResearchQuestions().then(setAllRqs)
     fetchAllTopics().then(setAllTopics)
@@ -809,6 +870,8 @@ export function Schreibwerkstatt() {
     setDebatePersonaIds(new Set())
     setDebateRoundLimit(3)
     setDebateError(null)
+    setAdoptError(null)
+    setTransferMessage(null)
     fetchSectionLinks(selected.id).then(setLinks)
 
     fetchDraftsForSection(selected.id).then((rows) => {
@@ -1008,6 +1071,23 @@ export function Schreibwerkstatt() {
     await cancelJob(debateJobId)
   }
 
+  async function handleAdoptDraft() {
+    if (!selected || !currentDraft || !activeDocumentId) return
+    setAdopting(true)
+    setAdoptError(null)
+    try {
+      await adoptDraft(currentDraft.id, selected.id, activeDocumentId)
+      const rows = await fetchDraftsForSection(selected.id)
+      setDrafts(rows)
+    } catch (err) {
+      setAdoptError((err as Error).message)
+    } finally {
+      setAdopting(false)
+    }
+  }
+
+  const passageCitations = useMemo(() => new Map(pool.map((p) => [p.id, p.citation])), [pool])
+
   const filteredPool = useMemo(() => filterPassagesForSection(pool, links), [pool, links])
 
   async function reload() {
@@ -1195,6 +1275,10 @@ export function Schreibwerkstatt() {
       showDiff={showDiff}
       onToggleDiff={() => setShowDiff((v) => !v)}
       previousDraft={previousDraft}
+      passageCitations={passageCitations}
+      onAdoptDraft={handleAdoptDraft}
+      adopting={adopting}
+      adoptError={adoptError}
     />
   )
 
@@ -1370,7 +1454,20 @@ export function Schreibwerkstatt() {
                 >
                   🗑 Löschen
                 </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTransferMessage(null)
+                    setTransferDialogOpen(true)
+                  }}
+                  className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
+                >
+                  → Anderes Dokument
+                </button>
               </div>
+              {transferMessage && (
+                <p className="mt-1 text-xs text-emerald-700 dark:text-emerald-400">{transferMessage}</p>
+              )}
 
               <details className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                 <summary className="cursor-pointer select-none">Übergeordneter Abschnitt, Forschungsfragen, Themenfelder</summary>
@@ -1502,6 +1599,17 @@ export function Schreibwerkstatt() {
           busy={deleting}
           onConfirm={handleDeleteConfirmed}
           onCancel={() => setDeleteTarget(null)}
+        />
+      )}
+
+      {transferDialogOpen && selected && (
+        <TransferSectionDialog
+          section={selected}
+          onClose={() => setTransferDialogOpen(false)}
+          onTransferred={() => {
+            setTransferDialogOpen(false)
+            setTransferMessage('Abschnitt übernommen.')
+          }}
         />
       )}
     </div>

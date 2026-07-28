@@ -171,12 +171,28 @@ Live gegen die echte DB/Function getestet, am echten Abschnitt „1 Einleitung":
 
 **Damit ist die Kernfunktionalität der Schreibwerkstatt (Pakete 1-7) komplett** - Paket 8 (Uebernahme/Haekchen-Kopplung/Export) und Paket 9 (freier Chat) bleiben fuer kommende Sitzungen.
 
-## Paket 8 – Übernahme, Häkchen-Kopplung & Export ☐
+## Paket 8 – Übernahme, Häkchen-Kopplung & Export ☑
 
 - „Version übernehmen": markiert die Version als Arbeitsstand; alle darin per Marker verwendeten Zitate werden automatisch im aktiven Dokument angehakt (Verwendet-Liste, Phase 4).
 - „Text kopieren": Entwurf mit ausformulierten APA-Zitationen statt Markern (inkl. Übersetzungs-Kennzeichnung, Regeln aus Phase 4).
 - Abschnitts-Übernahme zwischen Dokumenten (ISP → Exposé): Abschnitt samt Entwürfen und Häkchen kopieren, Häkchen abwählbar.
 - **Fertig, wenn:** Übernehmen → Verwendet-Liste stimmt → kopierter Text landet korrekt zitiert in Word.
+
+**Notizen:**
+
+Kein Schema-Update nötig - alle drei Funktionen nutzen ausschließlich bereits bestehende Tabellen/Spalten (`drafts.status` kannte `'adopted'` schon seit Migration 0032).
+
+**„Version übernehmen"** (`adoptDraft` in `lib/drafts.ts`): setzt eine vorher adoptierte Version desselben Abschnitts zurück auf `'draft'` (nur ein Arbeitsstand je Abschnitt gleichzeitig), markiert die gewählte Version als `'adopted'` und hakt alle ihre `draft_passages` im aktiven Dokument an - rein additiv per `upsert(..., ignoreDuplicates: true)`, ein bereits gesetztes Häkchen (von hier oder von Hand) wird nie entfernt. Wichtig: angehakt werden nur die tatsächlich per Marker zitierten Passagen (`draft_passages`), nicht die größere Eingabe-Auswahl aus Paket 4/5 - live bestätigt (2 Zitate für den Entwurf ausgewählt, nur 1 tatsächlich per `[1]` zitiert, nur dieses eine wurde angehakt).
+
+**„Text kopieren"** (`buildCopyableDraftText`): ersetzt `[n]`-Marker durch die ausformulierte Zitation der referenzierten Passage. **Bewusste Interpretation der „Übersetzungs-Kennzeichnung aus Phase 4":** ein Marker steht für eine vom Agenten mit eigenen Worten synthetisierte Aussage, kein wörtliches Zitat/keine wörtliche Übersetzung - das entspricht strukturell der bestehenden „Paraphrase"-Kopiervariante aus `CitationCopyButtons.tsx` (Phase 4, Paket 5), die ebenfalls **keinen** Übersetzungs-Hinweis trägt. Marker-Zitate bekommen deshalb konsequenterweise ebenfalls keinen Übersetzungs-Zusatz - „die Regeln aus Phase 4 anwenden" bedeutet hier: dieselbe bereits etablierte Unterscheidung (wörtliches Zitat vs. Synthese) korrekt fortführen, nicht pauschal einen Zusatz an jede Zitation hängen.
+
+**Abschnitts-Übernahme zwischen Dokumenten** (`lib/sectionTransfer.ts` + neue Komponente `components/TransferSectionDialog.tsx`): kopiert einen einzelnen Abschnitt (nicht rekursiv seine Unterabschnitte - der Plan spricht von „Abschnitt", nicht von einem Teilbaum; bei Bedarf lässt sich ein Unterabschnitt einzeln nachziehen) als neuen Abschnitt auf oberster Ebene ins Zieldokument, samt FF-/Themen-Verknüpfungen und **allen** Entwurfsversionen inkl. `draft_passages`-Markern (nicht nur der adoptierten - vollständigere, verlustfreiere Kopie). Diskussionsbeiträge werden bewusst **nicht** mitkopiert (Plan nennt explizit nur „Entwürfe und Häkchen"; Diskussion wäre ohnehin ISP-spezifischer Gedankenaustausch, kein Inhalt für ein anderes Dokument). Dialog zeigt die im aktiven Dokument bereits angehakten Zitate dieses Abschnitts als abwählbare Checkliste (Default: alle angehakt) - im Zieldokument werden nur die am Ende noch angehakten übernommen, additiv wie bei „Version übernehmen".
+
+Live gegen die echte DB/UI getestet, am echten ISP-Abschnitt „1 Einleitung": (1) Echten Entwurf mit 2 ausgewählten Zitaten angefordert, Claude zitierte tatsächlich nur eines per `[1]`. „Text kopieren" lieferte exakt `„... sind eindeutig (Luftman, 2000, S. 4). ..."` (Marker korrekt ersetzt, Rest des Fließtexts unverändert). „Version übernehmen" setzte `drafts.status='adopted'`, `✓ Arbeitsstand`-Badge erschien, `used_citations` bekam genau die eine tatsächlich zitierte Passage (nicht die zweite, nur ausgewählte, aber nicht zitierte) - **Verwendet-Ansicht (Phase 4) zeigte daraufhin korrekt „1 verwendete Zitat aus 1 Quelle"**, damit ist das Fertig-Kriterium „Übernehmen → Verwendet-Liste stimmt" direkt bestätigt. (2) Abschnitt „1 Einleitung" ins Exposé übernommen (Checkliste zeigte korrekt die eine angehakte Zitation) - neuer Abschnitt im Exposé mit identischer Nummer/Titel, Entwurf (inkl. `status='adopted'` und Marker) und Häkchen bestätigt; im Exposé-Dokument selbst live geöffnet und der übernommene Entwurf korrekt angezeigt. Alle Testartefakte (Entwürfe, Abschnitt im Exposé, `used_citations`, Jobs, AiLog-Einträge in beiden Dokumenten) wieder vollständig entfernt. TypeScript-Build und `vite build` fehlerfrei. Mobiler Test ohne neue Regression (identisch mit dem dokumentierten `BottomTabBar`-Fall).
+
+**„... kopierter Text landet korrekt zitiert in Word"** aus dem Fertig-Kriterium: wie bei allen bisherigen Kopier-Buttons im Tool (Phase 3/4) lässt sich die tatsächliche Zwischenablage-Ausführung nicht automatisiert gegen eine echte Word-Instanz prüfen (dokumentierte Einschränkung des Test-Tools seit Phase 3, Paket 7) - der Textinhalt selbst wurde stattdessen per Clipboard-Interception exakt verifiziert (s. o.), das reine Einfügeergebnis in Word ist unverändert Fließtext + Zitationsstring, keine Formatierung, die beim Einfügen verloren gehen könnte.
+
+Damit sind alle Kernfunktionen der Schreibwerkstatt (Pakete 1-8) abgeschlossen. Nur Paket 9 (freier, belegter Chat über den Bestand) steht noch aus.
 
 ## Paket 9 – Freier Chat mit dem Bestand ☐
 
