@@ -42,10 +42,15 @@ const SOURCE_COLUMNS =
 
 const DETAIL_COLUMNS = `${SOURCE_COLUMNS}, volume, issue, pages, page_offset, issn, doi, abstract, citation_count, url, analysis_hint`
 
+// Schliesst 'triage'-Quellen (Paket E, Eingang-Pruef-Pool) grundsaetzlich
+// aus - sie sollen laut Plan "nirgendwo sonst auftauchen" (Suche, Matrizen,
+// Zaehler, Analysen). Zentral hier statt an jeder der fuenf Aufrufstellen
+// (Bibliothek, VennDiagram, CorpusChat, Deskriptions-/Evaluationsmatrix).
 export async function fetchSources(): Promise<Source[]> {
   const { data, error } = await supabase
     .from('sources')
     .select(SOURCE_COLUMNS)
+    .neq('status', 'triage')
     .order('created_at', { ascending: false })
 
   if (error) throw error

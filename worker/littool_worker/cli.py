@@ -15,6 +15,7 @@ from .fulltext import run_fulltext_extraction
 from .ranking import run_ranking_match
 from .search import run_hybrid_search, run_semantic_search
 from .supabase_client import get_client, load_config
+from .triage import run_triage_assessment
 
 
 def cmd_status(_args: argparse.Namespace) -> int:
@@ -251,6 +252,17 @@ def cmd_preassess_criteria(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_triage_assess(args: argparse.Namespace) -> int:
+    client = get_client()
+    api_key = require_env("ANTHROPIC_API_KEY")
+    stats = run_triage_assessment(client, api_key, limit=args.limit, source_ids=args.source_id or None)
+    print(
+        f"Eingangspruefung abgeschlossen: {stats['eingeschaetzt']} eingeschaetzt, {stats['fehler']} Fehler, "
+        f"{stats['tokens_in']}+{stats['tokens_out']} Tokens, ca. ${stats['kosten_usd']:.4f}."
+    )
+    return 0
+
+
 def cmd_test_claude(_args: argparse.Namespace) -> int:
     api_key = require_env("ANTHROPIC_API_KEY")
     client = claude_client.get_client(api_key)
@@ -349,6 +361,20 @@ def main() -> None:
     subparsers.add_parser(
         "test-claude", help="Test-Prompt ueber die Claude-API-Hilfsschicht, protokolliert Tokens/Kosten"
     ).set_defaults(func=cmd_test_claude)
+
+    triage_assess_parser = subparsers.add_parser(
+        "triage-assess", help="Schnell-Einschaetzung fuer Eingang-Kandidaten (Paket E, status=triage)"
+    )
+    triage_assess_parser.add_argument(
+        "--limit", type=int, default=None, help="Nur die ersten N noch nicht eingeschaetzten Kandidaten verarbeiten"
+    )
+    triage_assess_parser.add_argument(
+        "--source-id",
+        action="append",
+        default=[],
+        help="Gezielt einen Kandidaten (erneut) einschaetzen (wiederholbar)",
+    )
+    triage_assess_parser.set_defaults(func=cmd_triage_assess)
 
     analyze_parser = subparsers.add_parser(
         "analyze-topics", help="Themenfelder zuordnen + Relevanz je Forschungsfrage bewerten (Claude)"

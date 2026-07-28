@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { UploadPanel } from '../components/UploadPanel'
+import { EingangTab } from '../components/EingangTab'
 import { GreyLiteratureDialog } from '../components/GreyLiteratureDialog'
 import { deleteSource, fetchSources, type Source } from '../lib/sources'
 import { formatAuthorYear, formatRanking, STATUS_ICON, STATUS_LABEL, TYPE_LABEL } from '../lib/sourceFormat'
@@ -41,6 +42,7 @@ const STATUS_OPTIONS: Array<{ value: string; label: string }> = [
 
 export function Bibliothek() {
   const navigate = useNavigate()
+  const [activeTab, setActiveTab] = useState<'bestand' | 'eingang'>('bestand')
   const [sources, setSources] = useState<Source[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -236,6 +238,35 @@ export function Bibliothek() {
     <div className="p-4 sm:p-6">
       <h1 className="mb-4 text-xl font-semibold text-slate-800 dark:text-slate-100">Bibliothek</h1>
 
+      <div className="mb-4 flex gap-1 border-b border-slate-200 dark:border-slate-800">
+        <button
+          type="button"
+          onClick={() => setActiveTab('bestand')}
+          className={`px-3 py-1.5 text-sm font-medium ${
+            activeTab === 'bestand'
+              ? 'border-b-2 border-slate-900 text-slate-900 dark:border-slate-100 dark:text-slate-100'
+              : 'text-slate-500 dark:text-slate-400'
+          }`}
+        >
+          Bestand
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('eingang')}
+          className={`px-3 py-1.5 text-sm font-medium ${
+            activeTab === 'eingang'
+              ? 'border-b-2 border-slate-900 text-slate-900 dark:border-slate-100 dark:text-slate-100'
+              : 'text-slate-500 dark:text-slate-400'
+          }`}
+        >
+          Eingang
+        </button>
+      </div>
+
+      {activeTab === 'eingang' && <EingangTab />}
+
+      {activeTab === 'bestand' && (
+        <>
       <div className="mb-4 flex flex-wrap items-start gap-2">
         <UploadPanel onUploaded={load} />
         <button
@@ -585,6 +616,8 @@ export function Bibliothek() {
         />
       )}
       {deleteError && <p className="mt-3 text-sm text-red-600 dark:text-red-400">Fehler: {deleteError}</p>}
+        </>
+      )}
     </div>
   )
 }
