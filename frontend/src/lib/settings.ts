@@ -15,6 +15,7 @@ export type Topic = {
   id: string
   name: string
   description: string | null
+  sort_order: number
 }
 
 export async function fetchAppSettings(): Promise<AppSettings> {
@@ -75,8 +76,8 @@ export async function deleteResearchQuestion(id: string): Promise<void> {
 export async function fetchTopics(): Promise<Topic[]> {
   const { data, error } = await supabase
     .from('topics')
-    .select('id, name, description')
-    .order('name', { ascending: true })
+    .select('id, name, description, sort_order')
+    .order('sort_order', { ascending: true })
   if (error) throw error
   return (data ?? []) as Topic[]
 }

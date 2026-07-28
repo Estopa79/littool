@@ -127,16 +127,25 @@ export async function fetchAllResearchQuestions(): Promise<Rq[]> {
   return (data ?? []) as Rq[]
 }
 
-export async function fetchSectionLinks(sectionId: string): Promise<{ rqIds: Set<string>; topicIds: Set<string> }> {
-  const [{ data: rqRows, error: rqError }, { data: topicRows, error: topicError }] = await Promise.all([
+export async function fetchSectionLinks(
+  sectionId: string,
+): Promise<{ rqIds: Set<string>; topicIds: Set<string>; functionIds: Set<string> }> {
+  const [
+    { data: rqRows, error: rqError },
+    { data: topicRows, error: topicError },
+    { data: functionRows, error: functionError },
+  ] = await Promise.all([
     supabase.from('section_research_questions').select('research_question_id').eq('section_id', sectionId),
     supabase.from('section_topics').select('topic_id').eq('section_id', sectionId),
+    supabase.from('section_functions').select('function_id').eq('section_id', sectionId),
   ])
   if (rqError) throw rqError
   if (topicError) throw topicError
+  if (functionError) throw functionError
   return {
     rqIds: new Set((rqRows ?? []).map((r) => r.research_question_id as string)),
     topicIds: new Set((topicRows ?? []).map((r) => r.topic_id as string)),
+    functionIds: new Set((functionRows ?? []).map((r) => r.function_id as string)),
   }
 }
 
@@ -151,6 +160,13 @@ export async function toggleSectionTopic(sectionId: string, topicId: string, lin
   const { error } = linked
     ? await supabase.from('section_topics').delete().eq('section_id', sectionId).eq('topic_id', topicId)
     : await supabase.from('section_topics').insert({ section_id: sectionId, topic_id: topicId })
+  if (error) throw error
+}
+
+export async function toggleSectionFunction(sectionId: string, functionId: string, linked: boolean): Promise<void> {
+  const { error } = linked
+    ? await supabase.from('section_functions').delete().eq('section_id', sectionId).eq('function_id', functionId)
+    : await supabase.from('section_functions').insert({ section_id: sectionId, function_id: functionId })
   if (error) throw error
 }
 

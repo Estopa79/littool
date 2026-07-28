@@ -371,6 +371,18 @@ export function QuellenDetail() {
       }
 
       const cleanedAuthors = working.authors.filter((a) => a.given.trim() || a.family.trim())
+
+      // Ranking gilt als handisch korrigiert (Paket F), sobald Autor eines der
+      // beiden Ranking-Felder gegenueber dem geladenen Stand tatsaechlich
+      // aendert - nur dann darf eine spaetere Venue-Aenderung dieses Ranking
+      // nicht mehr automatisch zuruecksetzen (Trigger, Migration 0039).
+      // Unveraendert mitgesendete Ranking-Werte loesen ranking_manual bewusst
+      // nicht aus, sonst wuerde jedes Speichern (auch nur Venue-Tippfehler-
+      // Korrekturen) das Ranking faelschlich als "manuell" einfrieren.
+      const rankingTouched =
+        working.ranking_system !== (source?.ranking_system ?? '') ||
+        working.ranking_value !== (source?.ranking_value ?? '')
+
       await updateSource(id, {
         type: working.type || null,
         title: working.title,
@@ -388,6 +400,7 @@ export function QuellenDetail() {
         url: working.url || null,
         ranking_system: working.ranking_system || null,
         ranking_value: working.ranking_value || null,
+        ...(rankingTouched ? { ranking_manual: true } : {}),
         status: 'complete',
         status_hint: null,
       })

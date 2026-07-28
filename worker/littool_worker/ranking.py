@@ -90,6 +90,7 @@ def run_ranking_match(client: Client) -> dict[str, int]:
         client.table("sources")
         .select("id, issn, venue")
         .is_("ranking_system", "null")
+        .eq("ranking_manual", False)
         .neq("type", "grau")
         .execute()
         .data

@@ -227,7 +227,8 @@ function ThemenfelderCard() {
   async function handleAdd(e: FormEvent) {
     e.preventDefault()
     if (!newName.trim()) return
-    await createTopic({ name: newName.trim(), description: newDescription.trim() || null })
+    const sortOrder = topics.length > 0 ? Math.max(...topics.map((t) => t.sort_order)) + 1 : 0
+    await createTopic({ name: newName.trim(), description: newDescription.trim() || null, sort_order: sortOrder })
     setNewName('')
     setNewDescription('')
     await load()
@@ -241,6 +242,22 @@ function ThemenfelderCard() {
     await updateTopic(topic.id, { name: topic.name, description: topic.description })
   }
 
+  // Gleiches ▲/▼-Tauschmuster wie ForschungsfragenCard (kein Drag&Drop -
+  // CLAUDE.md "schlank bleiben", Praezedenzfall auch bei den Abschnitten in
+  // der Schreibwerkstatt, Paket 2).
+  async function handleMove(topic: Topic, direction: -1 | 1) {
+    const sorted = [...topics].sort((a, b) => a.sort_order - b.sort_order)
+    const index = sorted.findIndex((t) => t.id === topic.id)
+    const swapIndex = index + direction
+    if (swapIndex < 0 || swapIndex >= sorted.length) return
+    const other = sorted[swapIndex]
+    await Promise.all([
+      updateTopic(topic.id, { sort_order: other.sort_order }),
+      updateTopic(other.id, { sort_order: topic.sort_order }),
+    ])
+    await load()
+  }
+
   async function handleDelete(id: string) {
     if (!confirm('Themenfeld wirklich löschen?')) return
     await deleteTopic(id)
@@ -252,8 +269,28 @@ function ThemenfelderCard() {
   return (
     <Card title="Themenfelder">
       <div className="flex flex-col gap-2">
-        {topics.map((topic) => (
+        {topics.map((topic, i) => (
           <div key={topic.id} className="flex items-start gap-2">
+            <div className="flex shrink-0 flex-col">
+              <button
+                type="button"
+                onClick={() => handleMove(topic, -1)}
+                disabled={i === 0}
+                className="text-slate-400 hover:text-slate-800 disabled:opacity-30 dark:hover:text-slate-100"
+                aria-label="Nach oben"
+              >
+                ▲
+              </button>
+              <button
+                type="button"
+                onClick={() => handleMove(topic, 1)}
+                disabled={i === topics.length - 1}
+                className="text-slate-400 hover:text-slate-800 disabled:opacity-30 dark:hover:text-slate-100"
+                aria-label="Nach unten"
+              >
+                ▼
+              </button>
+            </div>
             <input
               type="text"
               value={topic.name}

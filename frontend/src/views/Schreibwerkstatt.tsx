@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useActiveDocument } from '../lib/ActiveDocumentContext'
 import { fetchAllTopics, type TopicOption } from '../lib/qsReview'
+import { fetchWorkFunctions, type WorkFunction } from '../lib/functions'
 import {
   buildTree,
   collectDescendantIds,
@@ -13,6 +14,7 @@ import {
   moveSection,
   nextSiblingSortOrder,
   parseOutline,
+  toggleSectionFunction,
   toggleSectionRq,
   toggleSectionTopic,
   updateSection,
@@ -52,6 +54,7 @@ import { CorpusChat } from '../components/CorpusChat'
 
 const EMPTY_SET: Set<string> = new Set()
 const JOB_POLL_INTERVAL_MS = 2000
+const COLUMN_WIDTHS_STORAGE_KEY = 'littool:schreibwerkstatt:columnWidths'
 type MobileTab = 'entwurf' | 'pool' | 'diskussion'
 type WorkstattMode = 'abschnitte' | 'chat'
 type InsertVariant = 'beleg' | 'original' | 'uebersetzung' | 'paraphrase'
@@ -750,12 +753,18 @@ function PoolPassageCard({
   editMode: boolean
   onInsertCitation: (passage: PoolPassage, variant: InsertVariant) => void
 }) {
-  const [expanded, setExpanded] = useState(false)
+  // Popover statt Klick-Aufklappen (Paket F): Hover am Desktop, Tap am
+  // Mobilgeraet (dort feuert kein hover) - onClick togglet zusaetzlich, damit
+  // Tippen den Popover auch wieder schliesst. Zeigt vollstaendiges Zitat +
+  // Uebersetzung + Zitation ueberlagernd, ohne die Liste zu verschieben.
+  const [popoverOpen, setPopoverOpen] = useState(false)
+  const truncated = passage.original.length > 70
+  const snippet = truncated ? `${passage.original.slice(0, 70)} …` : passage.original
 
   return (
     <li
       data-passage-id={passage.id}
-      className={`rounded-lg border p-2 text-xs ${
+      className={`relative rounded-lg border p-2 text-xs ${
         highlighted
           ? 'border-slate-500 ring-2 ring-slate-400 dark:border-slate-400 dark:ring-slate-500'
           : 'border-slate-200 dark:border-slate-800'
@@ -773,14 +782,26 @@ function PoolPassageCard({
           Entwurf
         </label>
       </div>
-      <button
-        type="button"
-        onClick={() => setExpanded((v) => !v)}
-        className="text-left italic text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+      <div
+        className="relative inline-block"
+        onMouseEnter={() => setPopoverOpen(true)}
+        onMouseLeave={() => setPopoverOpen(false)}
       >
-        {expanded ? `„${passage.original}"` : `„${passage.original.slice(0, 70)}${passage.original.length > 70 ? ' …' : ''}"`}
-      </button>
-      {expanded && passage.translation && <p className="mt-1 text-slate-600 dark:text-slate-400">DE: {passage.translation}</p>}
+        <button
+          type="button"
+          onClick={() => setPopoverOpen((v) => !v)}
+          className="text-left italic text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+        >
+          „{snippet}"
+        </button>
+        {popoverOpen && (
+          <div className="absolute left-0 top-full z-20 mt-1 w-72 max-w-[80vw] rounded-md border border-slate-300 bg-white p-2 text-xs normal-case italic text-slate-700 shadow-lg dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+            <p>„{passage.original}"</p>
+            {passage.translation && <p className="mt-1 not-italic text-slate-500 dark:text-slate-400">DE: {passage.translation}</p>}
+            <p className="mt-1 not-italic text-slate-400 dark:text-slate-500">{passage.citation}</p>
+          </div>
+        )}
+      </div>
       <div className="mt-1 flex flex-wrap items-center gap-2">
         <span className="text-slate-400 dark:text-slate-500">{passage.citation}</span>
         <CitationCopyButtons
@@ -910,9 +931,11 @@ export function Schreibwerkstatt() {
 
   const [allRqs, setAllRqs] = useState<Rq[]>([])
   const [allTopics, setAllTopics] = useState<TopicOption[]>([])
-  const [links, setLinks] = useState<{ rqIds: Set<string>; topicIds: Set<string> }>({
+  const [allFunctions, setAllFunctions] = useState<WorkFunction[]>([])
+  const [links, setLinks] = useState<{ rqIds: Set<string>; topicIds: Set<string>; functionIds: Set<string> }>({
     rqIds: new Set(),
     topicIds: new Set(),
+    functionIds: new Set(),
   })
 
   const [numberDraft, setNumberDraft] = useState('')
@@ -931,6 +954,63 @@ export function Schreibwerkstatt() {
   const [draftSelections, setDraftSelections] = useState<Record<string, Set<string>>>({})
   const [mobileTab, setMobileTab] = useState<MobileTab>('entwurf')
   const [highlightedPassageId, setHighlightedPassageId] = useState<string | null>(null)
+
+  // Paket F: verstellbare Spaltenbreiten am Desktop, Einstellung im
+  // localStorage gespeichert (reine Client-Layout-Praeferenz, kein
+  // Mehrbenutzer-/Cross-Device-Bedarf - die Drei-Spalten-Ansicht existiert am
+  // Mobilgeraet ohnehin nicht als Grid, sondern als Tabs).
+  const [columnWidths, setColumnWidths] = useState<[number, number, number]>(() => {
+    try {
+      const raw = localStorage.getItem(COLUMN_WIDTHS_STORAGE_KEY)
+      const parsed = raw ? JSON.parse(raw) : null
+      if (Array.isArray(parsed) && parsed.length === 3 && parsed.every((n) => typeof n === 'number')) {
+        return parsed as [number, number, number]
+      }
+    } catch {
+      // ungueltiger/fehlender localStorage-Wert - Default greift
+    }
+    return [1 / 3, 1 / 3, 1 / 3].map((n) => n * 100) as [number, number, number]
+  })
+  const columnsContainerRef = useRef<HTMLDivElement | null>(null)
+  const [resizingDivider, setResizingDivider] = useState<0 | 1 | null>(null)
+
+  useEffect(() => {
+    if (resizingDivider === null) return
+    const MIN_PERCENT = 15
+
+    function handleMouseMove(e: MouseEvent) {
+      const container = columnsContainerRef.current
+      if (!container) return
+      const rect = container.getBoundingClientRect()
+      const offsetPercent = ((e.clientX - rect.left) / rect.width) * 100
+      setColumnWidths((prev) => {
+        const next: [number, number, number] = [...prev]
+        if (resizingDivider === 0) {
+          const boundary = Math.min(Math.max(offsetPercent, MIN_PERCENT), 100 - MIN_PERCENT - next[2])
+          next[0] = boundary
+          next[1] = 100 - boundary - next[2]
+        } else {
+          const boundary = Math.min(Math.max(offsetPercent, next[0] + MIN_PERCENT), 100 - MIN_PERCENT)
+          next[1] = boundary - next[0]
+          next[2] = 100 - boundary
+        }
+        return next
+      })
+    }
+    function handleMouseUp() {
+      setResizingDivider(null)
+    }
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', handleMouseUp)
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [resizingDivider])
+
+  useEffect(() => {
+    localStorage.setItem(COLUMN_WIDTHS_STORAGE_KEY, JSON.stringify(columnWidths))
+  }, [columnWidths])
 
   const [personas, setPersonas] = useState<Persona[]>([])
   const [selectedPersonaId, setSelectedPersonaId] = useState('')
@@ -1000,6 +1080,7 @@ export function Schreibwerkstatt() {
   useEffect(() => {
     fetchAllResearchQuestions().then(setAllRqs)
     fetchAllTopics().then(setAllTopics)
+    fetchWorkFunctions().then(setAllFunctions)
     fetchConfirmedPassagesPool().then(setPool)
     fetchPersonas().then(setPersonas)
   }, [])
@@ -1512,6 +1593,18 @@ export function Schreibwerkstatt() {
     })
   }
 
+  async function handleToggleFunction(functionId: string) {
+    if (!selected) return
+    const linked = links.functionIds.has(functionId)
+    await toggleSectionFunction(selected.id, functionId, linked)
+    setLinks((prev) => {
+      const next = new Set(prev.functionIds)
+      if (linked) next.delete(functionId)
+      else next.add(functionId)
+      return { ...prev, functionIds: next }
+    })
+  }
+
   async function handleImportOutline() {
     if (!activeDocumentId || !outlineText.trim()) return
     setImporting(true)
@@ -1818,7 +1911,9 @@ export function Schreibwerkstatt() {
               )}
 
               <details className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                <summary className="cursor-pointer select-none">Übergeordneter Abschnitt, Forschungsfragen, Themenfelder</summary>
+                <summary className="cursor-pointer select-none">
+                  Übergeordneter Abschnitt, Forschungsfragen, Themenfelder, Funktion
+                </summary>
                 <div className="mt-2 flex flex-col gap-3">
                   <label className="flex max-w-xs flex-col">
                     Übergeordneter Abschnitt
@@ -1889,17 +1984,66 @@ export function Schreibwerkstatt() {
                       {allTopics.length === 0 && <p className="text-slate-400">Keine Themenfelder im Bestand.</p>}
                     </div>
                   </div>
+
+                  <div>
+                    <h3 className="mb-1 font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                      Funktion in der Arbeit
+                    </h3>
+                    <div className="flex flex-wrap gap-1.5">
+                      {allFunctions.map((f) => {
+                        const active = links.functionIds.has(f.id)
+                        return (
+                          <button
+                            key={f.id}
+                            type="button"
+                            onClick={() => handleToggleFunction(f.id)}
+                            className={`rounded-full px-2 py-0.5 ${
+                              active
+                                ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
+                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700'
+                            }`}
+                          >
+                            {f.name}
+                          </button>
+                        )
+                      })}
+                      {allFunctions.length === 0 && <p className="text-slate-400">Keine Funktionen im Bestand.</p>}
+                    </div>
+                  </div>
                 </div>
               </details>
             </div>
 
             <DraftNoticeBanner />
 
-            {/* Desktop: drei Spalten nebeneinander */}
-            <div className="hidden min-h-0 flex-1 md:grid md:grid-cols-3 md:divide-x md:divide-slate-200 dark:md:divide-slate-800">
-              {entwurfColumnDesktop}
-              {zitatPoolColumn}
-              {diskussionColumn}
+            {/* Desktop: drei Spalten nebeneinander, Breiten per Trenner verstellbar (Paket F) */}
+            <div ref={columnsContainerRef} className="hidden min-h-0 flex-1 md:flex">
+              <div className="min-w-0 overflow-hidden" style={{ width: `${columnWidths[0]}%` }}>
+                {entwurfColumnDesktop}
+              </div>
+              <div
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  setResizingDivider(0)
+                }}
+                className="w-1 shrink-0 cursor-col-resize bg-slate-200 hover:bg-slate-400 dark:bg-slate-800 dark:hover:bg-slate-600"
+              />
+              <div
+                className="min-w-0 overflow-hidden border-x border-slate-200 dark:border-slate-800"
+                style={{ width: `${columnWidths[1]}%` }}
+              >
+                {zitatPoolColumn}
+              </div>
+              <div
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  setResizingDivider(1)
+                }}
+                className="w-1 shrink-0 cursor-col-resize bg-slate-200 hover:bg-slate-400 dark:bg-slate-800 dark:hover:bg-slate-600"
+              />
+              <div className="min-w-0 overflow-hidden" style={{ width: `${columnWidths[2]}%` }}>
+                {diskussionColumn}
+              </div>
             </div>
 
             {/* Mobil: Tabs statt Spalten */}

@@ -58,8 +58,11 @@ export async function fetchAllSourceTopics(): Promise<SourceTopicRow[]> {
   return (data ?? []) as SourceTopicRow[]
 }
 
+// Reihenfolge folgt topics.sort_order (Paket F, Migration 0039) statt
+// alphabetisch - zentral hier geaendert wirkt sich automatisch auf alle
+// Aufrufstellen aus (Venn-Diagramm, Chips/Filter ueberall im Tool).
 export async function fetchAllTopics(): Promise<TopicOption[]> {
-  const { data, error } = await supabase.from('topics').select('id, name').order('name')
+  const { data, error } = await supabase.from('topics').select('id, name').order('sort_order')
   if (error) throw error
   return (data ?? []) as TopicOption[]
 }

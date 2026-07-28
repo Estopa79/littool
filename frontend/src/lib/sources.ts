@@ -16,6 +16,7 @@ export type Source = {
   venue: string | null
   ranking_system: string | null
   ranking_value: string | null
+  ranking_manual: boolean
   status: SourceStatus
   status_hint: string | null
   extraction_status: ExtractionStatus
@@ -38,7 +39,7 @@ export type SourceDetail = Source & {
 }
 
 const SOURCE_COLUMNS =
-  'id, type, title, authors, year, venue, ranking_system, ranking_value, status, status_hint, extraction_status, extraction_hint, storage_path, analysis_status'
+  'id, type, title, authors, year, venue, ranking_system, ranking_value, ranking_manual, status, status_hint, extraction_status, extraction_hint, storage_path, analysis_status'
 
 const DETAIL_COLUMNS = `${SOURCE_COLUMNS}, volume, issue, pages, page_offset, issn, doi, abstract, citation_count, url, analysis_hint`
 
