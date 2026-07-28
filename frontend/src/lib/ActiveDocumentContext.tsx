@@ -12,6 +12,8 @@ type ActiveDocumentContextValue = {
   setActiveDocumentId: (id: string) => void
   isUsed: (passageId: string) => boolean
   toggleUsed: (passageId: string) => Promise<void>
+  markUsed: (passageId: string) => Promise<void>
+  unmarkUsed: (passageId: string) => Promise<void>
 }
 
 const ActiveDocumentContext = createContext<ActiveDocumentContextValue | undefined>(undefined)
@@ -90,9 +92,45 @@ export function ActiveDocumentProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  // Idempotente Varianten (im Unterschied zu toggleUsed) - fuer Paket 4b
+  // (Zitat-Einfuegen im Editor): ein zweimal eingefuegtes Zitat darf nicht
+  // versehentlich wieder abgehakt werden, und das "Haekchen entfernen?"-
+  // Prompt beim Entwurf-Speichern muss gezielt abhaken koennen, ohne den
+  // aktuellen Zustand vorher erraten zu muessen.
+  async function markUsed(passageId: string) {
+    if (!activeDocumentId || usedPassageIds.has(passageId)) return
+    setUsedPassageIds((prev) => new Set(prev).add(passageId))
+    const { error } = await supabase.from('used_citations').insert({ passage_id: passageId, document_id: activeDocumentId })
+    if (error) {
+      setUsedPassageIds((prev) => {
+        const next = new Set(prev)
+        next.delete(passageId)
+        return next
+      })
+      throw error
+    }
+  }
+
+  async function unmarkUsed(passageId: string) {
+    if (!activeDocumentId || !usedPassageIds.has(passageId)) return
+    setUsedPassageIds((prev) => {
+      const next = new Set(prev)
+      next.delete(passageId)
+      return next
+    })
+    const { error } = await supabase.from('used_citations').delete().eq('passage_id', passageId).eq(
+      'document_id',
+      activeDocumentId,
+    )
+    if (error) {
+      setUsedPassageIds((prev) => new Set(prev).add(passageId))
+      throw error
+    }
+  }
+
   return (
     <ActiveDocumentContext.Provider
-      value={{ documents, activeDocumentId, setActiveDocumentId, isUsed, toggleUsed }}
+      value={{ documents, activeDocumentId, setActiveDocumentId, isUsed, toggleUsed, markUsed, unmarkUsed }}
     >
       {children}
     </ActiveDocumentContext.Provider>

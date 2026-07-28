@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useActiveDocument } from '../lib/ActiveDocumentContext'
 import { fetchAllTopics, type TopicOption } from '../lib/qsReview'
 import {
@@ -30,6 +30,7 @@ import {
   fetchDraftsForSection,
   fetchJob,
   requestDraftGeneration,
+  saveAuthorDraft,
   type Draft,
   type DraftJob,
 } from '../lib/drafts'
@@ -53,6 +54,7 @@ const EMPTY_SET: Set<string> = new Set()
 const JOB_POLL_INTERVAL_MS = 2000
 type MobileTab = 'entwurf' | 'pool' | 'diskussion'
 type WorkstattMode = 'abschnitte' | 'chat'
+type InsertVariant = 'beleg' | 'original' | 'uebersetzung' | 'paraphrase'
 
 function SectionRowItem({
   node,
@@ -205,6 +207,16 @@ function EntwurfColumn({
   onAdoptDraft,
   adopting,
   adoptError,
+  editMode,
+  editorText,
+  onEditorTextChange,
+  onEditorCursorChange,
+  onEnterEditMode,
+  onCancelEdit,
+  onSaveEditor,
+  saving,
+  saveError,
+  textareaRef,
 }: {
   pendingCount: number
   personas: Persona[]
@@ -227,6 +239,16 @@ function EntwurfColumn({
   onAdoptDraft: () => void
   adopting: boolean
   adoptError: string | null
+  editMode: boolean
+  editorText: string
+  onEditorTextChange: (text: string) => void
+  onEditorCursorChange: (pos: number) => void
+  onEnterEditMode: () => void
+  onCancelEdit: () => void
+  onSaveEditor: () => void
+  saving: boolean
+  saveError: string | null
+  textareaRef: React.RefObject<HTMLTextAreaElement | null>
 }) {
   const jobRunning = activeJob && (activeJob.status === 'pending' || activeJob.status === 'running')
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle')
@@ -298,102 +320,154 @@ function EntwurfColumn({
         </p>
       )}
 
-      {drafts.length === 0 && !jobRunning && (
-        <p className="text-sm text-slate-500 dark:text-slate-400">Noch kein Entwurf für diesen Abschnitt.</p>
+      {drafts.length === 0 && !jobRunning && !editMode && (
+        <p className="mb-2 text-sm text-slate-500 dark:text-slate-400">Noch kein Entwurf für diesen Abschnitt.</p>
       )}
 
-      {drafts.length > 0 && (
-        <>
-          <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
-            <label className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
-              Version
-              <select
-                value={selectedVersion ?? ''}
-                onChange={(e) => onSelectVersion(Number(e.target.value))}
-                className="rounded-md border border-slate-300 bg-white px-1.5 py-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-              >
-                {drafts.map((d) => (
-                  <option key={d.id} value={d.version}>
-                    v{d.version}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {previousDraft && (
-              <button type="button" onClick={onToggleDiff} className="text-slate-500 hover:underline dark:text-slate-400">
-                {showDiff ? 'Diff ausblenden' : `Diff zu v${previousDraft.version} anzeigen`}
-              </button>
-            )}
-            {currentDraft?.status === 'adopted' && (
-              <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-medium text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300">
-                ✓ Arbeitsstand
-              </span>
-            )}
-          </div>
+      {!editMode && (
+        <button
+          type="button"
+          onClick={onEnterEditMode}
+          className="mb-3 self-start rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
+        >
+          {currentDraft ? '✎ Bearbeiten' : '✎ Eigenen Entwurf schreiben'}
+        </button>
+      )}
 
-          {currentDraft && (
-            <div className="mb-3 flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={onAdoptDraft}
-                disabled={adopting || currentDraft.status === 'adopted'}
-                className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
-                title="Markiert diese Version als Arbeitsstand und hakt alle darin per Marker zitierten Passagen im aktiven Dokument an"
-              >
-                {adopting ? 'Übernimmt …' : 'Version übernehmen'}
-              </button>
-              <button
-                type="button"
-                onClick={handleCopyText}
-                className="text-slate-500 hover:underline dark:text-slate-400"
-                title="Entwurf mit ausformulierten APA-Zitationen statt Markern kopieren"
-              >
-                {copyState === 'copied' ? '✓ kopiert' : copyState === 'error' ? '✗ fehlgeschlagen' : 'Text kopieren'}
-              </button>
-            </div>
-          )}
-          {adoptError && (
-            <p className="mb-3 rounded-md bg-red-50 px-2 py-1.5 text-xs text-red-700 dark:bg-red-950 dark:text-red-300">
-              {adoptError}
+      {editMode ? (
+        <div className="flex flex-1 flex-col">
+          <textarea
+            ref={textareaRef}
+            value={editorText}
+            onChange={(e) => onEditorTextChange(e.target.value)}
+            onSelect={(e) => onEditorCursorChange(e.currentTarget.selectionStart)}
+            onClick={(e) => onEditorCursorChange(e.currentTarget.selectionStart)}
+            onKeyUp={(e) => onEditorCursorChange(e.currentTarget.selectionStart)}
+            rows={14}
+            placeholder="Eigenen Entwurf schreiben, einen Agenten-Entwurf umschreiben, oder Zitate aus dem Pool einfügen …"
+            className="min-h-64 flex-1 rounded-md border border-slate-300 bg-white p-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+          />
+          <div className="mt-2 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onSaveEditor}
+              disabled={saving || !editorText.trim()}
+              className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-40 dark:bg-slate-100 dark:text-slate-900"
+            >
+              {saving ? 'Speichert …' : 'Speichern (neue Version)'}
+            </button>
+            <button
+              type="button"
+              onClick={onCancelEdit}
+              disabled={saving}
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
+            >
+              Abbrechen
+            </button>
+          </div>
+          {saveError && (
+            <p className="mt-2 rounded-md bg-red-50 px-2 py-1.5 text-xs text-red-700 dark:bg-red-950 dark:text-red-300">
+              {saveError}
             </p>
           )}
-
-          {currentDraft && !showDiff && (
-            <DraftMarkerText
-              text={currentDraft.text}
-              markerToPassageId={markerToPassageId}
-              onMarkerClick={onMarkerClick}
-            />
-          )}
-
-          {currentDraft && showDiff && previousDraft && (
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div>
-                <p className="mb-1 font-medium text-slate-500 dark:text-slate-400">v{previousDraft.version} (alt)</p>
-                <p className="whitespace-pre-wrap text-slate-600 dark:text-slate-400">{previousDraft.text}</p>
-              </div>
-              <div>
-                <p className="mb-1 font-medium text-slate-500 dark:text-slate-400">v{currentDraft.version} (neu)</p>
-                <p className="whitespace-pre-wrap text-slate-600 dark:text-slate-400">{currentDraft.text}</p>
-              </div>
+        </div>
+      ) : (
+        drafts.length > 0 && (
+          <>
+            <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
+              <label className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
+                Version
+                <select
+                  value={selectedVersion ?? ''}
+                  onChange={(e) => onSelectVersion(Number(e.target.value))}
+                  className="rounded-md border border-slate-300 bg-white px-1.5 py-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                >
+                  {drafts.map((d) => (
+                    <option key={d.id} value={d.version}>
+                      v{d.version}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {previousDraft && (
+                <button type="button" onClick={onToggleDiff} className="text-slate-500 hover:underline dark:text-slate-400">
+                  {showDiff ? 'Diff ausblenden' : `Diff zu v${previousDraft.version} anzeigen`}
+                </button>
+              )}
+              {currentDraft?.status === 'adopted' && (
+                <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-medium text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300">
+                  ✓ Arbeitsstand
+                </span>
+              )}
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                {currentDraft?.created_by === 'author' ? 'Autor' : 'Persona'}
+              </span>
             </div>
-          )}
 
-          {currentDraft && currentDraft.unverified_claims.length > 0 && (
-            <div className="mt-3 rounded-md border border-amber-300 bg-amber-50 p-2 dark:border-amber-800 dark:bg-amber-950">
-              <p className="mb-1 text-xs font-medium text-amber-800 dark:text-amber-300">
-                ⚠ Unbelegte Aussagen ({currentDraft.unverified_claims.length})
+            {currentDraft && (
+              <div className="mb-3 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={onAdoptDraft}
+                  disabled={adopting || currentDraft.status === 'adopted'}
+                  className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
+                  title="Markiert diese Version als Arbeitsstand und hakt alle darin per Marker zitierten Passagen im aktiven Dokument an"
+                >
+                  {adopting ? 'Übernimmt …' : 'Version übernehmen'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCopyText}
+                  className="text-slate-500 hover:underline dark:text-slate-400"
+                  title="Entwurf mit ausformulierten APA-Zitationen statt Markern kopieren"
+                >
+                  {copyState === 'copied' ? '✓ kopiert' : copyState === 'error' ? '✗ fehlgeschlagen' : 'Text kopieren'}
+                </button>
+              </div>
+            )}
+            {adoptError && (
+              <p className="mb-3 rounded-md bg-red-50 px-2 py-1.5 text-xs text-red-700 dark:bg-red-950 dark:text-red-300">
+                {adoptError}
               </p>
-              <ul className="flex flex-col gap-1 text-xs text-amber-800 dark:text-amber-300">
-                {currentDraft.unverified_claims.map((c, i) => (
-                  <li key={i}>
-                    „{c.auszug}" - {c.grund}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </>
+            )}
+
+            {currentDraft && !showDiff && (
+              <DraftMarkerText
+                text={currentDraft.text}
+                markerToPassageId={markerToPassageId}
+                onMarkerClick={onMarkerClick}
+              />
+            )}
+
+            {currentDraft && showDiff && previousDraft && (
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <p className="mb-1 font-medium text-slate-500 dark:text-slate-400">v{previousDraft.version} (alt)</p>
+                  <p className="whitespace-pre-wrap text-slate-600 dark:text-slate-400">{previousDraft.text}</p>
+                </div>
+                <div>
+                  <p className="mb-1 font-medium text-slate-500 dark:text-slate-400">v{currentDraft.version} (neu)</p>
+                  <p className="whitespace-pre-wrap text-slate-600 dark:text-slate-400">{currentDraft.text}</p>
+                </div>
+              </div>
+            )}
+
+            {currentDraft && currentDraft.unverified_claims.length > 0 && (
+              <div className="mt-3 rounded-md border border-amber-300 bg-amber-50 p-2 dark:border-amber-800 dark:bg-amber-950">
+                <p className="mb-1 text-xs font-medium text-amber-800 dark:text-amber-300">
+                  ⚠ Unbelegte Aussagen ({currentDraft.unverified_claims.length})
+                </p>
+                <ul className="flex flex-col gap-1 text-xs text-amber-800 dark:text-amber-300">
+                  {currentDraft.unverified_claims.map((c, i) => (
+                    <li key={i}>
+                      „{c.auszug}" - {c.grund}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </>
+        )
       )}
     </div>
   )
@@ -666,11 +740,15 @@ function PoolPassageCard({
   selected,
   onToggleSelect,
   highlighted,
+  editMode,
+  onInsertCitation,
 }: {
   passage: PoolPassage
   selected: boolean
   onToggleSelect: () => void
   highlighted: boolean
+  editMode: boolean
+  onInsertCitation: (passage: PoolPassage, variant: InsertVariant) => void
 }) {
   const [expanded, setExpanded] = useState(false)
 
@@ -713,6 +791,43 @@ function PoolPassageCard({
         />
         <UsedCitationCheckbox passageId={passage.id} />
       </div>
+      {editMode && (
+        <div className="mt-1 flex flex-wrap gap-2 border-t border-slate-200 pt-1 dark:border-slate-800">
+          <button
+            type="button"
+            onClick={() => onInsertCitation(passage, 'beleg')}
+            title="Fügt einen Belegmarker [n] an der Cursor-Position ein - bleibt mit dem Zitat verknüpft (empfohlen)"
+            className="text-slate-500 hover:underline dark:text-slate-400"
+          >
+            Beleg einfügen
+          </button>
+          <button
+            type="button"
+            onClick={() => onInsertCitation(passage, 'original')}
+            className="text-slate-500 hover:underline dark:text-slate-400"
+          >
+            Original einfügen
+          </button>
+          {passage.translation && (
+            <button
+              type="button"
+              onClick={() => onInsertCitation(passage, 'uebersetzung')}
+              className="text-slate-500 hover:underline dark:text-slate-400"
+            >
+              Übersetzung einfügen
+            </button>
+          )}
+          {passage.paraphrase && (
+            <button
+              type="button"
+              onClick={() => onInsertCitation(passage, 'paraphrase')}
+              className="text-slate-500 hover:underline dark:text-slate-400"
+            >
+              Paraphrase einfügen
+            </button>
+          )}
+        </div>
+      )}
     </li>
   )
 }
@@ -725,6 +840,8 @@ function ZitatPoolColumn({
   selectedIds,
   onToggleSelect,
   highlightedId,
+  editMode,
+  onInsertCitation,
 }: {
   filtered: PoolPassage[]
   all: PoolPassage[]
@@ -733,6 +850,8 @@ function ZitatPoolColumn({
   selectedIds: Set<string>
   onToggleSelect: (id: string) => void
   highlightedId: string | null
+  editMode: boolean
+  onInsertCitation: (passage: PoolPassage, variant: InsertVariant) => void
 }) {
   const list = showAll ? all : filtered
   return (
@@ -747,6 +866,13 @@ function ZitatPoolColumn({
           {showAll ? 'nur passende' : 'alle anzeigen'}
         </button>
       </div>
+
+      {editMode && (
+        <p className="mb-2 rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+          Entwurf wird bearbeitet - Zitate hier einfügen, um sie an der zuletzt markierten Stelle im Entwurf zu
+          platzieren.
+        </p>
+      )}
 
       {list.length === 0 && (
         <p className="text-sm text-slate-500 dark:text-slate-400">
@@ -764,6 +890,8 @@ function ZitatPoolColumn({
             selected={selectedIds.has(p.id)}
             onToggleSelect={() => onToggleSelect(p.id)}
             highlighted={highlightedId === p.id}
+            editMode={editMode}
+            onInsertCitation={onInsertCitation}
           />
         ))}
       </ul>
@@ -773,7 +901,7 @@ function ZitatPoolColumn({
 
 export function Schreibwerkstatt() {
   const [mode, setMode] = useState<WorkstattMode>('abschnitte')
-  const { activeDocumentId } = useActiveDocument()
+  const { activeDocumentId, markUsed, unmarkUsed } = useActiveDocument()
   const [sections, setSections] = useState<SectionRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -838,6 +966,37 @@ export function Schreibwerkstatt() {
   const [transferDialogOpen, setTransferDialogOpen] = useState(false)
   const [transferMessage, setTransferMessage] = useState<string | null>(null)
 
+  // Paket 4 (Nachtrag): Entwurf-Editor - eigenen Text schreiben/einen
+  // Agenten-Entwurf umschreiben, Zitate aus dem Pool an der Cursor-Position
+  // einfuegen. `editorTextareaRef` lebt hier (nicht in EntwurfColumn selbst),
+  // weil auch ZitatPoolColumn beim Einfuegen darauf zugreifen muss - beide
+  // sind Geschwister-Komponenten unter diesem gemeinsamen Elternteil.
+  const [editMode, setEditMode] = useState(false)
+  const [editorText, setEditorText] = useState('')
+  const [editorMarkerMap, setEditorMarkerMap] = useState<Map<number, string>>(new Map())
+  const [insertedCitations, setInsertedCitations] = useState<Array<{ passageId: string; snippet: string }>>([])
+  const [editorCursorPos, setEditorCursorPos] = useState(0)
+  const [savingEditor, setSavingEditor] = useState(false)
+  const [saveEditorError, setSaveEditorError] = useState<string | null>(null)
+  const [uncheckConfirm, setUncheckConfirm] = useState<{ removed: Array<{ passageId: string; citation: string }> } | null>(
+    null,
+  )
+  // Zwei separate Refs statt einem gemeinsamen: da entwurfColumn als
+  // Fabrikfunktion zweimal instanziiert wird (Desktop-Grid + mobiler Tab),
+  // braucht jede Kopie ihr eigenes Ref-Ziel - sonst ueberschreibt die zuletzt
+  // gemountete Kopie das Ref der anderen (gleiches Problem wie bei
+  // editorCursorPos, s. Kommentar in handleInsertCitation).
+  const editorTextareaDesktopRef = useRef<HTMLTextAreaElement | null>(null)
+  const editorTextareaMobileRef = useRef<HTMLTextAreaElement | null>(null)
+
+  function getVisibleEditorTextarea(): HTMLTextAreaElement | null {
+    return (
+      [editorTextareaDesktopRef.current, editorTextareaMobileRef.current].find(
+        (el): el is HTMLTextAreaElement => !!el && el.offsetParent !== null,
+      ) ?? null
+    )
+  }
+
   useEffect(() => {
     fetchAllResearchQuestions().then(setAllRqs)
     fetchAllTopics().then(setAllTopics)
@@ -875,6 +1034,8 @@ export function Schreibwerkstatt() {
     setDebateError(null)
     setAdoptError(null)
     setTransferMessage(null)
+    setEditMode(false)
+    setSaveEditorError(null)
     fetchSectionLinks(selected.id).then(setLinks)
 
     fetchDraftsForSection(selected.id).then((rows) => {
@@ -1093,6 +1254,137 @@ export function Schreibwerkstatt() {
 
   const filteredPool = useMemo(() => filterPassagesForSection(pool, links), [pool, links])
 
+  const editorDirty = editMode && editorText !== (currentDraft?.text ?? '')
+
+  function handleEnterEditMode() {
+    setEditMode(true)
+    setSaveEditorError(null)
+    const text = currentDraft?.text ?? ''
+    setEditorText(text)
+    setEditorMarkerMap(new Map(draftPassages))
+    setInsertedCitations(
+      Array.from(draftPassages.entries()).map(([marker, passageId]) => ({ passageId, snippet: `[${marker}]` })),
+    )
+    setEditorCursorPos(text.length)
+  }
+
+  function handleCancelEdit() {
+    if (editorDirty && !window.confirm('Ungespeicherte Änderungen am Entwurf verwerfen?')) return
+    setEditMode(false)
+  }
+
+  async function handleInsertCitation(passage: PoolPassage, variant: InsertVariant) {
+    let insertText = ''
+    if (variant === 'beleg') {
+      const existingMarker = Array.from(editorMarkerMap.entries()).find(([, pid]) => pid === passage.id)?.[0]
+      const marker = existingMarker ?? (editorMarkerMap.size > 0 ? Math.max(...editorMarkerMap.keys()) + 1 : 1)
+      if (!existingMarker) {
+        setEditorMarkerMap((prev) => new Map(prev).set(marker, passage.id))
+      }
+      insertText = `[${marker}]`
+    } else if (variant === 'original') {
+      insertText = `„${passage.original}" ${passage.citation}`
+    } else if (variant === 'uebersetzung') {
+      if (!passage.translation) return
+      insertText = `„${passage.translation}" ${passage.citation} [Übersetzung durch den Verfasser]`
+    } else {
+      if (!passage.paraphrase) return
+      insertText = `${passage.paraphrase} ${passage.citation}`
+    }
+
+    // Bewusst NICHT editorTextareaRef.current.selectionStart verwenden: die
+    // Entwurf-Spalte ist strukturell doppelt gemountet (Desktop-Grid +
+    // mobiler Tab, jeweils per CSS ein-/ausgeblendet statt bedingt gerendert -
+    // gleiches Muster wie Zitat-Pool/Diskussion). Ein einzelner Ref kann dabei
+    // auf die falsche, gerade unsichtbare Kopie zeigen (live beobachtet: Klick
+    // landete am Textende statt an der zuvor gesetzten Cursor-Position). Der
+    // per onSelect/onClick/onKeyUp getrackte State ist dagegen zuverlässig,
+    // weil beide Kopien denselben Handler ans tatsaechlich fokussierte Element
+    // binden.
+    const pos = editorCursorPos
+    const before = editorText.slice(0, pos)
+    const after = editorText.slice(pos)
+    const needsLeadingSpace = before.length > 0 && !/\s$/.test(before)
+    const needsTrailingSpace = after.length > 0 && !/^\s/.test(after)
+    const finalInsert = `${needsLeadingSpace ? ' ' : ''}${insertText}${needsTrailingSpace ? ' ' : ''}`
+    const newText = before + finalInsert + after
+    const newCursorPos = before.length + finalInsert.length
+
+    setEditorText(newText)
+    setEditorCursorPos(newCursorPos)
+    setInsertedCitations((prev) => [...prev, { passageId: passage.id, snippet: insertText }])
+
+    requestAnimationFrame(() => {
+      const el = getVisibleEditorTextarea()
+      if (el) {
+        el.focus()
+        el.setSelectionRange(newCursorPos, newCursorPos)
+      }
+    })
+
+    try {
+      await markUsed(passage.id)
+    } catch {
+      // Haekchen-Fehler ist nicht fatal fuers Einfuegen selbst - der Text wurde bereits eingefuegt.
+    }
+  }
+
+  async function commitEditorSave(uncheckIds: string[]) {
+    if (!selected) return
+    setSavingEditor(true)
+    setSaveEditorError(null)
+    try {
+      for (const id of uncheckIds) {
+        try {
+          await unmarkUsed(id)
+        } catch {
+          // nicht fatal fuers Speichern selbst
+        }
+      }
+      const markers = Array.from(editorMarkerMap.entries())
+        .filter(([marker]) => editorText.includes(`[${marker}]`))
+        .map(([marker, passageId]) => ({ marker, passageId }))
+      const draft = await saveAuthorDraft(selected.id, editorText, markers)
+      const rows = await fetchDraftsForSection(selected.id)
+      setDrafts(rows)
+      setSelectedVersion(draft.version)
+      setEditMode(false)
+    } catch (err) {
+      setSaveEditorError((err as Error).message)
+    } finally {
+      setSavingEditor(false)
+    }
+  }
+
+  async function handleSaveEditor() {
+    const removed = insertedCitations.filter((c) => !editorText.includes(c.snippet))
+    const removedUnique = Array.from(new Map(removed.map((r) => [r.passageId, r])).values())
+    if (removedUnique.length > 0) {
+      setUncheckConfirm({
+        removed: removedUnique.map((r) => ({ passageId: r.passageId, citation: passageCitations.get(r.passageId) ?? r.passageId })),
+      })
+      return
+    }
+    await commitEditorSave([])
+  }
+
+  async function handleConfirmUncheck(shouldUncheck: boolean) {
+    const ids = uncheckConfirm?.removed.map((r) => r.passageId) ?? []
+    setUncheckConfirm(null)
+    await commitEditorSave(shouldUncheck ? ids : [])
+  }
+
+  function handleSelectVersion(version: number) {
+    if (editorDirty && !window.confirm('Ungespeicherte Änderungen am Entwurf verwerfen und Version wechseln?')) return
+    setEditMode(false)
+    setSelectedVersion(version)
+  }
+
+  function handleSelectSection(id: string) {
+    if (editorDirty && !window.confirm('Ungespeicherte Änderungen am Entwurf verwerfen und Abschnitt wechseln?')) return
+    setSelectedId(id)
+  }
+
   async function reload() {
     if (!activeDocumentId) return
     const rows = await fetchSections(activeDocumentId)
@@ -1259,31 +1551,48 @@ export function Schreibwerkstatt() {
   const reparentOptions = sections.filter((s) => !descendantIdsOfSelected.has(s.id))
   const selectedPoolIds = selected ? (draftSelections[selected.id] ?? EMPTY_SET) : EMPTY_SET
 
-  const entwurfColumn = selected && (
-    <EntwurfColumn
-      pendingCount={selectedPoolIds.size}
-      personas={personas.filter((p) => p.active)}
-      selectedPersonaId={selectedPersonaId}
-      onSelectPersona={setSelectedPersonaId}
-      onRequestDraft={handleRequestDraft}
-      requesting={requesting}
-      requestError={requestError}
-      activeJob={activeJob}
-      drafts={drafts}
-      selectedVersion={selectedVersion}
-      onSelectVersion={setSelectedVersion}
-      currentDraft={currentDraft}
-      markerToPassageId={draftPassages}
-      onMarkerClick={handleMarkerClick}
-      showDiff={showDiff}
-      onToggleDiff={() => setShowDiff((v) => !v)}
-      previousDraft={previousDraft}
-      passageCitations={passageCitations}
-      onAdoptDraft={handleAdoptDraft}
-      adopting={adopting}
-      adoptError={adoptError}
-    />
-  )
+  // Fabrikfunktion statt einer einzelnen JSX-Variable: entwurfColumn wird
+  // unten an zwei Stellen (Desktop-Grid + mobiler Tab) gemountet, und jede
+  // Kopie braucht ihr eigenes textareaRef (s. Kommentar bei
+  // editorTextareaDesktopRef).
+  const makeEntwurfColumn = (textareaRef: React.RefObject<HTMLTextAreaElement | null>) =>
+    selected && (
+      <EntwurfColumn
+        pendingCount={selectedPoolIds.size}
+        personas={personas.filter((p) => p.active)}
+        selectedPersonaId={selectedPersonaId}
+        onSelectPersona={setSelectedPersonaId}
+        onRequestDraft={handleRequestDraft}
+        requesting={requesting}
+        requestError={requestError}
+        activeJob={activeJob}
+        drafts={drafts}
+        selectedVersion={selectedVersion}
+        onSelectVersion={handleSelectVersion}
+        currentDraft={currentDraft}
+        markerToPassageId={draftPassages}
+        onMarkerClick={handleMarkerClick}
+        showDiff={showDiff}
+        onToggleDiff={() => setShowDiff((v) => !v)}
+        previousDraft={previousDraft}
+        passageCitations={passageCitations}
+        onAdoptDraft={handleAdoptDraft}
+        adopting={adopting}
+        adoptError={adoptError}
+        editMode={editMode}
+        editorText={editorText}
+        onEditorTextChange={setEditorText}
+        onEditorCursorChange={setEditorCursorPos}
+        onEnterEditMode={handleEnterEditMode}
+        onCancelEdit={handleCancelEdit}
+        onSaveEditor={handleSaveEditor}
+        saving={savingEditor}
+        saveError={saveEditorError}
+        textareaRef={textareaRef}
+      />
+    )
+  const entwurfColumnDesktop = makeEntwurfColumn(editorTextareaDesktopRef)
+  const entwurfColumnMobile = makeEntwurfColumn(editorTextareaMobileRef)
 
   const zitatPoolColumn = (
     <ZitatPoolColumn
@@ -1294,6 +1603,8 @@ export function Schreibwerkstatt() {
       selectedIds={selectedPoolIds}
       onToggleSelect={(id) => selected && toggleDraftSelection(selected.id, id)}
       highlightedId={highlightedPassageId}
+      editMode={editMode}
+      onInsertCitation={handleInsertCitation}
     />
   )
 
@@ -1381,7 +1692,7 @@ export function Schreibwerkstatt() {
               selectedId={selectedId}
               expanded={expanded}
               onToggleExpand={toggleExpand}
-              onSelect={setSelectedId}
+              onSelect={handleSelectSection}
               onAddChild={handleAddChild}
               onMove={handleMove}
               siblingsCount={tree.length}
@@ -1448,7 +1759,10 @@ export function Schreibwerkstatt() {
           <>
             <button
               type="button"
-              onClick={() => setSelectedId(null)}
+              onClick={() => {
+                if (editorDirty && !window.confirm('Ungespeicherte Änderungen am Entwurf verwerfen?')) return
+                setSelectedId(null)
+              }}
               className="p-4 pb-0 text-left text-sm text-slate-500 hover:underline dark:text-slate-400 md:hidden"
             >
               ← Zur Gliederung
@@ -1583,7 +1897,7 @@ export function Schreibwerkstatt() {
 
             {/* Desktop: drei Spalten nebeneinander */}
             <div className="hidden min-h-0 flex-1 md:grid md:grid-cols-3 md:divide-x md:divide-slate-200 dark:md:divide-slate-800">
-              {entwurfColumn}
+              {entwurfColumnDesktop}
               {zitatPoolColumn}
               {diskussionColumn}
             </div>
@@ -1613,7 +1927,7 @@ export function Schreibwerkstatt() {
                 ))}
               </div>
               <div className="min-h-0 flex-1 overflow-y-auto">
-                {mobileTab === 'entwurf' && entwurfColumn}
+                {mobileTab === 'entwurf' && entwurfColumnMobile}
                 {mobileTab === 'pool' && zitatPoolColumn}
                 {mobileTab === 'diskussion' && diskussionColumn}
               </div>
@@ -1644,6 +1958,20 @@ export function Schreibwerkstatt() {
             setTransferDialogOpen(false)
             setTransferMessage('Abschnitt übernommen.')
           }}
+        />
+      )}
+
+      {uncheckConfirm && (
+        <ConfirmDialog
+          title="Häkchen entfernen?"
+          message={
+            `Diese Zitate kommen im Text nicht mehr vor: ${uncheckConfirm.removed.map((r) => r.citation).join('; ')}. ` +
+            `Sollen ihre Häkchen im aktiven Dokument ebenfalls entfernt werden? Der Entwurf wird in jedem Fall als neue Version gespeichert.`
+          }
+          confirmLabel="Ja, Häkchen entfernen"
+          busy={savingEditor}
+          onConfirm={() => handleConfirmUncheck(true)}
+          onCancel={() => handleConfirmUncheck(false)}
         />
       )}
       </div>

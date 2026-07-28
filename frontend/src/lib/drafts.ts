@@ -141,3 +141,42 @@ export function buildCopyableDraftText(
     return citation ?? match
   })
 }
+
+// Paket 4 (Nachtrag): manuelles Speichern aus dem Editor - immer
+// created_by='author' (ein Mensch hat auf "Speichern" geklickt, unabhaengig
+// davon, ob der Text urspruenglich von einer Persona stammte und nur
+// umgeschrieben wurde). `markers` sind die waehrend dieser Editier-Sitzung
+// per "Beleg einfuegen" gesetzten [n]-Marker - gleiche draft_passages-
+// Struktur wie bei Agenten-Entwuerfen (Paket 5), damit Marker-Klick-
+// Hervorhebung, "Version uebernehmen" und "Text kopieren" unveraendert auch
+// fuer manuell geschriebene Entwuerfe funktionieren.
+export async function saveAuthorDraft(
+  sectionId: string,
+  text: string,
+  markers: Array<{ marker: number; passageId: string }>,
+): Promise<Draft> {
+  const { data: existingVersions, error: versionError } = await supabase
+    .from('drafts')
+    .select('version')
+    .eq('section_id', sectionId)
+    .order('version', { ascending: false })
+    .limit(1)
+  if (versionError) throw versionError
+  const nextVersion = (existingVersions?.[0]?.version ?? 0) + 1
+
+  const { data: draft, error: draftError } = await supabase
+    .from('drafts')
+    .insert({ section_id: sectionId, version: nextVersion, text, created_by: 'author' })
+    .select('id, section_id, version, text, created_by, persona_id, status, unverified_claims, created_at')
+    .single()
+  if (draftError || !draft) throw draftError ?? new Error('Entwurf konnte nicht gespeichert werden')
+
+  if (markers.length > 0) {
+    const { error } = await supabase
+      .from('draft_passages')
+      .insert(markers.map((m) => ({ draft_id: draft.id, passage_id: m.passageId, marker: m.marker })))
+    if (error) throw error
+  }
+
+  return draft as Draft
+}
