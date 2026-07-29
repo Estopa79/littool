@@ -188,6 +188,18 @@ Anlass: Rückfrage des Autors, wie man in der Bibliothek markierten/kopierten Te
 
 **Getestet, live im Browser:** Sprung zu PDF-Seite 5 über die bestehende Seite-Springen-Funktion übernommen - das Seite-Feld der neuen Karte zeigte danach korrekt „5". Karte erscheint an der richtigen Stelle, keine Dopplung des Formulars. TypeScript-Build/`vite build` fehlerfrei.
 
+**Regression im selben Zug behoben:** Das Seite-Feld hatte nur einen Placeholder-Text („Seite"), der verschwindet, sobald ein Wert eingetragen ist - durch die neue Vorausfüllung war die Beschriftung dadurch nie mehr sichtbar. Alle drei Felder (Forschungsfrage, Seite, Relevanz) haben jetzt feste, dauerhaft sichtbare `<label>`-Beschriftungen statt Placeholder.
+
+### Ad-hoc: Themenfeld/Funktion direkt beim Anlegen eines Textabschnitts + Relevanz-Feld entfernt (2026-07-29)
+
+Anlass: Rückfrage-Diskussion mit dem Autor zum Sinn der Forschungsfrage-/Relevanz-Felder beim manuellen Erfassen. Ergebnis der Diskussion: Themenfeld/Funktion sind die eigentlich relevante Einordnung fürs Schreiben (nicht die Forschungsfrage direkt, die nur noch für die separate Forschungsfragen-Ansicht/Relevanzmatrix gebraucht wird), Relevanz wird nirgends im Schreib-Flow ausgewertet, und eine direkte Bindung an einen Gliederungspunkt wurde bewusst verworfen (Gliederung ändert sich strukturell - Themenfeld/Funktion sind die stabilere, bereits vorhandene Abstraktionsebene, s. [[Schritt 1]] oben).
+
+**Kein Schema-Eingriff nötig:** `manualRqId` defaultet bereits (unverändert seit der letzten Änderung) auf die erste Forschungsfrage nach `sort_order`, also HFF - für Inhalte ohne klaren Bezug zu einer Teil-Forschungsfrage (z. B. Einleitungsmaterial) bleibt das Feld dadurch meist unangetastet korrekt, ohne dass `research_question_id` (weiterhin `not null`) gelockert werden müsste. `relevance` bleibt ebenfalls `not null check (1-3)` in der DB - das Feld wird nur nicht mehr in der Oberfläche abgefragt, sondern beim manuellen Anlegen fest auf `2` gesetzt (`QuellenDetail.tsx::handleManualSubmit`).
+
+**`QuellenDetail.tsx`:** Neuer lokaler State `manualTopicIds`/`manualFunctionIds` (nur für die Erfassungskarte, unabhängig von den bestehenden `passageTopicsByPassage`/`passageFunctionsByPassage`-Maps der gespeicherten Zitate) mit Toggle-Funktionen `toggleManualTopic`/`toggleManualFunction`. Dieselben Chip-Reihen wie unten bei den gespeicherten Zitaten, nur lokal statt DB-gebunden, da die Passage beim Anlegen noch keine `id` hat. `handleManualSubmit` verknüpft nach dem erfolgreichen `addManualCitation`-Aufruf die gewählten Chips per `togglePassageTopic`/`togglePassageFunction` mit der neu erzeugten Passage-`id` und setzt die lokale Auswahl danach zurück.
+
+**Getestet, live gegen die echte Produktions-DB (Quelle Reinheimer):** Testabschnitt mit Themenfeld „Digitale Transformation" und Funktion „Methodik" angelegt, per SQL verifiziert - `relevance=2`, `research_question_id` = HFF, `passage_topics`/`passage_functions` korrekt verknüpft. Danach vollständig entfernt (cascadierte Verknüpfungen mitgelöscht). TypeScript-Build/`vite build` fehlerfrei.
+
 ## Paket 4 – Eigene Notizen (Confluence-Import) ☐
 
 - Neuer Quellentyp `note`: eigene Notizen mit Titel, Text, optionalen Verknüpfungen zu Quellen/Themenfeldern; im Chat und in der Suche auffindbar, aber ausgeschlossen von Literaturverzeichnis, Matrizen und Rankings (es ist keine zitierfähige Literatur).

@@ -125,8 +125,9 @@ export function QuellenDetail() {
   const [manualPage, setManualPage] = useState('')
   const [manualOriginal, setManualOriginal] = useState('')
   const [manualTranslation, setManualTranslation] = useState('')
-  const [manualRelevance, setManualRelevance] = useState('2')
   const [manualParaphrase, setManualParaphrase] = useState('')
+  const [manualTopicIds, setManualTopicIds] = useState<Set<string>>(new Set())
+  const [manualFunctionIds, setManualFunctionIds] = useState<Set<string>>(new Set())
   const [manualParaphrasing, setManualParaphrasing] = useState(false)
   const [manualSaving, setManualSaving] = useState(false)
   const [manualError, setManualError] = useState<string | null>(null)
@@ -307,6 +308,24 @@ export function QuellenDetail() {
     }
   }
 
+  function toggleManualTopic(topicId: string) {
+    setManualTopicIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(topicId)) next.delete(topicId)
+      else next.add(topicId)
+      return next
+    })
+  }
+
+  function toggleManualFunction(functionId: string) {
+    setManualFunctionIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(functionId)) next.delete(functionId)
+      else next.add(functionId)
+      return next
+    })
+  }
+
   async function handleManualSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
     if (!id || !source) return
@@ -318,22 +337,28 @@ export function QuellenDetail() {
     setManualSaving(true)
     setManualError(null)
     try {
-      await addManualCitation({
+      const created = await addManualCitation({
         sourceId: id,
         researchQuestionId: manualRqId,
         page,
         original: manualOriginal.trim(),
         translation: manualTranslation.trim() || null,
         paraphrase: manualParaphrase.trim() || null,
-        relevance: Number(manualRelevance),
+        relevance: 2,
         authors: source.authors,
         year: source.year,
         pageOffset: source.page_offset,
       })
+      await Promise.all([
+        ...[...manualTopicIds].map((topicId) => togglePassageTopic(created.id, topicId, false)),
+        ...[...manualFunctionIds].map((functionId) => togglePassageFunction(created.id, functionId, false)),
+      ])
       setManualPage('')
       setManualOriginal('')
       setManualTranslation('')
       setManualParaphrase('')
+      setManualTopicIds(new Set())
+      setManualFunctionIds(new Set())
       reloadPassages()
     } catch (err) {
       setManualError((err as Error).message)
@@ -910,7 +935,7 @@ export function QuellenDetail() {
           PDF-Seite vorausgefüllt - bei Bedarf anpassen.
         </p>
         <form onSubmit={handleManualSubmit} className="flex flex-col gap-2">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2">
             <div className="flex flex-col gap-1">
               <label className="text-xs text-slate-500 dark:text-slate-400" htmlFor="manual-rq">
                 Forschungsfrage
@@ -940,21 +965,6 @@ export function QuellenDetail() {
                 onChange={(e) => setManualPage(e.target.value)}
                 className={inputClass}
               />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-slate-500 dark:text-slate-400" htmlFor="manual-relevance">
-                Relevanz
-              </label>
-              <select
-                id="manual-relevance"
-                value={manualRelevance}
-                onChange={(e) => setManualRelevance(e.target.value)}
-                className={inputClass}
-              >
-                <option value="1">Relevanz 1</option>
-                <option value="2">Relevanz 2</option>
-                <option value="3">Relevanz 3</option>
-              </select>
             </div>
           </div>
           <textarea
@@ -988,6 +998,50 @@ export function QuellenDetail() {
             >
               {manualParaphrasing ? '¶ …' : '¶ erzeugen'}
             </button>
+          </div>
+          <div>
+            <p className="mb-1 text-xs text-slate-500 dark:text-slate-400">Themenfelder</p>
+            <div className="flex flex-wrap gap-1">
+              {allTopics.map((t) => {
+                const active = manualTopicIds.has(t.id)
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => toggleManualTopic(t.id)}
+                    className={`rounded-full px-2 py-0.5 text-[11px] ${
+                      active
+                        ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
+                        : 'bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700'
+                    }`}
+                  >
+                    {t.name}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+          <div>
+            <p className="mb-1 text-xs text-slate-500 dark:text-slate-400">Funktion</p>
+            <div className="flex flex-wrap gap-1">
+              {workFunctions.map((f) => {
+                const active = manualFunctionIds.has(f.id)
+                return (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => toggleManualFunction(f.id)}
+                    className={`rounded-full px-2 py-0.5 text-[11px] ${
+                      active
+                        ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
+                        : 'bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700'
+                    }`}
+                  >
+                    {f.name}
+                  </button>
+                )
+              })}
+            </div>
           </div>
           {manualError && <p className="text-sm text-red-600 dark:text-red-400">{manualError}</p>}
           <button
