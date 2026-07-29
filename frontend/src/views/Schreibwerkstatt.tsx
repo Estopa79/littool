@@ -380,7 +380,7 @@ function EntwurfColumn({
             onKeyUp={(e) => onEditorCursorChange(e.currentTarget.selectionStart)}
             rows={14}
             placeholder="Eigenen Entwurf schreiben, einen Agenten-Entwurf umschreiben, oder Zitate aus dem Pool einfügen …"
-            className="min-h-64 flex-1 rounded-md border border-slate-300 bg-white p-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+            className="min-h-64 flex-1 rounded-md border border-slate-300 bg-white p-3 text-[15px] leading-relaxed dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
           />
           <div className="mt-2 flex items-center gap-2">
             <button
@@ -893,6 +893,9 @@ function ZitatPoolColumn({
   all,
   showAll,
   onToggleShowAll,
+  allFunctions,
+  functionFilter,
+  onSelectFunctionFilter,
   selectedIds,
   onToggleSelect,
   highlightedId,
@@ -903,13 +906,17 @@ function ZitatPoolColumn({
   all: PoolPassage[]
   showAll: boolean
   onToggleShowAll: () => void
+  allFunctions: WorkFunction[]
+  functionFilter: string | null
+  onSelectFunctionFilter: (id: string | null) => void
   selectedIds: Set<string>
   onToggleSelect: (id: string) => void
   highlightedId: string | null
   editMode: boolean
   onInsertCitation: (passage: PoolPassage, variant: InsertVariant) => void
 }) {
-  const list = showAll ? all : filtered
+  const base = showAll ? all : filtered
+  const list = functionFilter ? base.filter((p) => p.function_ids.includes(functionFilter)) : base
   return (
     <div className="flex h-full flex-col overflow-y-auto p-4">
       <div className="mb-2 flex items-center justify-between">
@@ -923,6 +930,26 @@ function ZitatPoolColumn({
         </button>
       </div>
 
+      <div className="mb-2 flex flex-wrap gap-1.5" title="Nach Funktion filtern (Quelle oder einzelnes Zitat)">
+        {allFunctions.map((f) => {
+          const active = functionFilter === f.id
+          return (
+            <button
+              key={f.id}
+              type="button"
+              onClick={() => onSelectFunctionFilter(active ? null : f.id)}
+              className={`rounded-full px-2 py-0.5 text-xs ${
+                active
+                  ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700'
+              }`}
+            >
+              {f.name}
+            </button>
+          )
+        })}
+      </div>
+
       {editMode && (
         <p className="mb-2 rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">
           Entwurf wird bearbeitet - Zitate hier einfügen, um sie an der zuletzt markierten Stelle im Entwurf zu
@@ -932,9 +959,11 @@ function ZitatPoolColumn({
 
       {list.length === 0 && (
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          {showAll
-            ? 'Noch keine bestätigten Zitate im Bestand.'
-            : 'Keine passenden Zitate zu den FFs/Themen dieses Abschnitts - Abschnitt verknüpfen oder „alle anzeigen".'}
+          {functionFilter
+            ? 'Keine Zitate mit dieser Funktion.'
+            : showAll
+              ? 'Noch keine bestätigten Zitate im Bestand.'
+              : 'Keine passenden Zitate zu den FFs/Themen dieses Abschnitts - Abschnitt verknüpfen oder „alle anzeigen".'}
         </p>
       )}
 
@@ -994,54 +1023,50 @@ export function Schreibwerkstatt() {
 
   const [pool, setPool] = useState<PoolPassage[]>([])
   const [showAllPool, setShowAllPool] = useState(false)
+  // Schritt 2 (Autorenwunsch): zusaetzlicher Schnellfilter im Zitat-Pool auf
+  // eine der drei Funktionen (Einleitung/Methodik/Themenfeld-Literatur) -
+  // unabhaengig von "alle anzeigen", engt die jeweils sichtbare Liste weiter ein.
+  const [poolFunctionFilter, setPoolFunctionFilter] = useState<string | null>(null)
   const [draftSelections, setDraftSelections] = useState<Record<string, Set<string>>>({})
   const [mobileTab, setMobileTab] = useState<MobileTab>('entwurf')
   const [highlightedPassageId, setHighlightedPassageId] = useState<string | null>(null)
 
-  // Paket F: verstellbare Spaltenbreiten am Desktop, Einstellung im
-  // localStorage gespeichert (reine Client-Layout-Praeferenz, kein
-  // Mehrbenutzer-/Cross-Device-Bedarf - die Drei-Spalten-Ansicht existiert am
-  // Mobilgeraet ohnehin nicht als Grid, sondern als Tabs).
-  const [columnWidths, setColumnWidths] = useState<[number, number, number]>(() => {
+  // Paket F / Schritt 2 (Autorenwunsch): verstellbare Spaltenbreiten am
+  // Desktop, Einstellung im localStorage gespeichert (reine Client-Layout-
+  // Praeferenz, kein Mehrbenutzer-/Cross-Device-Bedarf - die Spalten-Ansicht
+  // existiert am Mobilgeraet ohnehin nicht als Grid, sondern als Tabs). Nur
+  // noch zwei Spalten oben (Entwurf/Zitat-Pool) - die Diskussion ist seit
+  // Schritt 2 eine eigene volle Zeile darunter, kein Teil dieser Aufteilung
+  // mehr. Default 65/35 statt gleich breit - "Entwurf-Spalte groesser".
+  const [columnWidths, setColumnWidths] = useState<[number, number]>(() => {
     try {
       const raw = localStorage.getItem(COLUMN_WIDTHS_STORAGE_KEY)
       const parsed = raw ? JSON.parse(raw) : null
-      if (Array.isArray(parsed) && parsed.length === 3 && parsed.every((n) => typeof n === 'number')) {
-        return parsed as [number, number, number]
+      if (Array.isArray(parsed) && parsed.length === 2 && parsed.every((n) => typeof n === 'number')) {
+        return parsed as [number, number]
       }
     } catch {
       // ungueltiger/fehlender localStorage-Wert - Default greift
     }
-    return [1 / 3, 1 / 3, 1 / 3].map((n) => n * 100) as [number, number, number]
+    return [65, 35]
   })
   const columnsContainerRef = useRef<HTMLDivElement | null>(null)
-  const [resizingDivider, setResizingDivider] = useState<0 | 1 | null>(null)
+  const [resizingColumns, setResizingColumns] = useState(false)
 
   useEffect(() => {
-    if (resizingDivider === null) return
-    const MIN_PERCENT = 15
+    if (!resizingColumns) return
+    const MIN_PERCENT = 20
 
     function handleMouseMove(e: MouseEvent) {
       const container = columnsContainerRef.current
       if (!container) return
       const rect = container.getBoundingClientRect()
       const offsetPercent = ((e.clientX - rect.left) / rect.width) * 100
-      setColumnWidths((prev) => {
-        const next: [number, number, number] = [...prev]
-        if (resizingDivider === 0) {
-          const boundary = Math.min(Math.max(offsetPercent, MIN_PERCENT), 100 - MIN_PERCENT - next[2])
-          next[0] = boundary
-          next[1] = 100 - boundary - next[2]
-        } else {
-          const boundary = Math.min(Math.max(offsetPercent, next[0] + MIN_PERCENT), 100 - MIN_PERCENT)
-          next[1] = boundary - next[0]
-          next[2] = 100 - boundary
-        }
-        return next
-      })
+      const boundary = Math.min(Math.max(offsetPercent, MIN_PERCENT), 100 - MIN_PERCENT)
+      setColumnWidths([boundary, 100 - boundary])
     }
     function handleMouseUp() {
-      setResizingDivider(null)
+      setResizingColumns(false)
     }
     window.addEventListener('mousemove', handleMouseMove)
     window.addEventListener('mouseup', handleMouseUp)
@@ -1049,7 +1074,7 @@ export function Schreibwerkstatt() {
       window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('mouseup', handleMouseUp)
     }
-  }, [resizingDivider])
+  }, [resizingColumns])
 
   useEffect(() => {
     localStorage.setItem(COLUMN_WIDTHS_STORAGE_KEY, JSON.stringify(columnWidths))
@@ -1154,6 +1179,7 @@ export function Schreibwerkstatt() {
     setNumberDraft(selected.number ?? '')
     setTitleDraft(selected.title)
     setShowAllPool(false)
+    setPoolFunctionFilter(null)
     setShowDiff(false)
     setRequestError(null)
     setHighlightedPassageId(null)
@@ -1787,6 +1813,9 @@ export function Schreibwerkstatt() {
       all={pool}
       showAll={showAllPool}
       onToggleShowAll={() => setShowAllPool((v) => !v)}
+      allFunctions={allFunctions}
+      functionFilter={poolFunctionFilter}
+      onSelectFunctionFilter={setPoolFunctionFilter}
       selectedIds={selectedPoolIds}
       onToggleSelect={(id) => selected && toggleDraftSelection(selected.id, id)}
       highlightedId={highlightedPassageId}
@@ -2110,32 +2139,29 @@ export function Schreibwerkstatt() {
 
             <DraftNoticeBanner />
 
-            {/* Desktop: drei Spalten nebeneinander, Breiten per Trenner verstellbar (Paket F) */}
-            <div ref={columnsContainerRef} className="hidden min-h-0 flex-1 md:flex">
-              <div className="min-w-0 overflow-hidden" style={{ width: `${columnWidths[0]}%` }}>
-                {entwurfColumnDesktop}
+            {/* Desktop (Schritt 2): oben Entwurf/Zitat-Pool nebeneinander (Breite per
+                Trenner verstellbar), Diskussion darunter ueber die volle Breite -
+                vorher war Diskussion die dritte Spalte rechts. */}
+            <div className="hidden min-h-0 flex-1 flex-col md:flex">
+              <div ref={columnsContainerRef} className="flex min-h-0" style={{ flex: '3 1 0%' }}>
+                <div className="min-w-0 overflow-hidden" style={{ width: `${columnWidths[0]}%` }}>
+                  {entwurfColumnDesktop}
+                </div>
+                <div
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    setResizingColumns(true)
+                  }}
+                  className="w-1 shrink-0 cursor-col-resize bg-slate-200 hover:bg-slate-400 dark:bg-slate-800 dark:hover:bg-slate-600"
+                />
+                <div
+                  className="min-w-0 overflow-hidden border-l border-slate-200 dark:border-slate-800"
+                  style={{ width: `${columnWidths[1]}%` }}
+                >
+                  {zitatPoolColumn}
+                </div>
               </div>
-              <div
-                onMouseDown={(e) => {
-                  e.preventDefault()
-                  setResizingDivider(0)
-                }}
-                className="w-1 shrink-0 cursor-col-resize bg-slate-200 hover:bg-slate-400 dark:bg-slate-800 dark:hover:bg-slate-600"
-              />
-              <div
-                className="min-w-0 overflow-hidden border-x border-slate-200 dark:border-slate-800"
-                style={{ width: `${columnWidths[1]}%` }}
-              >
-                {zitatPoolColumn}
-              </div>
-              <div
-                onMouseDown={(e) => {
-                  e.preventDefault()
-                  setResizingDivider(1)
-                }}
-                className="w-1 shrink-0 cursor-col-resize bg-slate-200 hover:bg-slate-400 dark:bg-slate-800 dark:hover:bg-slate-600"
-              />
-              <div className="min-w-0 overflow-hidden" style={{ width: `${columnWidths[2]}%` }}>
+              <div className="min-h-0 overflow-hidden border-t border-slate-200 dark:border-slate-800" style={{ flex: '2 1 0%' }}>
                 {diskussionColumn}
               </div>
             </div>
