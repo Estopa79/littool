@@ -40,6 +40,7 @@ import { generateParaphrase } from '../lib/paraphrase'
 import { fetchCrossrefMetadata } from '../lib/crossref'
 import { UsedCitationCheckbox } from '../components/UsedCitationCheckbox'
 import { CitationCopyButtons } from '../components/CitationCopyButtons'
+import { fetchPassageTagsForPassages, togglePassageFunction, togglePassageTopic } from '../lib/passageTags'
 
 type FormState = {
   type: string
@@ -142,6 +143,8 @@ export function QuellenDetail() {
   const [sourceRelevance, setSourceRelevance] = useState<ReviewRelevance[]>([])
   const [classifying, setClassifying] = useState(false)
   const [classifyError, setClassifyError] = useState<string | null>(null)
+  const [passageTopicsByPassage, setPassageTopicsByPassage] = useState<Map<string, Set<string>>>(new Map())
+  const [passageFunctionsByPassage, setPassageFunctionsByPassage] = useState<Map<string, Set<string>>>(new Map())
 
   useEffect(() => {
     if (!id) return
@@ -242,6 +245,44 @@ export function QuellenDetail() {
 
   function reloadPassages() {
     if (id) fetchPassagesForSource(id).then(setPassages)
+  }
+
+  // Themenfeld-/Funktion-Chips je Textabschnitt (Autorenwunsch): laedt neu,
+  // sobald sich die Passagenliste aendert (neues Zitat, Bestaetigung, ...),
+  // getrennt vom Laden der Passagen selbst, damit jeder Aufrufer von
+  // setPassages (Initial-Load, reloadPassages) automatisch profitiert.
+  useEffect(() => {
+    const confirmedIds = passages.filter((p) => p.confirmed).map((p) => p.id)
+    fetchPassageTagsForPassages(confirmedIds).then(({ topicsByPassage, functionsByPassage }) => {
+      setPassageTopicsByPassage(topicsByPassage)
+      setPassageFunctionsByPassage(functionsByPassage)
+    })
+  }, [passages])
+
+  async function handleTogglePassageTopic(passageId: string, topicId: string) {
+    const linked = passageTopicsByPassage.get(passageId)?.has(topicId) ?? false
+    await togglePassageTopic(passageId, topicId, linked)
+    setPassageTopicsByPassage((prev) => {
+      const next = new Map(prev)
+      const set = new Set(next.get(passageId) ?? [])
+      if (linked) set.delete(topicId)
+      else set.add(topicId)
+      next.set(passageId, set)
+      return next
+    })
+  }
+
+  async function handleTogglePassageFunction(passageId: string, functionId: string) {
+    const linked = passageFunctionsByPassage.get(passageId)?.has(functionId) ?? false
+    await togglePassageFunction(passageId, functionId, linked)
+    setPassageFunctionsByPassage((prev) => {
+      const next = new Map(prev)
+      const set = new Set(next.get(passageId) ?? [])
+      if (linked) set.delete(functionId)
+      else set.add(functionId)
+      next.set(passageId, set)
+      return next
+    })
   }
 
   async function handleGenerate() {
@@ -939,6 +980,44 @@ export function QuellenDetail() {
                       citation={p.citation}
                     />
                     <UsedCitationCheckbox passageId={p.id} />
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {allTopics.map((t) => {
+                      const active = passageTopicsByPassage.get(p.id)?.has(t.id) ?? false
+                      return (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => handleTogglePassageTopic(p.id, t.id)}
+                          className={`rounded-full px-2 py-0.5 text-[11px] ${
+                            active
+                              ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
+                              : 'bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700'
+                          }`}
+                        >
+                          {t.name}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {workFunctions.map((f) => {
+                      const active = passageFunctionsByPassage.get(p.id)?.has(f.id) ?? false
+                      return (
+                        <button
+                          key={f.id}
+                          type="button"
+                          onClick={() => handleTogglePassageFunction(p.id, f.id)}
+                          className={`rounded-full px-2 py-0.5 text-[11px] ${
+                            active
+                              ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
+                              : 'bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700'
+                          }`}
+                        >
+                          {f.name}
+                        </button>
+                      )
+                    })}
                   </div>
                 </li>
               ))}

@@ -26,6 +26,8 @@ type RawRow = {
   citation: string
   relevance: number
   research_question_id: string
+  passage_topics: Array<{ topic_id: string }> | null
+  passage_functions: Array<{ function_id: string }> | null
   sources: {
     id: string
     authors: Author[] | null
@@ -44,6 +46,7 @@ export async function fetchConfirmedPassagesPool(): Promise<PoolPassage[]> {
     .from('passages')
     .select(
       `id, page, original, translation, paraphrase, citation, relevance, research_question_id,
+       passage_topics ( topic_id ), passage_functions ( function_id ),
        sources ( id, authors, year, source_topics ( confirmed, topic_id ), source_functions ( confirmed, function_id ) )`,
     )
     .eq('confirmed', true)
@@ -51,8 +54,14 @@ export async function fetchConfirmedPassagesPool(): Promise<PoolPassage[]> {
 
   return (data ?? []).map((row) => {
     const r = row as unknown as RawRow
-    const topicIds = (r.sources?.source_topics ?? []).filter((t) => t.confirmed).map((t) => t.topic_id)
-    const functionIds = (r.sources?.source_functions ?? []).filter((f) => f.confirmed).map((f) => f.function_id)
+    // Themenfeld/Funktion koennen entweder an der Quelle ODER direkt am
+    // Textabschnitt gesetzt sein (Autorenwunsch: einzelne Abschnitte einer
+    // Quelle koennen zu einem anderen Thema/Funktion gehoeren als die Quelle
+    // insgesamt) - beide Ebenen werden vereinigt, keine ersetzt die andere.
+    const sourceTopicIds = (r.sources?.source_topics ?? []).filter((t) => t.confirmed).map((t) => t.topic_id)
+    const sourceFunctionIds = (r.sources?.source_functions ?? []).filter((f) => f.confirmed).map((f) => f.function_id)
+    const passageTopicIds = (r.passage_topics ?? []).map((t) => t.topic_id)
+    const passageFunctionIds = (r.passage_functions ?? []).map((f) => f.function_id)
     return {
       id: r.id,
       page: r.page,
@@ -65,8 +74,8 @@ export async function fetchConfirmedPassagesPool(): Promise<PoolPassage[]> {
       authors: r.sources?.authors ?? null,
       year: r.sources?.year ?? null,
       research_question_id: r.research_question_id,
-      topic_ids: topicIds,
-      function_ids: functionIds,
+      topic_ids: [...sourceTopicIds, ...passageTopicIds],
+      function_ids: [...sourceFunctionIds, ...passageFunctionIds],
     }
   })
 }

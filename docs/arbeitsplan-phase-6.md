@@ -149,10 +149,22 @@ Auf Wunsch des Autors ("räume die offenen Punkte einmal so gut es geht auf") ei
 **Getestet:** TypeScript-Build/`vite build` fehlerfrei. **Erstmals in dieser Session per echtem Login im Browser statt nur Code-Review verifiziert:** Bibliothek/Methodentabelle/BibTeX-Export/Suche-Extern-Tab/Prüfbericht-Tab laden sichtbar korrekt; mobiler Seitenoverflow live bei 375px reproduziert und der Fix live bestätigt (`scrollWidth` vorher 540, nachher 375, Leiste selbst bleibt intern scrollbar mit `scrollWidth 512 > clientWidth 375`). Alle vier Datenfixes per Direktabfrage vor und nach der Änderung verifiziert; `passages.citation`-Sync-Trigger geprüft (keine bestehenden Passagen an den betroffenen Quellen, daher kein Nachzieh-Bedarf). Debatte-Hinweis nicht live nachgestellt (kein Entwurf im getesteten Abschnitt vorhanden), nur per Code-Review geprüft.
 
 **Offen, braucht eine Entscheidung/Aktion des Autors (nicht angefasst):**
-- Zwei vermutete Duplikate im Bestand (u. a. „Business-IT-Alignment" von Reinheimer/Robra-Bissantz, zwei sehr ähnliche Einträge) - zusammenführen oder als zwei echte Werke bestätigen.
+- ~~Zwei vermutete Duplikate im Bestand (Reinheimer/Robra-Bissantz „Business-IT-Alignment").~~ **Erledigt (2026-07-29):** Autor bestätigte die Dublette - die Version ohne extrahierte Zitate (`a9b67153…`) wurde gelöscht, die Version mit 9 bestätigten Zitaten (`fd100f96…`) bleibt.
 - 28 unmatched BibTeX-Einträge aus dem Citavi-Import (Phase 3/4) warten weiterhin auf manuelle Durchsicht.
 - Restore-Test des Backups (`backups/20260726_221744`) noch nicht bestätigt.
 - QS-Prüf-Rückstand (`/pruefen`): weiterhin nur ein Bruchteil der Passagen bestätigt - eigentliche Schreibarbeit des Autors, keine Engineering-Aufgabe.
+
+### Themenfeld/Funktion direkt am Zitat (Autorenwunsch, 2026-07-29, Schritt 1 von 2)
+
+Hintergrund: Der Autor arbeitet überwiegend paraphrasierend/zusammenfassend, wörtliche Zitate sind die Ausnahme - Themenfeld/Funktion sollten deshalb direkt am einzelnen markierten Textabschnitt zuordenbar sein, nicht nur an der ganzen Quelle (bisher: `source_topics`/`source_functions`). Schritt 2 (Schreibwerkstatt-Layout: größere Entwurf-Spalte, drei Funktions-Chips, Diskussion volle Breite unten, schlankerer Editor) folgt in einer eigenen Sitzung.
+
+**Migration `0041_passage_tags.sql`:** neue Tabellen `passage_topics`/`passage_functions` (passage_id + topic_id bzw. function_id), gleiches Muster wie `section_topics`/`section_functions` (Migration 0032/0039) - direkte, vom Autor gesetzte Verknüpfung, bewusst **kein** `confirmed`-Feld (anders als `source_topics`/`source_functions`, die KI-Vorschläge sind).
+
+**`lib/passageTags.ts`:** Batch-Fetch (`fetchPassageTagsForPassages`) und Toggle-Funktionen, gleiches Muster wie `lib/sections.ts`. In `QuellenDetail.tsx` (dort, „wo aktuell die Zitate sind") bekommt jede bestätigte Zitat-Karte zusätzlich zwei Chip-Reihen (Themenfelder, Funktion) - Übersetzung/Paraphrase-Logik bleibt unverändert, die läuft schon wie gewünscht.
+
+**Zitat-Pool-Filter erweitert** (`lib/sectionPool.ts`): `fetchConfirmedPassagesPool` lädt jetzt zusätzlich `passage_topics`/`passage_functions` und **vereinigt** sie mit den Quellen-Tags (nicht ersetzt) - ein Zitat passt in den Pool eines Abschnitts, wenn FF, Quellen-Topic, Quellen-Funktion, **oder** Zitat-Topic, **oder** Zitat-Funktion übereinstimmt.
+
+**Getestet, live gegen die echte Produktions-DB (nach Login des Autors im Browser):** Eine reale Quelle (Reinheimer, 9 bestätigte Zitate) direkt getaggt, danach live in der Schreibwerkstatt bestätigt - der Abschnitt „Business-IT Alignment im Kontext der digitalen Transformation" (verknüpft mit Themenfeld „Digitale Transformation", aber nicht mit der Forschungsfrage des Zitats) zeigte das getaggte Zitat korrekt im Zitat-Pool. **Dabei eine zweite, vom aktuellen Feature unabhängige Datenqualitäts-Auffälligkeit gefunden:** dieselbe Quelle enthält zwei Zitat-Zeilen mit identischem Wortlaut („BITA describes the adjustment…", unterschiedliche `id`) - vermutlich ein Dublett aus einem doppelten `Zitate erzeugen`-Lauf. Nicht bereinigt (Entscheidung des Autors, ob beide behalten oder eines entfernt werden soll - anders als bei den Quellen-Dubletten hier keine offensichtlich „leere" Version, die sich automatisch als Löschkandidat anbietet). Alle Test-Verknüpfungen (`passage_topics`) danach wieder vollständig entfernt. TypeScript-Build/`vite build` fehlerfrei.
 
 ## Paket 4 – Eigene Notizen (Confluence-Import) ☐
 
