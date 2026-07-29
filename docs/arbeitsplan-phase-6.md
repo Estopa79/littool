@@ -180,6 +180,14 @@ Umsetzung wie in der Rückfrage besprochen: Entwurf-Spalte größer (Default 65/
 
 **Getestet, live im Browser (Desktop 1400px und Mobil 375px):** Layout entspricht dem Screenshot-Vergleich (Entwurf groß + Zitat-Pool mit drei Chips oben, Diskussion volle Breite unten, per Direktmessung bestätigt: Diskussion-Zeile exakt so breit wie die gesamte Sektion). Funktions-Filter korrekt getestet (s. o., inkl. Korrektur des eigenen Testfehlers). Mobiler Seiten-Overflow weiterhin nicht reproduzierbar (`scrollWidth === innerWidth === 375`). TypeScript-Build/`vite build` fehlerfrei.
 
+### Ad-hoc: Zitat manuell hinzufügen – Seite automatisch übernehmen + Formular näher an den PDF-Viewer (2026-07-29)
+
+Anlass: Rückfrage des Autors, wie man in der Bibliothek markierten/kopierten Text ablegt - das bestehende Formular „Zitat manuell hinzufügen" existierte bereits, war aber unten in der Zitate-Karte versteckt und verlangte die Seitenzahl von Hand.
+
+**`QuellenDetail.tsx`:** Neuer `useEffect(() => { setManualPage(String(pageJump)) }, [pageJump])` - das Seite-Feld des manuellen Formulars übernimmt automatisch die gerade im PDF-Viewer angezeigte Seite, bleibt aber weiterhin frei überschreibbar. Das Formular selbst wurde aus der Zitate-Karte herausgelöst und in eine eigene Karte „Neuen Textabschnitt hinzufügen" verschoben, direkt unter dem PDF-Viewer (statt darunter, nach der Zitate-Liste) - näher an der Stelle, wo der Text tatsächlich gelesen/kopiert wird.
+
+**Getestet, live im Browser:** Sprung zu PDF-Seite 5 über die bestehende Seite-Springen-Funktion übernommen - das Seite-Feld der neuen Karte zeigte danach korrekt „5". Karte erscheint an der richtigen Stelle, keine Dopplung des Formulars. TypeScript-Build/`vite build` fehlerfrei.
+
 ## Paket 4 – Eigene Notizen (Confluence-Import) ☐
 
 - Neuer Quellentyp `note`: eigene Notizen mit Titel, Text, optionalen Verknüpfungen zu Quellen/Themenfeldern; im Chat und in der Suche auffindbar, aber ausgeschlossen von Literaturverzeichnis, Matrizen und Rankings (es ist keine zitierfähige Literatur).

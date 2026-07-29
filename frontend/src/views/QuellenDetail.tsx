@@ -175,6 +175,14 @@ export function QuellenDetail() {
     fetchSourceRelevance(id).then(setSourceRelevance)
   }, [id])
 
+  // Autorenwunsch: "Zitat manuell hinzufuegen" soll die Seite nicht erneut
+  // von Hand verlangen - sie wird auf die gerade im Viewer angezeigte Seite
+  // vorausgefuellt und folgt jedem Sprung im PDF automatisch, bleibt aber
+  // ganz normal editierbar (z.B. falls das Zitat auf der Vorseite beginnt).
+  useEffect(() => {
+    setManualPage(String(pageJump))
+  }, [pageJump])
+
   async function handleConfirmMethodProfile() {
     if (!id) return
     await confirmMethodProfile(id)
@@ -895,6 +903,78 @@ export function QuellenDetail() {
         )}
       </div>
 
+      <div className="mb-6 rounded-lg border border-slate-200 p-4 dark:border-slate-800">
+        <h2 className="mb-1 text-sm font-medium text-slate-700 dark:text-slate-300">Neuen Textabschnitt hinzufügen</h2>
+        <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
+          Text oben im PDF markieren, kopieren (Strg+C), hier einfügen. Seite ist auf die gerade angezeigte
+          PDF-Seite vorausgefüllt - bei Bedarf anpassen.
+        </p>
+        <form onSubmit={handleManualSubmit} className="flex flex-col gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <select value={manualRqId} onChange={(e) => setManualRqId(e.target.value)} className={inputClass}>
+              {researchQuestions.map((rq) => (
+                <option key={rq.id} value={rq.id}>
+                  {rq.code}
+                </option>
+              ))}
+            </select>
+            <input
+              type="number"
+              min={1}
+              placeholder="Seite"
+              value={manualPage}
+              onChange={(e) => setManualPage(e.target.value)}
+              className={inputClass}
+            />
+            <select value={manualRelevance} onChange={(e) => setManualRelevance(e.target.value)} className={inputClass}>
+              <option value="1">Relevanz 1</option>
+              <option value="2">Relevanz 2</option>
+              <option value="3">Relevanz 3</option>
+            </select>
+          </div>
+          <textarea
+            placeholder="Originaltext (wörtlich)"
+            value={manualOriginal}
+            onChange={(e) => setManualOriginal(e.target.value)}
+            rows={2}
+            className={inputClass}
+          />
+          <textarea
+            placeholder="Übersetzung (optional)"
+            value={manualTranslation}
+            onChange={(e) => setManualTranslation(e.target.value)}
+            rows={2}
+            className={inputClass}
+          />
+          <div className="flex items-start gap-2">
+            <textarea
+              placeholder="Paraphrase (optional)"
+              value={manualParaphrase}
+              onChange={(e) => setManualParaphrase(e.target.value)}
+              rows={2}
+              className={`${inputClass} flex-1`}
+            />
+            <button
+              type="button"
+              disabled={manualParaphrasing || !manualOriginal.trim()}
+              onClick={handleManualParaphrase}
+              className="shrink-0 rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
+              title="Paraphrase aus dem Originaltext erzeugen"
+            >
+              {manualParaphrasing ? '¶ …' : '¶ erzeugen'}
+            </button>
+          </div>
+          {manualError && <p className="text-sm text-red-600 dark:text-red-400">{manualError}</p>}
+          <button
+            type="submit"
+            disabled={manualSaving}
+            className="self-start rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+          >
+            {manualSaving ? 'Speichert …' : '+ Zitat hinzufügen'}
+          </button>
+        </form>
+      </div>
+
       {methodProfile && (
         <div className="mb-6 rounded-lg border border-slate-200 p-4 dark:border-slate-800">
           <div className="mb-2 flex items-center justify-between gap-2">
@@ -1023,74 +1103,6 @@ export function QuellenDetail() {
               ))}
           </ul>
         )}
-
-        <form onSubmit={handleManualSubmit} className="mt-4 flex flex-col gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
-          <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
-            Zitat manuell hinzufügen (Text im PDF markieren, kopieren, hier einfügen)
-          </span>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <select value={manualRqId} onChange={(e) => setManualRqId(e.target.value)} className={inputClass}>
-              {researchQuestions.map((rq) => (
-                <option key={rq.id} value={rq.id}>
-                  {rq.code}
-                </option>
-              ))}
-            </select>
-            <input
-              type="number"
-              min={1}
-              placeholder="Seite"
-              value={manualPage}
-              onChange={(e) => setManualPage(e.target.value)}
-              className={inputClass}
-            />
-            <select value={manualRelevance} onChange={(e) => setManualRelevance(e.target.value)} className={inputClass}>
-              <option value="1">Relevanz 1</option>
-              <option value="2">Relevanz 2</option>
-              <option value="3">Relevanz 3</option>
-            </select>
-          </div>
-          <textarea
-            placeholder="Originaltext (wörtlich)"
-            value={manualOriginal}
-            onChange={(e) => setManualOriginal(e.target.value)}
-            rows={2}
-            className={inputClass}
-          />
-          <textarea
-            placeholder="Übersetzung (optional)"
-            value={manualTranslation}
-            onChange={(e) => setManualTranslation(e.target.value)}
-            rows={2}
-            className={inputClass}
-          />
-          <div className="flex items-start gap-2">
-            <textarea
-              placeholder="Paraphrase (optional)"
-              value={manualParaphrase}
-              onChange={(e) => setManualParaphrase(e.target.value)}
-              rows={2}
-              className={`${inputClass} flex-1`}
-            />
-            <button
-              type="button"
-              disabled={manualParaphrasing || !manualOriginal.trim()}
-              onClick={handleManualParaphrase}
-              className="shrink-0 rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
-              title="Paraphrase aus dem Originaltext erzeugen"
-            >
-              {manualParaphrasing ? '¶ …' : '¶ erzeugen'}
-            </button>
-          </div>
-          {manualError && <p className="text-sm text-red-600 dark:text-red-400">{manualError}</p>}
-          <button
-            type="submit"
-            disabled={manualSaving}
-            className="self-start rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-          >
-            {manualSaving ? 'Speichert …' : '+ Zitat hinzufügen'}
-          </button>
-        </form>
       </div>
 
       {reviewResult && (
