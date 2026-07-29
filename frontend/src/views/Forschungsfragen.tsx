@@ -14,6 +14,7 @@ import { RelevanceMatrix } from '../components/RelevanceMatrix'
 import { generateParaphrase, savePassageParaphrase } from '../lib/paraphrase'
 import { UsedCitationCheckbox } from '../components/UsedCitationCheckbox'
 import { CitationCopyButtons } from '../components/CitationCopyButtons'
+import { useSessionState } from '../lib/useSessionState'
 
 type SortOption = 'relevance' | 'source' | 'year'
 
@@ -152,9 +153,12 @@ function PassageCard({ passage }: { passage: FfPassage }) {
 }
 
 export function Forschungsfragen() {
-  const [mode, setMode] = useState<'liste' | 'matrix'>('liste')
+  const [mode, setMode] = useSessionState<'liste' | 'matrix'>('littool:forschungsfragen:mode', 'liste')
   const [rqs, setRqs] = useState<RqWithCount[]>([])
-  const [selectedRqId, setSelectedRqId] = useState<string | null>(null)
+  const [selectedRqId, setSelectedRqId] = useSessionState<string | null>(
+    'littool:forschungsfragen:selectedRqId',
+    null,
+  )
   const [passages, setPassages] = useState<FfPassage[]>([])
   const [loadingList, setLoadingList] = useState(true)
   const [loadingPassages, setLoadingPassages] = useState(false)
@@ -162,17 +166,17 @@ export function Forschungsfragen() {
 
   const [allTopics, setAllTopics] = useState<TopicOption[]>([])
   const [workFunctions, setWorkFunctions] = useState<WorkFunction[]>([])
-  const [sortBy, setSortBy] = useState<SortOption>('relevance')
-  const [filterTopic, setFilterTopic] = useState('')
-  const [filterRanking, setFilterRanking] = useState('')
-  const [filterStudyType, setFilterStudyType] = useState('')
-  const [filterFunction, setFilterFunction] = useState('')
+  const [sortBy, setSortBy] = useSessionState<SortOption>('littool:forschungsfragen:sortBy', 'relevance')
+  const [filterTopic, setFilterTopic] = useSessionState('littool:forschungsfragen:filterTopic', '')
+  const [filterRanking, setFilterRanking] = useSessionState('littool:forschungsfragen:filterRanking', '')
+  const [filterStudyType, setFilterStudyType] = useSessionState('littool:forschungsfragen:filterStudyType', '')
+  const [filterFunction, setFilterFunction] = useSessionState('littool:forschungsfragen:filterFunction', '')
 
   useEffect(() => {
     fetchRqWithCounts()
       .then((rows) => {
         setRqs(rows)
-        if (rows.length > 0) setSelectedRqId(rows[0].id)
+        setSelectedRqId((prev) => prev ?? rows[0]?.id ?? null)
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoadingList(false))

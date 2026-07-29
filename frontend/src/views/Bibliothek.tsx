@@ -13,6 +13,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { fetchAllSourceTopics, fetchAllTopics, fetchReviewCounts, type TopicOption } from '../lib/qsReview'
 import { generateTopicRelevance } from '../lib/topicRelevance'
 import { buildBibtexFile, downloadBibtex, fetchAllSourcesForBibtex } from '../lib/bibtex'
+import { useSessionState } from '../lib/useSessionState'
 
 type SortKey = 'author_year' | 'title' | 'venue' | 'ranking' | 'status'
 type SortDir = 'asc' | 'desc'
@@ -44,24 +45,30 @@ const STATUS_OPTIONS: Array<{ value: string; label: string }> = [
 
 export function Bibliothek() {
   const navigate = useNavigate()
-  const [activeTab, setActiveTab] = useState<'bestand' | 'eingang' | 'methodentabelle'>('bestand')
+  const [activeTab, setActiveTab] = useSessionState<'bestand' | 'eingang' | 'methodentabelle'>(
+    'littool:bibliothek:activeTab',
+    'bestand',
+  )
   const [sources, setSources] = useState<Source[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const [search, setSearch] = useState('')
-  const [filterType, setFilterType] = useState('')
-  const [filterRanking, setFilterRanking] = useState('')
-  const [filterStatus, setFilterStatus] = useState('')
-  const [onlyExtractionIssues, setOnlyExtractionIssues] = useState(false)
-  const [sortKey, setSortKey] = useState<SortKey>('author_year')
-  const [sortDir, setSortDir] = useState<SortDir>('desc')
+  const [search, setSearch] = useSessionState('littool:bibliothek:search', '')
+  const [filterType, setFilterType] = useSessionState('littool:bibliothek:filterType', '')
+  const [filterRanking, setFilterRanking] = useSessionState('littool:bibliothek:filterRanking', '')
+  const [filterStatus, setFilterStatus] = useSessionState('littool:bibliothek:filterStatus', '')
+  const [onlyExtractionIssues, setOnlyExtractionIssues] = useSessionState(
+    'littool:bibliothek:onlyExtractionIssues',
+    false,
+  )
+  const [sortKey, setSortKey] = useSessionState<SortKey>('littool:bibliothek:sortKey', 'author_year')
+  const [sortDir, setSortDir] = useSessionState<SortDir>('littool:bibliothek:sortDir', 'desc')
   const [showGreyDialog, setShowGreyDialog] = useState(false)
   const [workFunctions, setWorkFunctions] = useState<WorkFunction[]>([])
-  const [filterFunction, setFilterFunction] = useState('')
+  const [filterFunction, setFilterFunction] = useSessionState('littool:bibliothek:filterFunction', '')
   const [sourceIdsByFunction, setSourceIdsByFunction] = useState<Map<string, Set<string>>>(new Map())
   const [allTopics, setAllTopics] = useState<TopicOption[]>([])
-  const [filterTopic, setFilterTopic] = useState('')
+  const [filterTopic, setFilterTopic] = useSessionState('littool:bibliothek:filterTopic', '')
   const [sourceIdsByTopic, setSourceIdsByTopic] = useState<Map<string, Set<string>>>(new Map())
   const [generatingId, setGeneratingId] = useState<string | null>(null)
   const [reviewResult, setReviewResult] = useState<{ sourceTitle: string; data: GenerateCitationsResult } | null>(

@@ -9,6 +9,7 @@ import {
   type OpenAlexCrossRef,
   type OpenAlexResult,
 } from '../lib/openAlex'
+import { useSessionState } from '../lib/useSessionState'
 
 const MODE_OPTIONS: Array<{ value: SearchMode; label: string }> = [
   { value: 'hybrid', label: 'Hybrid' },
@@ -228,11 +229,11 @@ export function Suche() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
 
-  const [viewTab, setViewTab] = useState<'intern' | 'extern'>('intern')
+  const [viewTab, setViewTab] = useSessionState<'intern' | 'extern'>('littool:suche:viewTab', 'intern')
   const [query, setQuery] = useState(searchParams.get('q') ?? '')
-  const [mode, setMode] = useState<SearchMode>('hybrid')
-  const [filterType, setFilterType] = useState('')
-  const [filterRanking, setFilterRanking] = useState('')
+  const [mode, setMode] = useSessionState<SearchMode>('littool:suche:mode', 'hybrid')
+  const [filterType, setFilterType] = useSessionState('littool:suche:filterType', '')
+  const [filterRanking, setFilterRanking] = useSessionState('littool:suche:filterRanking', '')
   const [showMobileFilters, setShowMobileFilters] = useState(false)
 
   const [results, setResults] = useState<SearchHit[] | null>(null)

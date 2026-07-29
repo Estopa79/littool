@@ -200,6 +200,21 @@ Anlass: Rückfrage-Diskussion mit dem Autor zum Sinn der Forschungsfrage-/Releva
 
 **Getestet, live gegen die echte Produktions-DB (Quelle Reinheimer):** Testabschnitt mit Themenfeld „Digitale Transformation" und Funktion „Methodik" angelegt, per SQL verifiziert - `relevance=2`, `research_question_id` = HFF, `passage_topics`/`passage_functions` korrekt verknüpft. Danach vollständig entfernt (cascadierte Verknüpfungen mitgelöscht). TypeScript-Build/`vite build` fehlerfrei.
 
+### Ad-hoc: Sitzungszustand (Filter/Sortierung/Tabs) auch auf Bibliothek, Forschungsfragen und Suche erhalten (2026-07-29)
+
+Anlass: Rückfrage des Autors, ob der aus der Schreibwerkstatt bekannte Wiedereinstiegs-Komfort (Paket „Ad-hoc: Schreibwerkstatt-Sitzungszustand", Phase 5) auch auf anderen Seiten möglich ist - konkret genannt: die Bibliothek, wo Suchtext/Filter/Sortierung beim Sprung in eine Quelle und zurück bisher verloren gingen.
+
+**Neuer wiederverwendbarer Hook `lib/useSessionState.ts`:** statt den sessionStorage-Lade-/Speicher-Code je Ansicht neu zu schreiben (wie bisher nur in der Schreibwerkstatt und, fuer `columnWidths`, in `RelevanceMatrix.tsx` per localStorage), kapselt `useSessionState<T>(key, defaultValue)` das Muster einmal als Drop-in-Ersatz fuer `useState` - gleiche Rueckgabeform `[value, setValue]`, laedt beim ersten Rendern aus `sessionStorage`, speichert bei jeder Aenderung. Bewusst `sessionStorage` (ueberlebt Routenwechsel, nicht das Schliessen des Tabs), gleiches Prinzip wie der bestehende Schreibwerkstatt-Sitzungszustand.
+
+**Angewendet auf drei Ansichten** (jeweils nur die Filter-/Sortier-/Tab-Felder, nicht Ladezustaende oder Ergebnislisten selbst):
+- **Bibliothek** (`littool:bibliothek:*`): Tab (Bestand/Eingang/Methodentabelle), Suchtext, Typ-/Ranking-/Status-/Funktion-/Themenfeld-Filter, Sortierspalte/-richtung.
+- **Forschungsfragen** (`littool:forschungsfragen:*`): Ansicht (Liste/Matrix), ausgewaehlte Forschungsfrage, Sortierung, Themenfeld-/Ranking-/Studientyp-/Funktion-Filter. Der bestehende Auto-Select-Effekt („erste Forschungsfrage beim Laden auswaehlen") wurde auf `prev ?? rows[0]?.id ?? null` umgestellt, damit er eine bereits wiederhergestellte Auswahl nicht überschreibt.
+- **Suche** (`littool:suche:*`): Tab (Intern/Extern), Suchmodus, Typ-/Ranking-Filter. Der Suchtext selbst bleibt bewusst normaler `useState` (er wird schon ueber den `?q=`-URL-Parameter der Schnellsuche gesteuert - zwei Persistenz-Mechanismen fuer dasselbe Feld haetten sich sonst widersprochen, siehe naechster Abschnitt).
+
+**Bewusst nicht einbezogen:** Deskriptionsmatrix, Evaluationsmatrix, Prüfung, Einstellungen - keine nennenswerten Filter/Sortierung, die einen Wiedereinstiegs-Komfort brauchen.
+
+**Getestet:** TypeScript-Build (`tsc -b`, prüft auch alle Aufrufstellen der generischen Hook-Signatur) und `vite build` fehlerfrei. **Kein Browser-Klick-Test möglich:** Die Login-Sitzung im gemeinsam genutzten Browser war zum Testzeitpunkt abgelaufen (Supabase-Access-Token-Ablauf), ein neuer Login-Vorgang darf laut Richtlinie nicht vom Assistenten durchgeführt werden. Verifiziert stattdessen per Code-Review (Hook-Logik entspricht 1:1 dem bereits produktiv laufenden Schreibwerkstatt-Muster) und durch den strikten TypeScript-Build. Empfehlung: bei Gelegenheit einmal kurz selbst gegentesten (Filter setzen, in eine Quelle springen, zurückgehen, Filter sollten erhalten bleiben).
+
 ## Paket 4 – Eigene Notizen (Confluence-Import) ☐
 
 - Neuer Quellentyp `note`: eigene Notizen mit Titel, Text, optionalen Verknüpfungen zu Quellen/Themenfeldern; im Chat und in der Suche auffindbar, aber ausgeschlossen von Literaturverzeichnis, Matrizen und Rankings (es ist keine zitierfähige Literatur).
