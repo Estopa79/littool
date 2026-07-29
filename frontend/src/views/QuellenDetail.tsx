@@ -911,26 +911,51 @@ export function QuellenDetail() {
         </p>
         <form onSubmit={handleManualSubmit} className="flex flex-col gap-2">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <select value={manualRqId} onChange={(e) => setManualRqId(e.target.value)} className={inputClass}>
-              {researchQuestions.map((rq) => (
-                <option key={rq.id} value={rq.id}>
-                  {rq.code}
-                </option>
-              ))}
-            </select>
-            <input
-              type="number"
-              min={1}
-              placeholder="Seite"
-              value={manualPage}
-              onChange={(e) => setManualPage(e.target.value)}
-              className={inputClass}
-            />
-            <select value={manualRelevance} onChange={(e) => setManualRelevance(e.target.value)} className={inputClass}>
-              <option value="1">Relevanz 1</option>
-              <option value="2">Relevanz 2</option>
-              <option value="3">Relevanz 3</option>
-            </select>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-500 dark:text-slate-400" htmlFor="manual-rq">
+                Forschungsfrage
+              </label>
+              <select
+                id="manual-rq"
+                value={manualRqId}
+                onChange={(e) => setManualRqId(e.target.value)}
+                className={inputClass}
+              >
+                {researchQuestions.map((rq) => (
+                  <option key={rq.id} value={rq.id}>
+                    {rq.code}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-500 dark:text-slate-400" htmlFor="manual-page">
+                Seite
+              </label>
+              <input
+                id="manual-page"
+                type="number"
+                min={1}
+                value={manualPage}
+                onChange={(e) => setManualPage(e.target.value)}
+                className={inputClass}
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-500 dark:text-slate-400" htmlFor="manual-relevance">
+                Relevanz
+              </label>
+              <select
+                id="manual-relevance"
+                value={manualRelevance}
+                onChange={(e) => setManualRelevance(e.target.value)}
+                className={inputClass}
+              >
+                <option value="1">Relevanz 1</option>
+                <option value="2">Relevanz 2</option>
+                <option value="3">Relevanz 3</option>
+              </select>
+            </div>
           </div>
           <textarea
             placeholder="Originaltext (wörtlich)"
