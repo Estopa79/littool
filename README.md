@@ -22,7 +22,7 @@ Siehe `docs/arbeitsplan-phase-1.md` für den aktuellen Stand.
 
 ### Neue Quellen verarbeiten
 
-`extract-doi`, `extract-fulltext` und `chunk` brauchen PyMuPDF/OCR und laufen deshalb lokal (nicht als Edge Function) - per Doppelklick auf `scripts/verarbeitung.bat` im Datei-Explorer (führt alle drei nacheinander aus, Fenster bleibt am Ende offen). Danach in der Bibliothek auf "Verarbeitung fortsetzen" klicken - Metadaten-Anreicherung, Ranking-Matching, Duplikat-Prüfung und Embeddings laufen ab da server-seitig.
+`extract-doi`, `extract-fulltext` und `chunk` brauchen PyMuPDF/OCR und laufen deshalb lokal (nicht als Edge Function) - per Doppelklick auf `scripts/verarbeitung.bat` im Datei-Explorer. Installationsanleitung und Fehlerbehebung: [scripts/README.md](./scripts/README.md). Danach in der Bibliothek auf "Verarbeitung fortsetzen" klicken - Metadaten-Anreicherung, Ranking-Matching, Duplikat-Prüfung und Embeddings laufen ab da server-seitig.
 
 ### Migrationen anwenden
 
