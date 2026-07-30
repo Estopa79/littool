@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type MouseEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { UploadPanel } from '../components/UploadPanel'
 import { EingangTab } from '../components/EingangTab'
@@ -14,6 +14,7 @@ import { fetchAllSourceTopics, fetchAllTopics, fetchReviewCounts, type TopicOpti
 import { generateTopicRelevance } from '../lib/topicRelevance'
 import { buildBibtexFile, downloadBibtex, fetchAllSourcesForBibtex } from '../lib/bibtex'
 import { useSessionState } from '../lib/useSessionState'
+import { runIngestPipelineStep, type IngestPipelineResult } from '../lib/ingestPipeline'
 
 type SortKey = 'author_year' | 'title' | 'venue' | 'ranking' | 'status'
 type SortDir = 'asc' | 'desc'
@@ -83,6 +84,11 @@ export function Bibliothek() {
   const [deleteTarget, setDeleteTarget] = useState<Source | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [ingestRunning, setIngestRunning] = useState(false)
+  const [ingestError, setIngestError] = useState<string | null>(null)
+  const [ingestSummary, setIngestSummary] = useState<IngestPipelineResult | null>(null)
+  const [ingestEmbeddedTotal, setIngestEmbeddedTotal] = useState(0)
+  const ingestActiveRef = useRef(true)
 
   useEffect(() => {
     fetchWorkFunctions().then(setWorkFunctions)
@@ -149,6 +155,52 @@ export function Bibliothek() {
   useEffect(() => {
     load()
   }, [])
+
+  useEffect(() => {
+    // Effect-Body setzt den Ref explizit auf true (nicht nur der useRef-Startwert!) -
+    // Reacts StrictMode-Dev-Doppelinvoke (mount -> cleanup -> erneutes mount)
+    // wuerde sonst den Ref dauerhaft auf false stehen lassen, obwohl die
+    // Komponente tatsaechlich gemountet bleibt, und den finally-Block in
+    // handleRunIngestPipeline (State-Update nur "wenn noch aktiv") fuer immer blockieren.
+    ingestActiveRef.current = true
+    return () => {
+      ingestActiveRef.current = false
+    }
+  }, [])
+
+  // Voyage-Rate-Limit-Pacing wie im lokalen Worker (embeddings.py::MIN_SECONDS_BETWEEN_REQUESTS) -
+  // ein Aufruf = ein Embedding-Batch, bei verbleibenden Chunks wird nach
+  // Wartezeit erneut aufgerufen. Laeuft nur, solange die Seite offen ist -
+  // beim Verlassen bricht die Schleife sauber ab (kein State-Update auf
+  // unmounted Component), ein erneuter Klick spaeter setzt einfach dort fort,
+  // wo embedding IS NULL noch zutrifft (idempotent, kein Doppel-Aufwand).
+  const EMBED_PACE_MS = 21_000
+
+  async function handleRunIngestPipeline() {
+    setIngestRunning(true)
+    setIngestError(null)
+    setIngestSummary(null)
+    setIngestEmbeddedTotal(0)
+    let remaining = Infinity
+    try {
+      while (remaining > 0) {
+        const result = await runIngestPipelineStep()
+        if (!ingestActiveRef.current) return
+        setIngestSummary(result)
+        setIngestEmbeddedTotal((prev) => prev + result.embed.eingebettet)
+        remaining = result.embed.remaining
+        if (remaining > 0) {
+          await new Promise((resolve) => setTimeout(resolve, EMBED_PACE_MS))
+          if (!ingestActiveRef.current) return
+        }
+      }
+      load()
+    } catch (err) {
+      if (ingestActiveRef.current) setIngestError((err as Error).message)
+    } finally {
+      if (ingestActiveRef.current) setIngestRunning(false)
+    }
+  }
 
   async function handleExportBibtex() {
     setExportingBibtex(true)
@@ -342,14 +394,52 @@ export function Bibliothek() {
       )}
 
       {processingCount > 0 && (
-        <button
-          type="button"
-          onClick={() => setFilterStatus('processing')}
-          title="Die Verarbeitung (DOI, Metadaten, Volltext, Embeddings) läuft nicht automatisch im Hintergrund, sondern in manuell gestarteten Worker-Läufen - das kann je nachdem, wann der Autor den nächsten Lauf startet, eine Weile dauern. Kein Fehler, solange hier kein Extraktionsfehler steht."
-          className="mb-4 mr-2 rounded-md border border-slate-300 bg-slate-50 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-        >
-          ⏳ {processingCount} in Verarbeitung – wartet auf nächsten Worker-Lauf, kein Fehler
-        </button>
+        <div className="mb-4 rounded-md border border-slate-300 bg-slate-50 p-3 text-sm dark:border-slate-700 dark:bg-slate-800">
+          <button
+            type="button"
+            onClick={() => setFilterStatus('processing')}
+            className="font-medium text-slate-700 hover:underline dark:text-slate-300"
+          >
+            ⏳ {processingCount} in Verarbeitung – kein Fehler
+          </button>
+          <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
+            Neue Quellen brauchen zuerst einen lokalen Schritt (PDF-Text, OCR-Fallback bei Scans) - danach
+            übernimmt der Button hier den Rest automatisch:
+          </p>
+          <ol className="mt-1 list-decimal space-y-0.5 pl-5 text-xs text-slate-600 dark:text-slate-400">
+            <li>
+              Lokal ausführen (einmalig pro neuer Quelle):{' '}
+              <code className="rounded bg-slate-200 px-1 py-0.5 dark:bg-slate-700">littool-worker extract-doi</code>
+              {', dann '}
+              <code className="rounded bg-slate-200 px-1 py-0.5 dark:bg-slate-700">
+                littool-worker extract-fulltext
+              </code>
+              {', dann '}
+              <code className="rounded bg-slate-200 px-1 py-0.5 dark:bg-slate-700">littool-worker chunk</code>
+            </li>
+            <li>Danach hier klicken - Metadaten, Ranking, Duplikat-Prüfung und Embeddings laufen automatisch.</li>
+          </ol>
+          <button
+            type="button"
+            onClick={handleRunIngestPipeline}
+            disabled={ingestRunning}
+            className="mt-3 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            {ingestRunning ? '⏳ Läuft …' : '▶ Verarbeitung fortsetzen'}
+          </button>
+          {ingestError && <p className="mt-2 text-xs text-red-600 dark:text-red-400">Fehler: {ingestError}</p>}
+          {ingestSummary && (
+            <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
+              Metadaten: {ingestSummary.enrich.complete} vollständig, {ingestSummary.enrich.needs_review} zu prüfen
+              {ingestSummary.enrich.fehler > 0 ? `, ${ingestSummary.enrich.fehler} Fehler` : ''}. Ranking:{' '}
+              {ingestSummary.ranking.gefunden} gefunden. Duplikate geprüft: {ingestSummary.duplicates.geprueft} (
+              {ingestSummary.duplicates.dubletten_markiert} markiert). Embeddings: {ingestEmbeddedTotal} eingebettet
+              {ingestSummary.embed.remaining > 0
+                ? `, ${ingestSummary.embed.remaining} verbleiben (läuft weiter) …`
+                : ' (fertig).'}
+            </p>
+          )}
+        </div>
       )}
 
       {needsReviewCount > 0 && (
