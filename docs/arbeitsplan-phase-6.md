@@ -233,6 +233,18 @@ Anlass: Rückfrage des Autors, ob der manuelle Worker-Lauf ("in Verarbeitung" h�
 
 **Getestet, live gegen die echte Produktions-DB:** Testabschnitt (Chunk ohne Embedding) angelegt, per Button eingebettet, Vektor mit 1024 Dimensionen verifiziert, wieder gelöscht. Testquelle mit `status='processing'` angelegt, um den Banner/Button überhaupt sichtbar zu machen (0 Sources waren zum Testzeitpunkt "in Verarbeitung"), Klick-Flow Ende-zu-Ende durchgespielt (inkl. des oben beschriebenen Bugs, danach mit Fix erneut bestätigt), Testquelle wieder gelöscht. Ranking-Match und Duplikat-Erkennung liefen dabei am echten Bestand (91-92 Quellen) mit - Ergebnisse stichprobenartig gegen die CSV-Daten bzw. gegen bereits bekannte Dubletten-Flags verifiziert, keine Abweichung gefunden. TypeScript-Build/`vite build` fehlerfrei.
 
+### Ad-hoc: Lokaler Verarbeitungsschritt als Doppelklick-Script (2026-07-30)
+
+Anlass: Rückfrage des Autors, ob sich der verbleibende manuelle Schritt (`extract-doi`, `extract-fulltext`, `chunk`) in ein Skript packen lässt, das per Knopfdruck aus dem Datei-Explorer läuft.
+
+**`scripts/verarbeitung.bat`:** Windows-Batch-Datei (gleiche Sammelstelle wie `scripts/backup.sh`), wechselt relativ zum eigenen Speicherort ins `worker/`-Verzeichnis, prüft ob `worker/.venv` existiert (sonst Hinweis auf README-Setup statt kryptischem Fehler), führt `extract-doi` → `extract-fulltext` → `chunk` nacheinander aus (bricht bei einem Fehlschlag mit sichtbarer Meldung ab), hält das Fenster am Ende offen (`pause`), damit die Ausgabe beim Doppelklick lesbar bleibt.
+
+**Voraussetzungen lokal** (auf diesem Rechner bereits vorhanden, geprüft): Python-venv unter `worker/.venv` (`cd worker && python -m venv .venv && ./.venv/Scripts/pip install -e .`), `.env` im Repo-Root mit `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY`, für den OCR-Fallback zusätzlich Tesseract OCR + Ghostscript systemweit sowie deutsches Sprachpaket in `worker/.tessdata/` (alles bereits in README.md, Abschnitt „Setup", dokumentiert - hier nur verlinkt, nicht dupliziert).
+
+**Bibliothek.tsx + README.md aktualisiert:** Die Anleitung in der Bibliothek verweist jetzt auf das Skript statt auf die drei Einzelbefehle; README bekam einen neuen Abschnitt „Neue Quellen verarbeiten" mit demselben Hinweis.
+
+**Getestet:** Skript real ausgeführt (nicht nur gegengelesen) - verarbeitete dabei tatsächlich 7 wartende Quellen aus einem echten Backlog (u. a. die zuvor als Dubletten markierten), erzeugte 888 Chunks, keine Fehler. Per SQL verifiziert (frische `chunks.created_at`-Zeitstempel für genau diese 7 Quellen). TypeScript-Build/`vite build` fehlerfrei.
+
 ## Paket 4 – Eigene Notizen (Confluence-Import) ☐
 
 - Neuer Quellentyp `note`: eigene Notizen mit Titel, Text, optionalen Verknüpfungen zu Quellen/Themenfeldern; im Chat und in der Suche auffindbar, aber ausgeschlossen von Literaturverzeichnis, Matrizen und Rankings (es ist keine zitierfähige Literatur).

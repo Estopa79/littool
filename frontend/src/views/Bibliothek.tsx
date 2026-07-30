@@ -409,13 +409,8 @@ export function Bibliothek() {
           <ol className="mt-1 list-decimal space-y-0.5 pl-5 text-xs text-slate-600 dark:text-slate-400">
             <li>
               Lokal ausführen (einmalig pro neuer Quelle):{' '}
-              <code className="rounded bg-slate-200 px-1 py-0.5 dark:bg-slate-700">littool-worker extract-doi</code>
-              {', dann '}
-              <code className="rounded bg-slate-200 px-1 py-0.5 dark:bg-slate-700">
-                littool-worker extract-fulltext
-              </code>
-              {', dann '}
-              <code className="rounded bg-slate-200 px-1 py-0.5 dark:bg-slate-700">littool-worker chunk</code>
+              <code className="rounded bg-slate-200 px-1 py-0.5 dark:bg-slate-700">scripts\verarbeitung.bat</code>{' '}
+              per Doppelklick im Datei-Explorer (führt extract-doi, extract-fulltext und chunk nacheinander aus).
             </li>
             <li>Danach hier klicken - Metadaten, Ranking, Duplikat-Prüfung und Embeddings laufen automatisch.</li>
           </ol>

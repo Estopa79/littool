@@ -20,6 +20,10 @@ Siehe `docs/arbeitsplan-phase-1.md` für den aktuellen Stand.
 3. Worker: `cd worker && python -m venv .venv && ./.venv/Scripts/pip install -e .`
 4. Für OCR-Fallback (Volltextextraktion): Tesseract OCR + Ghostscript systemweit installieren (Windows: `winget install --id UB-Mannheim.TesseractOCR`, Ghostscript-Installer von [github.com/ArtifexSoftware/ghostpdl-downloads/releases](https://github.com/ArtifexSoftware/ghostpdl-downloads/releases)). Deutsches Sprachpaket (`deu.traineddata` aus [tessdata_fast](https://github.com/tesseract-ocr/tessdata_fast)) sowie `configs`/`tessconfigs` aus der Tesseract-Installation nach `worker/.tessdata/` kopieren (gitignored, da `Program Files` ohne Adminrechte nicht beschreibbar ist).
 
+### Neue Quellen verarbeiten
+
+`extract-doi`, `extract-fulltext` und `chunk` brauchen PyMuPDF/OCR und laufen deshalb lokal (nicht als Edge Function) - per Doppelklick auf `scripts/verarbeitung.bat` im Datei-Explorer (führt alle drei nacheinander aus, Fenster bleibt am Ende offen). Danach in der Bibliothek auf "Verarbeitung fortsetzen" klicken - Metadaten-Anreicherung, Ranking-Matching, Duplikat-Prüfung und Embeddings laufen ab da server-seitig.
+
 ### Migrationen anwenden
 
 Es wird direkt gegen das Supabase-Cloud-Projekt entwickelt (kein lokaler Docker-Stack). Neue Dateien unter `supabase/migrations/` werden manuell im Supabase-Dashboard unter **SQL Editor** ausgeführt, in aufsteigender Reihenfolge der Nummerierung.
